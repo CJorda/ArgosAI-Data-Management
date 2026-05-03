@@ -1,0 +1,5 @@
+@reference "tailwindcss";
+
+  .alerts-page {
+    @apply grid gap-4;
+  }

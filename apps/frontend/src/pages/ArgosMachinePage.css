@@ -1,0 +1,463 @@
+@reference "tailwindcss";
+
+.machine-argos-page {
+  @apply grid gap-4;
+}
+
+.machine-argos-intro {
+  @apply mt-1 mb-0 text-[#4a5f7e];
+}
+
+.machine-argos-summary-grid {
+  @apply mt-4 grid gap-3;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.machine-argos-stat {
+  @apply rounded-xl border border-[#d5deec] bg-[#f7faff] px-3 py-2.5;
+}
+
+.machine-argos-stat span {
+  @apply block text-[0.8rem] uppercase tracking-[0.06em] text-[#546985];
+}
+
+.machine-argos-stat strong {
+  @apply mt-1 block text-[1.04rem] text-[#122846];
+}
+
+.machine-argos-camera-panel {
+  @apply border-[#d6e2f1] bg-[#fbfdff];
+}
+
+.machine-argos-camera-header {
+  @apply mb-3 flex flex-wrap items-start justify-between gap-3;
+}
+
+.machine-argos-camera-header h3 {
+  @apply mb-1;
+}
+
+.machine-argos-camera-header p {
+  @apply m-0 text-[0.9rem] text-[#546985];
+}
+
+.machine-argos-instance-selector {
+  @apply mt-2 flex flex-wrap items-center gap-2;
+}
+
+.machine-argos-instance-chip {
+  @apply rounded-lg border border-[#b7cbe4] bg-white px-3 py-1.5 text-[0.82rem] font-semibold text-[#32567f] transition;
+}
+
+.machine-argos-instance-chip:hover {
+  @apply border-[#8fb0d6] bg-[#f4f9ff];
+}
+
+.machine-argos-instance-chip-active {
+  @apply border-[#6ea7df] bg-[#e7f1ff] text-[#174c82];
+}
+
+.machine-argos-camera-actions {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.secondary-button {
+  @apply rounded-lg border border-[#adc4df] bg-white px-3 py-2 text-[0.88rem] font-medium text-[#274c79] transition;
+}
+
+.secondary-button:hover {
+  @apply border-[#8eb0d6] bg-[#f5f9ff];
+}
+
+.secondary-button-active {
+  @apply border-[#79b4ee] bg-[#eaf4ff] text-[#1f4f84];
+}
+
+.machine-argos-camera-grid {
+  @apply grid gap-3;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+}
+
+.machine-argos-stream-panel,
+.machine-argos-frame-panel {
+  @apply rounded-xl border border-[#d7e2ef] bg-white p-3;
+}
+
+.machine-argos-stream-panel h4,
+.machine-argos-frame-panel h4 {
+  @apply mt-0 mb-2 text-[#203b61];
+}
+
+.machine-argos-stream-frame,
+.machine-argos-selected-frame {
+  @apply rounded-xl border border-[#d8dfd1] bg-[#0f243b] p-1;
+}
+
+.machine-argos-stream-frame img,
+.machine-argos-selected-frame img {
+  @apply w-full rounded-lg;
+}
+
+.machine-argos-session-meta {
+  @apply mt-3 grid gap-1;
+}
+
+.machine-argos-session-meta p,
+.machine-argos-frame-meta p {
+  @apply m-0 text-[0.9rem] text-[#3f5574];
+}
+
+.machine-argos-frame-meta {
+  @apply mt-3 grid gap-1;
+}
+
+.machine-argos-gui-panel {
+  @apply border-[#cdd8e7] bg-[#f9fbff];
+}
+
+.machine-argos-gui-header {
+  @apply mb-3;
+}
+
+.machine-argos-gui-header h3 {
+  @apply mt-0 mb-1 text-[#19375f];
+}
+
+.machine-argos-gui-header p {
+  @apply m-0 text-[0.9rem] text-[#536783];
+}
+
+.machine-gui-screen {
+  @apply overflow-hidden rounded-2xl border border-[#0f1a2e] bg-[#ebeada] shadow-[0_10px_24px_rgba(9,21,40,0.18)];
+  min-height: min(82vh, 860px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+}
+
+.machine-gui-topbar {
+  @apply grid items-center border-b border-[#9ea18f] bg-[#ddd9c2] px-3 py-2;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.5rem;
+}
+
+.machine-gui-brand {
+  @apply flex items-center gap-2 text-[1.18rem] font-bold tracking-[0.06em] text-[#132746];
+}
+
+.machine-gui-brand-dot {
+  @apply inline-block h-5 w-5 rounded-full;
+  background: radial-gradient(circle at 35% 35%, #c8f4ff 0%, #4ba8d8 40%, #175083 100%);
+  box-shadow: inset 0 0 0 1px rgba(16, 46, 84, 0.55);
+}
+
+.machine-gui-pill-row {
+  @apply grid w-full gap-0 px-1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.machine-gui-pill-row span {
+  @apply flex items-center justify-center border border-[#b5baaa] bg-[#dedac3] px-2 py-2.5 text-center font-semibold text-[#243f5f];
+  min-height: 62px;
+  font-size: clamp(0.92rem, 0.95vw, 1.08rem);
+}
+
+.machine-gui-clock-grid {
+  @apply grid gap-0.5 rounded-sm border border-[#a6ab9b] bg-[#e8e5d0] px-2 py-1;
+}
+
+.machine-gui-clock-grid p {
+  @apply m-0 text-[0.78rem] text-[#1f3553];
+}
+
+.machine-gui-main {
+  @apply grid border-b border-[#b7baa7];
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.machine-gui-table-wrap {
+  @apply border-r border-[#b7baa7];
+  min-height: 0;
+}
+
+.machine-gui-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  height: 100%;
+}
+
+.machine-gui-table th,
+.machine-gui-table td {
+  @apply border border-[#959b8d] px-3 py-2 text-center font-semibold text-[#132746];
+  font-size: clamp(1.02rem, 1.15vw, 1.38rem);
+}
+
+.machine-gui-table thead th {
+  @apply bg-[#ece8cf] font-semibold;
+}
+
+.machine-gui-table tbody th {
+  @apply bg-[#f4f1dd] text-left font-semibold;
+}
+
+.machine-gui-preview-panel {
+  @apply relative bg-[#10253f] p-1;
+  min-height: 0;
+}
+
+.machine-gui-preview-panel img {
+  @apply h-full w-full object-cover;
+}
+
+.machine-gui-histogram-preview {
+  @apply grid h-full w-full border border-[#8ea4c3] bg-[#f8f5e4] p-1;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.machine-gui-histogram-preview h4 {
+  @apply m-0 px-2 pb-1 pt-0 text-[0.84rem] font-semibold uppercase tracking-[0.05em] text-[#2c4f77];
+}
+
+.machine-gui-histogram-chart {
+  min-height: 0;
+}
+
+.machine-gui-preview-chip {
+  @apply absolute right-3 top-3 rounded-sm border px-2 py-0.5 text-[0.72rem] font-semibold;
+}
+
+.machine-gui-preview-chip-ok {
+  @apply border-[#7dd7a7] bg-[#daf6e6] text-[#1f6a4c];
+}
+
+.machine-gui-preview-chip-stop {
+  @apply border-[#ed9da4] bg-[#fde7ea] text-[#9d3243];
+}
+
+.machine-gui-rate-text {
+  @apply m-0 border-b border-[#b7baa7] px-3 py-2 text-center font-semibold text-[#1e4f9a];
+  font-size: clamp(1.6rem, 2.2vw, 2.5rem);
+}
+
+.machine-gui-controls {
+  @apply grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.machine-gui-control {
+  @apply border-r border-[#b5baaa] bg-[#dedac3] px-2 py-2.5 font-semibold text-[#243f5f] transition;
+  min-height: 62px;
+  font-size: clamp(0.92rem, 0.95vw, 1.08rem);
+}
+
+.machine-gui-control:last-child {
+  @apply border-r-0;
+}
+
+.machine-gui-control:hover {
+  @apply bg-[#d5d1bb];
+}
+
+.machine-gui-control-run {
+  @apply bg-[#2a9a1d] text-white;
+}
+
+.machine-gui-control-run.machine-gui-control-run-active {
+  @apply bg-[#239116] text-white;
+}
+
+.machine-gui-control-stop {
+  @apply bg-[#e5e0c9] text-[#4e3a3a];
+}
+
+.machine-gui-control-stats {
+  @apply bg-[#e5e0c9] text-[#35567f];
+}
+
+.machine-gui-control-stats-active {
+  @apply bg-[#d8ebff] text-[#1b4f86];
+}
+
+.machine-gui-control-reset {
+  @apply bg-[#e7f2eb] text-[#226145];
+}
+
+.machine-gui-screen:fullscreen,
+.machine-gui-screen:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.machine-gui-screen:fullscreen .machine-gui-topbar,
+.machine-gui-screen:-webkit-full-screen .machine-gui-topbar {
+  @apply px-5 py-3;
+  gap: 0.9rem;
+}
+
+.machine-gui-screen:fullscreen .machine-gui-brand,
+.machine-gui-screen:-webkit-full-screen .machine-gui-brand {
+  font-size: clamp(1.5rem, 2.1vw, 2.2rem);
+}
+
+.machine-gui-screen:fullscreen .machine-gui-pill-row span,
+.machine-gui-screen:-webkit-full-screen .machine-gui-pill-row span {
+  @apply px-3 py-3;
+  min-height: 88px;
+  font-size: clamp(1.04rem, 1.45vw, 1.58rem);
+}
+
+.machine-gui-screen:fullscreen .machine-gui-clock-grid p,
+.machine-gui-screen:-webkit-full-screen .machine-gui-clock-grid p {
+  font-size: clamp(0.84rem, 1.02vw, 1.12rem);
+}
+
+.machine-gui-screen:fullscreen .machine-gui-table th,
+.machine-gui-screen:fullscreen .machine-gui-table td,
+.machine-gui-screen:-webkit-full-screen .machine-gui-table th,
+.machine-gui-screen:-webkit-full-screen .machine-gui-table td {
+  @apply px-4 py-3;
+  font-size: clamp(1.3rem, 2.05vw, 2.25rem);
+}
+
+.machine-gui-screen:fullscreen .machine-gui-rate-text,
+.machine-gui-screen:-webkit-full-screen .machine-gui-rate-text {
+  @apply py-3;
+  font-size: clamp(2rem, 3.4vw, 4rem);
+}
+
+.machine-gui-screen:fullscreen .machine-gui-controls,
+.machine-gui-screen:-webkit-full-screen .machine-gui-controls {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.machine-gui-screen:fullscreen .machine-gui-control,
+.machine-gui-screen:-webkit-full-screen .machine-gui-control {
+  @apply px-3 py-3;
+  min-height: 88px;
+  font-size: clamp(1.04rem, 1.45vw, 1.58rem);
+}
+
+.machine-gui-screen:fullscreen .machine-gui-histogram-preview h4,
+.machine-gui-screen:-webkit-full-screen .machine-gui-histogram-preview h4 {
+  font-size: clamp(0.94rem, 1.12vw, 1.24rem);
+}
+
+.machine-argos-gallery-panel > p {
+  @apply mt-0 mb-3 text-[#536783];
+}
+
+.machine-argos-gallery-grid {
+  @apply grid gap-2;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.machine-argos-thumb {
+  @apply grid gap-1 rounded-lg border border-[#cfdceb] bg-white p-1.5 text-left transition;
+}
+
+.machine-argos-thumb:hover {
+  @apply -translate-y-px border-[#90b4de];
+}
+
+.machine-argos-thumb-active {
+  @apply border-[#67b5ff] ring-2 ring-[#67b5ff]/25;
+}
+
+.machine-argos-thumb img {
+  @apply w-full rounded-md;
+}
+
+.machine-argos-thumb span {
+  @apply text-[0.78rem] font-semibold text-[#203b61];
+}
+
+.machine-argos-thumb small {
+  @apply text-[0.75rem] text-[#5b7090];
+}
+
+@media (max-width: 1180px) {
+  .machine-argos-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .machine-argos-camera-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .machine-argos-gallery-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .machine-gui-topbar {
+    grid-template-columns: minmax(0, 1fr);
+    @apply justify-items-start gap-2;
+  }
+
+  .machine-gui-pill-row {
+    @apply px-0;
+  }
+
+  .machine-gui-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .machine-gui-table-wrap {
+    @apply border-r-0;
+  }
+
+  .machine-gui-preview-panel {
+    @apply border-t border-[#b7baa7];
+    min-height: 210px;
+  }
+}
+
+@media (max-width: 680px) {
+  .machine-argos-summary-grid,
+  .machine-argos-gallery-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .machine-argos-camera-actions {
+    @apply w-full;
+  }
+
+  .machine-gui-pill-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .machine-gui-pill-row span {
+    min-height: 62px;
+    font-size: 0.84rem;
+  }
+
+  .machine-gui-table th,
+  .machine-gui-table td {
+    @apply px-2 py-1.5;
+    font-size: 0.9rem;
+  }
+
+  .machine-gui-rate-text {
+    font-size: 1.2rem;
+  }
+
+  .machine-gui-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .machine-gui-control {
+    @apply border-b border-[#b5baaa] text-[0.84rem];
+  }
+
+  .machine-gui-control:nth-child(2n) {
+    @apply border-r-0;
+  }
+
+  .machine-gui-histogram-preview h4 {
+    @apply text-[0.78rem];
+  }
+}

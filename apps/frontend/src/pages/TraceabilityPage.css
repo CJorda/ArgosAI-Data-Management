@@ -1,0 +1,57 @@
+@reference "tailwindcss";
+
+.traceability-page {
+  @apply grid gap-4;
+}
+
+.trace-demo-note {
+  @apply mt-2 rounded-lg border border-[#bfd3ef] bg-[#f2f7ff] px-3 py-2 text-[0.86rem] text-[#315d96];
+}
+
+.trace-summary {
+  @apply mt-4 flex flex-wrap gap-4 text-[0.92rem] text-[#4d6079];
+}
+
+.trace-lot-toolbar {
+  @apply items-end;
+}
+
+.trace-search-input {
+  @apply rounded-[10px] border border-[#d8dfd1] bg-white px-3 py-2;
+}
+
+.trace-lot-kpi-grid {
+  @apply mt-4 grid grid-cols-4 gap-3;
+}
+
+.trace-lot-kpi-card {
+  @apply rounded-xl border border-[#dce8f7] bg-[#f8fbff] px-3 py-2;
+}
+
+.trace-lot-kpi-card span {
+  @apply block text-[0.78rem] text-[#5a6f8d];
+}
+
+.trace-lot-kpi-card strong {
+  @apply mt-1 block text-[1.02rem] text-[#1f3d63];
+}
+
+.trace-grid {
+  @apply grid grid-cols-2 gap-4;
+}
+
+@media (max-width: 1100px) {
+  .trace-grid {
+    @apply grid-cols-1;
+  }
+
+  .trace-lot-kpi-grid {
+    @apply grid-cols-2;
+  }
+}
+
+@media (max-width: 680px) {
+  .trace-lot-kpi-grid {
+    @apply grid-cols-1;
+  }
+}

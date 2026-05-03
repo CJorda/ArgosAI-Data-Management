@@ -1,0 +1,105 @@
+@reference "tailwindcss";
+
+.plc-setpoints-page {
+  @apply grid gap-4;
+}
+
+.plc-setpoints-panel {
+  @apply border-[#d6dfec] bg-[#fbfdff] text-[#1f3556];
+}
+
+.plc-setpoints-header h3 {
+  @apply mt-0 mb-1 text-[#203b60];
+}
+
+.plc-setpoints-header p {
+  @apply mt-0 mb-0 text-[0.92rem] text-[#4f6180];
+}
+
+.plc-setpoints-note {
+  @apply mt-3 mb-3 rounded-lg border border-[#bdd3ef] bg-[#eef5ff] px-3 py-2 text-[0.84rem] text-[#2d5688];
+}
+
+.plc-zone-grid {
+  @apply mt-2 grid gap-3;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.plc-zone-card {
+  @apply rounded-xl border border-[#d3deec] bg-[#f7faff] p-3;
+}
+
+.plc-zone-card h4 {
+  @apply mt-0 mb-2 text-center text-[1.22rem] font-semibold uppercase tracking-[0.03em] text-[#2a4669];
+}
+
+.plc-zone-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.plc-zone-table th,
+.plc-zone-table td {
+  @apply border-b border-[#d1deed] px-1 py-1 text-center text-[0.92rem] text-[#1f3556];
+}
+
+.plc-zone-table th {
+  @apply font-semibold text-[#35577e];
+}
+
+.plc-zone-table td:first-child,
+.plc-zone-table th:first-child {
+  @apply w-[3.2rem] text-left;
+}
+
+.plc-zone-table tbody tr:last-child td {
+  @apply border-b-0;
+}
+
+.plc-legend-card {
+  @apply mt-4 rounded-xl border border-[#d3deec] bg-[#f7faff] p-3;
+}
+
+.plc-legend-card h4 {
+  @apply mt-0 mb-2 text-[1.05rem] text-[#2a4669];
+}
+
+.plc-legend-list {
+  @apply grid gap-2;
+}
+
+.plc-legend-list p {
+  @apply m-0 flex items-center gap-3 text-[0.95rem] font-semibold text-[#2a4669];
+}
+
+.plc-color-swatch {
+  @apply inline-block h-7 w-24 rounded-sm border;
+}
+
+.plc-color-critical {
+  @apply border-[#c56471] bg-[#ef8087];
+}
+
+.plc-color-warning {
+  @apply border-[#d2b955] bg-[#f3dd57];
+}
+
+.plc-color-normal {
+  @apply border-[#5ca179] bg-[#79dc9a];
+}
+
+.plc-color-high {
+  @apply border-[#8f61b8] bg-[#b377eb];
+}
+
+@media (max-width: 1380px) {
+  .plc-zone-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .plc-zone-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

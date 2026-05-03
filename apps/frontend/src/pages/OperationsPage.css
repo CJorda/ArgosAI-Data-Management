@@ -1,0 +1,74 @@
+@reference "tailwindcss";
+
+.operations-page {
+  @apply grid grid-cols-2 gap-4;
+}
+
+.operations-feeding-panel {
+  grid-column: 1 / -1;
+}
+
+.operations-feeding-note {
+  @apply mt-1 mb-3 text-[0.84rem] text-[#536b90];
+}
+
+.operations-feeding-toolbar {
+  @apply mb-3 flex flex-wrap items-center gap-2;
+}
+
+.operations-feeding-toolbar label {
+  @apply text-[0.86rem] font-medium text-[#35577e];
+}
+
+.operations-feeding-toolbar input[type="date"] {
+  @apply rounded-md border border-[#bfd0e6] bg-white px-2 py-1 text-[#264465];
+}
+
+.operations-pdf-button {
+  @apply rounded-md border border-[#0f4f95] bg-[#edf5ff] px-3 py-2 text-[0.85rem] font-semibold text-[#0f4f95] transition-colors;
+}
+
+.operations-pdf-button:hover {
+  @apply bg-[#dceeff];
+}
+
+.operations-pdf-button:disabled {
+  @apply cursor-not-allowed border-[#98b5d8] bg-[#f2f6fb] text-[#7f95af];
+}
+
+.operations-feeding-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.operations-feeding-table th,
+.operations-feeding-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.operations-feeding-input {
+  @apply w-full rounded-md border border-[#bfd0e6] bg-white px-2 py-1 text-[#1f3556] outline-none;
+}
+
+.operations-feeding-input:focus {
+  @apply border-[#8eb0d6];
+}
+
+.operations-demo-note {
+  @apply mt-1 mb-3 rounded-lg border border-[#bcd2f2] bg-[#f1f6ff] px-3 py-2 text-[0.84rem] text-[#315d96];
+}
+
+.operations-table-empty {
+  @apply py-4 text-center text-[#5b6d89];
+}
+
+@media (max-width: 900px) {
+  .operations-page {
+    @apply grid-cols-1;
+  }
+
+  .operations-feeding-panel {
+    grid-column: auto;
+  }
+}

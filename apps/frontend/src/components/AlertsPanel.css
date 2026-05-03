@@ -1,0 +1,50 @@
+@reference "tailwindcss";
+
+.alerts-panel {
+  @apply pointer-events-none fixed right-0 top-0 z-[45] flex h-screen w-[min(360px,92vw)] min-w-0 translate-x-full flex-col border-l border-l-[#d8dfd1] p-4 shadow-[-14px_0_34px_rgba(11,23,36,0.23)] transition-transform duration-300;
+  background: linear-gradient(180deg, #f4f8f0, #f9fbf6);
+}
+
+.alerts-panel-open {
+  @apply pointer-events-auto translate-x-0;
+}
+
+.panel-header {
+  @apply flex items-center justify-between;
+}
+
+.panel-header-actions {
+  @apply flex items-center gap-2;
+}
+
+.panel-header span {
+  @apply inline-grid h-[26px] min-w-[26px] place-items-center rounded-full bg-[#e4ecdf] font-bold;
+}
+
+.alerts-close-button {
+  @apply inline-grid h-7 w-7 place-items-center rounded-full border border-[#c8d2c1] bg-white text-[#304033] transition hover:bg-[#f1f6ec];
+}
+
+.panel-list {
+  @apply mt-3 grid gap-2 overflow-auto;
+  max-height: calc(100vh - 82px);
+}
+
+.alert-card {
+  @apply grid gap-2 rounded-[10px] border border-[#dbe5d5] border-l-4 border-l-[#be2f29] bg-white p-2.5;
+}
+
+.alert-main p,
+.alert-main small {
+  @apply m-0;
+}
+
+.alert-main small {
+  @apply text-[#4c5b52];
+}
+
+@media (max-width: 1280px) {
+  .alerts-panel {
+    @apply w-[min(360px,96vw)];
+  }
+}

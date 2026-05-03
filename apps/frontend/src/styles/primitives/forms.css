@@ -1,0 +1,20 @@
+@reference "tailwindcss";
+
+  .filters-inline {
+    @apply flex flex-wrap items-end gap-4;
+  }
+
+  .filters-inline > div {
+    @apply grid gap-1;
+  }
+
+  .stack-form {
+    @apply grid gap-2;
+  }
+
+  .stack-form input,
+  .stack-form select,
+  .stack-form textarea,
+  .filters-inline select {
+    @apply rounded-[10px] border border-[#d8dfd1] bg-white px-3 py-2;
+  }

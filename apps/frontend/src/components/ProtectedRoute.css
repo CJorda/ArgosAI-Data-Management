@@ -1,0 +1,5 @@
+@reference "tailwindcss";
+
+  .protected-route-state {
+    @apply grid min-h-screen place-items-center text-[1.1rem];
+  }

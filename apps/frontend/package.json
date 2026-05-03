@@ -1,0 +1,32 @@
+{
+  "name": "argosai-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "node -e \"console.log('No lint configured yet')\""
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.100.6",
+    "axios": "^1.15.2",
+    "date-fns": "^4.1.0",
+    "echarts": "^6.0.0",
+    "echarts-for-react": "^3.0.6",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router-dom": "^7.14.2",
+    "socket.io-client": "^4.8.3",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.2.4",
+    "@vitejs/plugin-react": "^6.0.1",
+    "tailwindcss": "4.2.4",
+    "vite": "^8.0.10"
+  }
+}

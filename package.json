@@ -1,0 +1,20 @@
+{
+  "name": "argosai-piscifactoria",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:backend": "pnpm --filter argosai-backend run dev",
+    "dev:frontend": "pnpm --filter argosai-frontend run dev",
+    "dev": "concurrently \"pnpm run dev:frontend\" \"pnpm run dev:backend\"",
+    "setup": "pnpm --filter argosai-backend run setup",
+    "build": "pnpm --filter argosai-frontend run build && pnpm --filter argosai-backend run build",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

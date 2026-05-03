@@ -1,0 +1,15 @@
+@reference "tailwindcss";
+
+.dashboard-page {
+  @apply grid gap-4;
+}
+
+.kpi-grid {
+  @apply grid grid-cols-4 gap-4;
+}
+
+@media (max-width: 900px) {
+  .kpi-grid {
+    @apply grid-cols-1;
+  }
+}

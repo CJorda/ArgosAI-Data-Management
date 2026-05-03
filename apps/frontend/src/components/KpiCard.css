@@ -1,0 +1,17 @@
+@reference "tailwindcss";
+
+  .kpi-card {
+    @apply rounded-[14px] border border-[#d8dfd1] bg-white p-3.5 shadow-[0_10px_30px_rgba(17,34,25,0.12)];
+  }
+
+  .kpi-card p {
+    @apply m-0 text-[0.88rem] text-[#4c5b52];
+  }
+
+  .kpi-card strong {
+    @apply text-2xl;
+  }
+
+  .kpi-card span {
+    @apply mt-1 block text-[0.8rem] text-[#4c5b52];
+  }

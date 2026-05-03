@@ -1,0 +1,5 @@
+@reference "tailwindcss";
+
+  .table-wrap {
+    @apply overflow-x-auto;
+  }

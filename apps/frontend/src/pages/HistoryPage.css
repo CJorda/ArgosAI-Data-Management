@@ -1,0 +1,189 @@
+@reference "tailwindcss";
+
+.history-page {
+  @apply grid gap-4;
+}
+
+.history-filter-panel {
+  @apply px-4 py-3;
+}
+
+.history-filter-panel h3 {
+  @apply mb-1;
+}
+
+.history-xy-controls {
+  @apply mt-1 grid gap-2;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.history-xy-controls label {
+  @apply mb-1 text-[0.76rem] uppercase tracking-[0.04em] text-[#5a6d8a];
+}
+
+.history-xy-controls select {
+  @apply py-1.5 text-[0.87rem];
+}
+
+.history-heatmap-controls {
+  @apply mt-1 grid gap-2;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.history-heatmap-controls label {
+  @apply mb-1 text-[0.76rem] uppercase tracking-[0.04em] text-[#5a6d8a];
+}
+
+.history-heatmap-controls select {
+  @apply py-1.5 text-[0.87rem];
+}
+
+.history-intro {
+  @apply mt-0 mb-3 text-[#4f6180];
+}
+
+.history-demo-note {
+  @apply mt-2 mb-0 rounded-lg border border-[#bcd2f2] bg-[#f1f6ff] px-3 py-2 text-[0.84rem] text-[#315d96];
+}
+
+.history-kpi-grid {
+  @apply grid gap-3;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.history-kpi-card {
+  @apply grid gap-1;
+}
+
+.history-kpi-card span {
+  @apply text-[0.8rem] uppercase tracking-[0.05em] text-[#5b6d89];
+}
+
+.history-kpi-card strong {
+  @apply text-[1.55rem] text-[#11284a];
+}
+
+.history-kpi-card small {
+  @apply text-[0.82rem] text-[#6a7b96];
+}
+
+.history-chart-grid {
+  @apply grid gap-3;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.history-chart-card {
+  @apply px-4 py-3;
+}
+
+.history-combined-panel {
+  @apply px-4 py-3;
+}
+
+.history-combined-header {
+  @apply mb-2;
+}
+
+.history-combined-header h3 {
+  @apply mb-1;
+}
+
+.history-combined-header p {
+  @apply m-0 text-[0.9rem] text-[#556887];
+}
+
+.history-xy-stats {
+  @apply mb-3 flex flex-wrap gap-4 rounded-lg border border-[#d9e2ef] bg-[#f8fbff] px-3 py-2 text-[0.86rem] text-[#4f6180];
+}
+
+.history-xy-stats span {
+  @apply rounded-md bg-white/70 px-2 py-1;
+}
+
+.history-xy-stats strong {
+  @apply text-[#16345e];
+}
+
+.history-secondary-heatmap {
+  @apply mt-4 border-t border-[#d9e2ef] pt-4;
+}
+
+.history-chart-card header {
+  @apply mb-2 flex items-start justify-between gap-2;
+}
+
+.history-chart-card h3 {
+  @apply mb-0.5;
+}
+
+.history-chart-card p {
+  @apply m-0 text-[0.9rem] text-[#556887];
+}
+
+.history-chart-meta {
+  @apply grid justify-items-end gap-1;
+}
+
+.demo-chip {
+  @apply rounded-full border border-[#dccaf6] bg-[#f7f2ff] px-2 py-0.5 text-[0.72rem] font-medium text-[#6e4aa8];
+}
+
+.status-pill {
+  @apply rounded-full border px-2 py-0.5 text-[0.72rem] font-medium;
+}
+
+.status-ok {
+  @apply border-[#8ed7bf] bg-[#eefaf4] text-[#1f6f5b];
+}
+
+.status-warning {
+  @apply border-[#f4c7be] bg-[#fff4f1] text-[#9b4232];
+}
+
+.delta-chip {
+  @apply rounded-full border px-2 py-0.5 text-[0.72rem] font-medium;
+}
+
+.delta-up {
+  @apply border-[#bcd2f2] bg-[#f3f8ff] text-[#2a5a9e];
+}
+
+.delta-down {
+  @apply border-[#c5d8cc] bg-[#f3faf4] text-[#2f6d47];
+}
+
+.delta-neutral {
+  @apply border-[#d6dee8] bg-[#f7f9fc] text-[#5b6d89];
+}
+
+@media (max-width: 1180px) {
+  .history-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .history-chart-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .history-xy-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .history-heatmap-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .history-kpi-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .history-xy-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .history-heatmap-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

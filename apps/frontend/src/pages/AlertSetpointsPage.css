@@ -1,0 +1,38 @@
+@reference "tailwindcss";
+
+.alert-setpoints-page {
+  @apply grid gap-4;
+}
+
+.alert-setpoints-panel {
+  @apply border-[#d6dfec] bg-[#fbfdff];
+}
+
+.alert-setpoints-header h3 {
+  @apply mt-0 mb-1;
+}
+
+.alert-setpoints-header p {
+  @apply mt-0 mb-0 text-[0.92rem] text-[#4f6180];
+}
+
+.alert-setpoints-note {
+  @apply mt-3 mb-3 rounded-lg border border-[#bdd3ef] bg-[#eef5ff] px-3 py-2 text-[0.86rem] text-[#2d5688];
+}
+
+.alert-setpoints-table th,
+.alert-setpoints-table td {
+  white-space: nowrap;
+}
+
+.alert-activation-chip {
+  @apply inline-flex min-w-[4.4rem] justify-center rounded-md border px-2 py-1 text-[0.79rem] font-semibold;
+}
+
+.alert-activation-on {
+  @apply border-[#8ed7bf] bg-[#eefaf4] text-[#1f6f5b];
+}
+
+.alert-activation-off {
+  @apply border-[#d5d9e5] bg-[#f3f5fa] text-[#51627d];
+}

@@ -1,0 +1,61 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap");
+
+@layer theme, base, components, utilities;
+
+@import "tailwindcss";
+@import "./styles/primitives/buttons.css";
+@import "./styles/primitives/forms.css";
+@import "./styles/primitives/panels.css";
+@import "./styles/primitives/tables.css";
+
+@theme {
+  --font-sans: "IBM Plex Sans", sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+}
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+
+  body {
+    @apply m-0 text-[#14211b];
+    font-family: var(--font-sans);
+    background:
+      radial-gradient(circle at 10% 20%, #f7f9f3 0, transparent 40%),
+      radial-gradient(circle at 80% 0%, #dbe6d6 0, transparent 35%),
+      #edf1e6;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  strong {
+    font-family: var(--font-display);
+  }
+
+  a {
+    @apply text-inherit;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+  }
+
+  table {
+    @apply w-full border-collapse;
+  }
+
+  th,
+  td {
+    @apply border-b border-[#ecf0e8] px-2 py-[0.55rem] text-left text-[0.93rem] whitespace-nowrap;
+  }
+
+  th {
+    @apply font-semibold text-[#4c5b52];
+  }
+}

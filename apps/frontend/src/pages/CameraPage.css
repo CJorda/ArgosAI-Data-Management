@@ -1,0 +1,31 @@
+@reference "tailwindcss";
+
+.camera-page {
+  @apply grid grid-cols-2 gap-4;
+}
+
+.camera-frame {
+  @apply grid gap-1.5;
+}
+
+.camera-frame img {
+  @apply w-full rounded-xl border border-[#d8dfd1];
+}
+
+.camera-frame small {
+  @apply break-all text-[#4c5b52];
+}
+
+.camera-meta {
+  @apply mt-4 grid gap-1;
+}
+
+.camera-meta p {
+  @apply m-0;
+}
+
+@media (max-width: 900px) {
+  .camera-page {
+    @apply grid-cols-1;
+  }
+}

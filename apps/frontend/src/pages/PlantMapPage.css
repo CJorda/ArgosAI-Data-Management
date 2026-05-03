@@ -1,0 +1,515 @@
+@reference "tailwindcss";
+
+.plant-page {
+  @apply grid gap-4;
+}
+
+.plant-summary-text {
+  @apply mt-1 mb-0 text-[#4a5f7e];
+}
+
+.plant-demo-note {
+  @apply mt-3 mb-0 rounded-lg border border-[#bdd3ef] bg-[#eef5ff] px-3 py-2 text-[0.86rem] text-[#2d5688];
+}
+
+.plant-summary-grid {
+  @apply mt-4 grid grid-cols-4 gap-3;
+}
+
+.plant-stat {
+  @apply rounded-xl border border-[#d5deec] bg-[#f7faff] px-3 py-2.5;
+}
+
+.plant-stat span {
+  @apply block text-[0.8rem] uppercase tracking-[0.06em] text-[#546985];
+}
+
+.plant-stat strong {
+  @apply mt-1 block text-[1.3rem] text-[#122846];
+}
+
+.plant-stat-alarm {
+  @apply border-[#f2c5c5] bg-[#fff3f3];
+}
+
+.plant-stat-configured {
+  @apply border-[#b8d6f6] bg-[#f1f8ff];
+}
+
+.plant-stat-stale {
+  @apply border-[#dbd9f2] bg-[#f6f5ff];
+}
+
+.scada-panel {
+  @apply overflow-hidden border-[#23344a] p-0;
+  background: linear-gradient(180deg, #161f2a 0%, #111824 100%);
+  --scada-gap: 6px;
+  --horizontal-tile-height: 146px;
+  --vertical-tile-height: 194px;
+  --compact-tile-height: 186px;
+}
+
+.scada-header {
+  @apply flex flex-wrap items-center justify-between gap-3 border-b border-b-[#2e435f] px-4 py-3 text-[#deebff];
+}
+
+.scada-header h3 {
+  @apply m-0 text-[#edf4ff];
+}
+
+.scada-header-meta {
+  @apply flex flex-wrap items-center gap-2 text-[0.82rem] text-[#b3c6e2];
+}
+
+.legend-item {
+  @apply rounded-md border px-2 py-0.5;
+}
+
+.legend-o2-critical {
+  @apply border-[#e8a3a8] bg-[#ef8087] text-[#271b1f];
+}
+
+.legend-o2-low {
+  @apply border-[#e4d18a] bg-[#f3dd57] text-[#3a351f];
+}
+
+.legend-o2-normal {
+  @apply border-[#9ad7ac] bg-[#79dc9a] text-[#173226];
+}
+
+.legend-o2-high {
+  @apply border-[#c8a4ee] bg-[#b377eb] text-[#261c33];
+}
+
+.legend-o2-unknown {
+  @apply border-[#8f97ab] bg-[#374253] text-[#eef2f9];
+}
+
+.legend-alert-outline {
+  @apply border-[#f0a6b0] bg-[#422731] text-[#ffdbe2];
+}
+
+.legend-template {
+  @apply border-[#8f97ab] bg-[#374253] text-[#eef2f9];
+}
+
+.scada-geometry {
+  @apply grid gap-4 p-4;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.24fr) minmax(0, 1.9fr);
+  align-items: start;
+  width: 100%;
+  gap: 12px;
+}
+
+.geom-block {
+  @apply grid gap-2;
+  width: auto;
+}
+
+.ed-frame {
+  @apply rounded-xl border-[6px] border-[#2c6ea5] bg-[#173048] p-3;
+}
+
+.scada-column-frame {
+  @apply rounded-xl border-[6px] border-[#2c6ea5] bg-[#173048] p-3;
+}
+
+.abc-frame {
+  @apply rounded-xl border-[6px] border-[#2c6ea5] bg-[#173048] p-3;
+}
+
+.slot-column {
+  @apply grid;
+  gap: var(--scada-gap);
+}
+
+.slot-row {
+  @apply grid;
+  gap: var(--scada-gap);
+}
+
+.ed-columns {
+  @apply grid;
+  gap: var(--scada-gap);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.row-four {
+  @apply mb-1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.row-c-pairs {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.c-pair {
+  @apply grid;
+  gap: var(--scada-gap);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.c-pair-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.zone-tag {
+  @apply mx-auto mt-1 inline-flex min-w-[8.2rem] justify-center rounded-md border border-[#8f8858] bg-[#9b9158]/95 px-4 py-2 text-[1.02rem] font-semibold text-[#f2f0da];
+}
+
+.zone-tags-inline {
+  @apply mt-1 grid grid-cols-2 gap-2;
+}
+
+.geom-f .slot-column {
+  width: auto;
+}
+
+.geom-ed .slot-column {
+  width: auto;
+}
+
+.slot-column > .pond-tile,
+.slot-row > .pond-tile,
+.c-pair > .pond-tile {
+  width: 100%;
+}
+
+.pond-tile {
+  @apply relative overflow-hidden rounded-md border border-[#355c88] bg-[#2a3f58] p-1.5 pb-6 text-left text-[#eff5ff] transition;
+}
+
+.pond-tile:hover {
+  @apply -translate-y-px border-[#4f84bb];
+}
+
+.pond-active {
+  @apply border-[#67b5ff] ring-2 ring-[#67b5ff]/35;
+}
+
+.pond-alarm {
+  @apply border-[#a33f4d] ring-1 ring-[#b54f5d]/40;
+}
+
+.pond-ok {
+  @apply border-[#3a6896];
+}
+
+.pond-stale {
+  @apply border-[#585089] opacity-90;
+}
+
+.pond-unknown {
+  @apply border-[#466080];
+}
+
+.pond-oxygen-critical {
+  @apply border-[#a33f4d] bg-[#ef8087] text-[#23161b];
+}
+
+.pond-oxygen-low {
+  @apply border-[#b59d3a] bg-[#f3dd57] text-[#2f2a15];
+}
+
+.pond-oxygen-normal {
+  @apply border-[#3f8e5f] bg-[#79dc9a] text-[#163126];
+}
+
+.pond-oxygen-high {
+  @apply border-[#6c3e99] bg-[#b377eb] text-[#241a31];
+}
+
+.pond-oxygen-unknown {
+  @apply border-[#5c6d86] bg-[#3a4a61] text-[#e5ecf8];
+}
+
+.pond-template {
+  @apply border-[#5c6d86] bg-[#3a4a61] text-[#e5ecf8];
+}
+
+.pond-template .pond-code {
+  @apply bg-[#305575];
+}
+
+.pond-template .pond-species {
+  @apply text-[#d4deee];
+}
+
+.slot-horizontal {
+  height: var(--horizontal-tile-height);
+}
+
+.slot-vertical {
+  height: var(--vertical-tile-height);
+}
+
+.slot-compact {
+  height: var(--compact-tile-height);
+}
+
+.pond-title-row {
+  @apply mb-0.5 flex items-center justify-end gap-1;
+}
+
+.pond-code {
+  @apply absolute bottom-1 left-1 inline-flex min-w-[2rem] justify-center rounded-sm bg-[#0f3e68] px-1.5 py-0.5 text-[0.68rem] font-semibold;
+}
+
+.pond-age {
+  @apply text-[0.64rem] opacity-85;
+}
+
+.pond-tile h4 {
+  @apply m-0 text-[0.78rem] leading-tight;
+}
+
+.pond-species {
+  @apply mt-0 mb-1 text-[0.65rem] uppercase tracking-[0.07em] opacity-85;
+}
+
+.pond-metrics {
+  @apply grid gap-0.5;
+}
+
+.pond-metrics p {
+  @apply m-0 flex items-center justify-between gap-1 overflow-hidden text-[0.62rem] leading-tight;
+}
+
+.pond-metrics p span,
+.pond-metrics p strong {
+  @apply min-w-0 truncate;
+}
+
+.pond-metrics p strong {
+  @apply inline-flex items-center justify-end gap-1;
+}
+
+.temp-indicator {
+  @apply inline-block h-2.5 w-2.5 rounded-[2px] border border-[#4f6078] bg-[#64748b];
+}
+
+.temp-indicator-critical {
+  @apply border-[#b84e5a] bg-[#ef8087];
+}
+
+.temp-indicator-high {
+  @apply border-[#c1a543] bg-[#f3dd57];
+}
+
+.temp-indicator-normal {
+  @apply border-[#4a9667] bg-[#79dc9a];
+}
+
+.temp-indicator-low {
+  @apply border-[#71469f] bg-[#b377eb];
+}
+
+.temp-indicator-unknown {
+  @apply border-[#5b6b83] bg-[#7a8da7];
+}
+
+.pond-alert-count {
+  @apply mt-0.5 mb-0 pl-9 text-right text-[0.6rem];
+}
+
+.slot-main-metric {
+  @apply flex items-center justify-between gap-2 overflow-hidden text-[0.67rem];
+}
+
+.slot-main-metric span,
+.slot-main-metric strong {
+  @apply truncate;
+}
+
+.slot-horizontal .pond-metrics {
+  @apply gap-px;
+}
+
+.slot-horizontal .pond-metrics p {
+  @apply text-[0.6rem] leading-tight;
+}
+
+.slot-horizontal .pond-alert-count {
+  @apply mt-0.5 pl-7 text-[0.58rem];
+}
+
+.slot-compact {
+  @apply pt-1;
+}
+
+.slot-compact .pond-title-row {
+  @apply mb-0;
+}
+
+.slot-compact .pond-age {
+  @apply text-[0.56rem];
+}
+
+.slot-compact .pond-metrics {
+  @apply gap-px;
+}
+
+.slot-compact .pond-metrics p {
+  @apply grid text-[0.57rem] leading-tight;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.2rem;
+}
+
+.slot-compact .pond-metrics p strong {
+  @apply justify-self-end;
+}
+
+.slot-compact .pond-metrics p span {
+  @apply text-[0.54rem];
+}
+
+@media (max-width: 1280px) {
+  .scada-geometry {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.5fr);
+    gap: 10px;
+  }
+}
+
+.plant-detail-panel {
+  @apply border-[#d6dfec] bg-[#fbfdff];
+}
+
+.plant-detail-title {
+  @apply mb-2 mt-1 text-[#243b5e];
+}
+
+.plant-detail-note {
+  @apply mt-0 mb-3 rounded-lg border border-[#d7dff0] bg-[#f7f9ff] px-3 py-2 text-[0.9rem] text-[#4f5f7f];
+}
+
+.plant-detail-metrics {
+  @apply mb-3 grid gap-2;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.detail-chip {
+  @apply rounded-lg border border-[#d4deec] bg-white px-2.5 py-2;
+}
+
+.detail-chip span {
+  @apply block text-[0.76rem] text-[#5d7090];
+}
+
+.detail-chip strong {
+  @apply mt-0.5 block text-[0.98rem] text-[#112644];
+}
+
+.plant-alert-list {
+  @apply m-0 grid gap-2 p-0;
+  list-style: none;
+}
+
+.plant-alert-list li {
+  @apply grid gap-0.5 rounded-lg border border-[#f0d0d4] bg-[#fff6f7] px-2.5 py-2;
+}
+
+.plant-alert-list strong {
+  @apply text-[0.8rem] uppercase tracking-[0.06em] text-[#8f2942];
+}
+
+.plant-alert-list span {
+  @apply text-[0.91rem] text-[#4a2230];
+}
+
+.plant-alert-list small {
+  @apply text-[0.75rem] text-[#7c5965];
+}
+
+.oxygen-setpoints-panel {
+  @apply border-[#d6dfec] bg-[#fbfdff];
+}
+
+.oxygen-setpoints-header h3 {
+  @apply mt-0 mb-1;
+}
+
+.oxygen-setpoints-header p {
+  @apply mt-0 mb-0 text-[0.92rem] text-[#4f6180];
+}
+
+.oxygen-setpoints-note {
+  @apply mt-3 mb-3 rounded-lg border border-[#bdd3ef] bg-[#eef5ff] px-3 py-2 text-[0.86rem] text-[#2d5688];
+}
+
+.oxygen-setpoints-table th,
+.oxygen-setpoints-table td {
+  white-space: nowrap;
+}
+
+.oxygen-activation-chip {
+  @apply inline-flex min-w-[6.4rem] justify-center rounded-md border px-2 py-1 text-[0.79rem] font-semibold;
+}
+
+.oxygen-activation-on {
+  @apply border-[#8ed7bf] bg-[#eefaf4] text-[#1f6f5b];
+}
+
+.oxygen-activation-off {
+  @apply border-[#d5d9e5] bg-[#f3f5fa] text-[#51627d];
+}
+
+@media (max-width: 980px) {
+  .plant-summary-grid {
+    @apply grid-cols-2;
+  }
+
+  .scada-geometry {
+    @apply grid-cols-1;
+    justify-content: stretch;
+  }
+
+  .geom-block {
+    width: auto;
+  }
+
+  .geom-f .slot-column,
+  .geom-ed .slot-column {
+    width: auto;
+  }
+
+  .ed-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .row-four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .row-c-pairs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .c-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .plant-detail-metrics {
+    @apply grid-cols-2;
+  }
+}
+
+@media (max-width: 640px) {
+  .row-four,
+  .row-c-pairs,
+  .ed-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .c-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .zone-tags-inline {
+    @apply grid-cols-1;
+  }
+
+  .plant-summary-grid,
+  .plant-detail-metrics {
+    @apply grid-cols-1;
+  }
+}

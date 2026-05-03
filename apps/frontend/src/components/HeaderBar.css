@@ -1,0 +1,63 @@
+@reference "tailwindcss";
+
+.top-header {
+  @apply mb-4 flex items-center justify-between gap-4;
+}
+
+.header-main {
+  @apply flex items-start gap-3;
+}
+
+.icon-toggle-button {
+  @apply mt-0.5 inline-grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#cfd9e7] bg-white text-[#1e3656] transition hover:border-[#b8c8dc] hover:bg-[#f6f9ff];
+}
+
+.burger-icon {
+  @apply grid w-4 gap-[3px];
+}
+
+.burger-icon span {
+  @apply block h-0.5 rounded bg-current;
+}
+
+.top-header h2 {
+  @apply m-0;
+}
+
+.top-header p {
+  @apply mt-1 mb-0 text-[#4c5b52];
+}
+
+.header-actions {
+  @apply flex items-center gap-3;
+}
+
+.alert-toggle-button {
+  @apply inline-flex items-center gap-2 rounded-full border border-[#d0dced] bg-white px-3 py-1.5 text-[#244064] transition hover:bg-[#f6f9ff];
+}
+
+.alert-toggle-button strong {
+  @apply inline-grid min-w-[1.7rem] place-items-center rounded-full bg-[#ecf1fa] px-1.5 py-0.5 text-[0.82rem] text-[#17365b];
+}
+
+.alert-toggle-button-active {
+  @apply border-[#adc6e8] bg-[#edf4ff];
+}
+
+.user-chip {
+  @apply grid rounded-full border border-[#d8dfd1] bg-white px-3 py-1.5 leading-[1.2];
+}
+
+.user-chip span {
+  @apply text-[0.82rem] text-[#4c5b52];
+}
+
+@media (max-width: 900px) {
+  .top-header {
+    @apply flex-col items-start;
+  }
+
+  .header-actions {
+    @apply w-full justify-between;
+  }
+}

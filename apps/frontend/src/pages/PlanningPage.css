@@ -1,0 +1,19 @@
+@reference "tailwindcss";
+
+.planning-page {
+  @apply grid gap-4;
+}
+
+.planning-intro {
+  @apply mb-4 mt-1 max-w-[70ch] text-[#4d6079];
+}
+
+.planning-grid {
+  @apply grid grid-cols-2 gap-4;
+}
+
+@media (max-width: 1100px) {
+  .planning-grid {
+    @apply grid-cols-1;
+  }
+}

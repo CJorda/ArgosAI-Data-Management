@@ -1,0 +1,161 @@
+@reference "tailwindcss";
+
+.oxygen-page {
+  @apply grid gap-4;
+}
+
+.oxygen-page-panel {
+  @apply border-[#d6dfec] bg-[#fbfdff];
+}
+
+.oxygen-page-header h3 {
+  @apply mt-0 mb-1;
+}
+
+.oxygen-page-header p {
+  @apply mt-0 mb-0 text-[0.92rem] text-[#4f6180];
+}
+
+.oxygen-page-note {
+  @apply mt-3 mb-3 rounded-lg border border-[#bdd3ef] bg-[#eef5ff] px-3 py-2 text-[0.86rem] text-[#2d5688];
+}
+
+.oxygen-page-table th,
+.oxygen-page-table td {
+  white-space: nowrap;
+}
+
+.oxygen-page-chip {
+  @apply inline-flex min-w-[6.4rem] justify-center rounded-md border px-2 py-1 text-[0.79rem] font-semibold;
+}
+
+.oxygen-page-chip-on {
+  @apply border-[#8ed7bf] bg-[#eefaf4] text-[#1f6f5b];
+}
+
+.oxygen-page-chip-off {
+  @apply border-[#d5d9e5] bg-[#f3f5fa] text-[#51627d];
+}
+
+.oxygen-economy-panel {
+  @apply border-[#d1def0] bg-[linear-gradient(180deg,#fbfdff,#f4f8ff)];
+}
+
+.oxygen-economy-header h3 {
+  @apply mt-0 mb-1;
+}
+
+.oxygen-economy-header p {
+  @apply mt-0 mb-0 text-[0.92rem] text-[#476080];
+}
+
+.oxygen-economy-config {
+  @apply mt-4 rounded-xl border border-[#c9d9ee] bg-white/90 px-3 py-3;
+}
+
+.oxygen-economy-config-head {
+  @apply flex flex-wrap items-center justify-between gap-2;
+}
+
+.oxygen-economy-config-head h4 {
+  @apply m-0 text-[0.96rem] text-[#24466f];
+}
+
+.oxygen-economy-config-reset {
+  @apply rounded-md border border-[#9db9da] bg-[#f3f8ff] px-2.5 py-1 text-[0.76rem] font-semibold text-[#274d7c] transition;
+}
+
+.oxygen-economy-config-reset:hover {
+  @apply border-[#89abd2] bg-[#eaf2ff] text-[#17375f];
+}
+
+.oxygen-economy-config-copy {
+  @apply mt-2 mb-0 text-[0.8rem] text-[#5c7494];
+}
+
+.oxygen-economy-config-grid {
+  @apply mt-3 grid gap-2;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.oxygen-economy-config-field {
+  @apply grid gap-1;
+}
+
+.oxygen-economy-config-field span {
+  @apply text-[0.75rem] font-medium text-[#3d5f88];
+}
+
+.oxygen-economy-config-field input {
+  @apply w-full rounded-md border border-[#bfd0e8] bg-white px-2 py-1.5 text-[0.86rem] text-[#1f3f67] transition;
+}
+
+.oxygen-economy-config-field input:focus {
+  border-color: #76a1d2;
+  box-shadow: 0 0 0 2px rgba(130, 167, 209, 0.2);
+  outline: none;
+}
+
+.oxygen-economy-note {
+  @apply mt-3 mb-3 rounded-lg border border-[#c6d8f1] bg-[#edf4ff] px-3 py-2 text-[0.84rem] text-[#2b5484];
+}
+
+.oxygen-economy-kpi-grid {
+  @apply mt-4 grid grid-cols-4 gap-3;
+}
+
+.oxygen-economy-kpi {
+  @apply rounded-xl border border-[#c8d9ef] bg-white px-3 py-3 shadow-[0_8px_24px_rgba(30,61,95,0.08)];
+}
+
+.oxygen-economy-kpi p {
+  @apply m-0 text-[0.82rem] font-medium uppercase tracking-[0.02em] text-[#4f6584];
+}
+
+.oxygen-economy-kpi strong {
+  @apply mt-1 block text-[1.4rem] leading-tight text-[#173357];
+}
+
+.oxygen-economy-kpi span {
+  @apply mt-1.5 block text-[0.78rem] text-[#5f7491];
+}
+
+.oxygen-economy-kpi-savings {
+  @apply border-[#b8decf] bg-[#f5fcf8];
+}
+
+.oxygen-economy-kpi-savings strong {
+  @apply text-[#1f6d4c];
+}
+
+.oxygen-economy-kpi-overcost {
+  @apply border-[#e4cccc] bg-[#fff8f8];
+}
+
+.oxygen-economy-kpi-overcost strong {
+  @apply text-[#8f2d2d];
+}
+
+.oxygen-economy-chart-wrap {
+  @apply mt-4 rounded-xl border border-[#ccdaee] bg-[#f8fbff] px-2 py-2;
+}
+
+@media (max-width: 1100px) {
+  .oxygen-economy-config-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .oxygen-economy-kpi-grid {
+    @apply grid-cols-2;
+  }
+}
+
+@media (max-width: 780px) {
+  .oxygen-economy-config-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .oxygen-economy-kpi-grid {
+    @apply grid-cols-1;
+  }
+}

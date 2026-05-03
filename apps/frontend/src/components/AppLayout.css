@@ -1,0 +1,46 @@
+@reference "tailwindcss";
+
+.app-shell {
+  @apply relative grid min-h-screen grid-cols-[240px_minmax(0,1fr)];
+}
+
+.app-shell-sidebar-collapsed {
+  grid-template-columns: 84px minmax(0, 1fr);
+}
+
+.center-area {
+  @apply min-w-0 px-[1.1rem] pt-4 pb-6;
+}
+
+.page-content {
+  @apply grid gap-4;
+}
+
+.layout-backdrop,
+.alerts-backdrop {
+  @apply fixed inset-0 z-[35] bg-[#0f1d2b]/40;
+}
+
+.alerts-backdrop {
+  @apply z-[44];
+}
+
+@media (max-width: 1280px) {
+  .app-shell {
+    @apply grid-cols-[220px_minmax(0,1fr)];
+  }
+
+  .app-shell-sidebar-collapsed {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    @apply grid-cols-1;
+  }
+
+  .center-area {
+    @apply px-3.5 pt-3 pb-4;
+  }
+}

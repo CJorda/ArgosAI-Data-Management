@@ -1,0 +1,13 @@
+@reference "tailwindcss";
+
+  .panel {
+    @apply rounded-[14px] border border-[#d8dfd1] bg-white p-4 shadow-[0_10px_30px_rgba(17,34,25,0.12)];
+  }
+
+  .panel h3 {
+    @apply mt-0;
+  }
+
+  .empty-text {
+    @apply m-1 text-[#4c5b52];
+  }

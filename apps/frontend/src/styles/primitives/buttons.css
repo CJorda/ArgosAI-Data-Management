@@ -1,0 +1,19 @@
+@reference "tailwindcss";
+
+  .primary-button,
+  .ghost-button,
+  .tiny-button {
+    @apply cursor-pointer rounded-[10px] border-0 transition duration-150 ease-out hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .primary-button {
+    @apply bg-[#f0a202] px-3.5 py-2.5 font-bold text-[#1f1e1a];
+  }
+
+  .ghost-button {
+    @apply bg-[#e7ede4] px-3.5 py-2.5 text-[#1c2d25];
+  }
+
+  .tiny-button {
+    @apply bg-[#dce7df] px-2 py-1.5 text-[0.82rem] text-[#1f2c24];
+  }

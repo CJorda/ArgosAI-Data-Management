@@ -1,0 +1,334 @@
+:root {
+  color-scheme: light;
+  --ui-bg: #edf4fb;
+  --ui-bg-soft: #f6fbff;
+  --ui-panel: #ffffff;
+  --ui-border: #cfdbea;
+  --ui-border-strong: #b8c9de;
+  --ui-text: #1a2c43;
+  --ui-text-soft: #4f6686;
+  --ui-text-muted: #7388a6;
+  --ui-accent: #2f84d7;
+  --ui-shadow: 0 10px 28px rgba(27, 54, 86, 0.12);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  color: var(--ui-text) !important;
+  background:
+    radial-gradient(circle at 6% 0%, #d4e7fb 0, transparent 40%),
+    radial-gradient(circle at 100% 100%, #d7ecff 0, transparent 45%),
+    linear-gradient(165deg, #eff5fc 0%, #e9f2fb 45%, #edf4fb 100%) !important;
+}
+
+.app-shell {
+  background: transparent;
+}
+
+.center-area {
+  background: linear-gradient(180deg, rgba(248, 252, 255, 0.95), rgba(239, 246, 253, 0.95)) !important;
+  border-left: 1px solid var(--ui-border-strong);
+}
+
+h1,
+h2,
+h3,
+h4,
+strong {
+  color: var(--ui-text) !important;
+}
+
+th,
+td {
+  border-color: #d8e3ef !important;
+}
+
+th {
+  color: var(--ui-text-soft) !important;
+}
+
+td {
+  color: var(--ui-text) !important;
+}
+
+tbody tr:hover td {
+  background: rgba(63, 131, 204, 0.08);
+}
+
+.panel:not(.scada-panel),
+.kpi-card,
+.alerts-panel,
+.alert-card,
+.user-chip,
+.plant-stat,
+.plant-detail-panel,
+.detail-chip,
+.plant-alert-list li,
+.machine-argos-camera-panel,
+.machine-argos-stream-panel,
+.machine-argos-frame-panel,
+.machine-argos-thumb,
+.trace-lot-kpi-card,
+.history-xy-stats,
+.history-kpi-card,
+.history-chart-card,
+.history-combined-panel,
+.login-shell,
+.login-panel {
+  background: var(--ui-panel) !important;
+  border-color: var(--ui-border) !important;
+  color: var(--ui-text) !important;
+}
+
+.panel:not(.scada-panel),
+.kpi-card,
+.machine-argos-thumb,
+.history-chart-card,
+.history-kpi-card,
+.trace-lot-kpi-card {
+  box-shadow: var(--ui-shadow) !important;
+}
+
+.icon-toggle-button,
+.alert-toggle-button,
+.alerts-close-button,
+.ghost-button,
+.tiny-button,
+.secondary-button,
+.operations-pdf-button,
+.biomass-page-button {
+  background: #f6faff !important;
+  border-color: var(--ui-border-strong) !important;
+  color: var(--ui-text) !important;
+}
+
+.icon-toggle-button:hover,
+.alert-toggle-button:hover,
+.alerts-close-button:hover,
+.ghost-button:hover,
+.tiny-button:hover,
+.secondary-button:hover,
+.operations-pdf-button:hover,
+.biomass-page-button:hover {
+  background: #eaf3ff !important;
+  border-color: #9fb8d6 !important;
+}
+
+.alert-toggle-button strong {
+  background: #dce8f7 !important;
+  color: #173c69 !important;
+}
+
+.alert-toggle-button-active {
+  border-color: #94b4d9 !important;
+  background: #e8f2ff !important;
+}
+
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea,
+.operations-feeding-input,
+.biomass-cell-input,
+.trace-search-input,
+.stack-form input,
+.stack-form select,
+.stack-form textarea,
+.filters-inline select {
+  background: #ffffff !important;
+  border-color: var(--ui-border-strong) !important;
+  color: var(--ui-text) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--ui-text-muted) !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.operations-feeding-input:focus,
+.biomass-cell-input:focus,
+.trace-search-input:focus,
+.stack-form input:focus,
+.stack-form select:focus,
+.stack-form textarea:focus {
+  border-color: var(--ui-accent) !important;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(47, 132, 215, 0.2);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--ui-accent);
+}
+
+.trace-demo-note,
+.history-demo-note,
+.operations-demo-note,
+.biomass-demo-note {
+  background: #eef5ff !important;
+  border-color: #bdd3ef !important;
+  color: #2d5688 !important;
+}
+
+.form-error {
+  background: #fff1f3 !important;
+  border-color: #f0b8c1 !important;
+  color: #92263e !important;
+}
+
+.top-header p,
+.user-chip span,
+.empty-text,
+.app-not-found,
+.protected-route-state,
+.planning-intro,
+.trace-summary,
+.history-intro,
+.history-combined-header p,
+.history-chart-card p,
+.history-kpi-card span,
+.history-kpi-card small,
+.operations-feeding-note,
+.operations-table-empty,
+.biomass-edit-hint,
+.biomass-table-empty,
+.camera-frame small,
+.machine-argos-intro,
+.machine-argos-camera-header p,
+.machine-argos-session-meta p,
+.machine-argos-frame-meta p,
+.machine-argos-gallery-panel > p,
+.plant-summary-text,
+.plant-detail-note,
+.plant-alert-list span,
+.plant-alert-list small,
+.kpi-card p,
+.kpi-card span,
+.plant-stat span,
+.machine-argos-stat span,
+.trace-lot-kpi-card span,
+.detail-chip span,
+.alert-main small {
+  color: var(--ui-text-soft) !important;
+}
+
+.history-xy-stats span {
+  background: #f4f8fd !important;
+  color: var(--ui-text-soft) !important;
+}
+
+.history-xy-stats strong,
+.history-kpi-card strong,
+.trace-lot-kpi-card strong,
+.plant-stat strong,
+.machine-argos-stat strong,
+.detail-chip strong,
+.machine-argos-thumb span,
+.machine-argos-thumb small,
+.plant-detail-title,
+.plant-alert-list strong {
+  color: var(--ui-text) !important;
+}
+
+.history-secondary-heatmap {
+  border-top-color: var(--ui-border) !important;
+}
+
+.demo-chip,
+.status-pill,
+.delta-chip {
+  box-shadow: none;
+}
+
+.machine-argos-stream-frame,
+.machine-argos-selected-frame,
+.camera-frame img {
+  border-color: var(--ui-border) !important;
+}
+
+.alerts-panel {
+  border-left-color: var(--ui-border) !important;
+  box-shadow: -10px 0 24px rgba(21, 45, 73, 0.2) !important;
+}
+
+.panel-header span {
+  background: #e2edf9 !important;
+  color: #234f7f !important;
+}
+
+.alerts-backdrop,
+.layout-backdrop {
+  background: rgba(16, 35, 56, 0.24) !important;
+}
+
+.login-screen {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.18), transparent 40%),
+    radial-gradient(circle at 100% 100%, rgba(45, 212, 191, 0.14), transparent 46%),
+    linear-gradient(130deg, #f3f6ff 0%, #e7eefb 50%, #f4f7ff 100%) !important;
+}
+
+.login-shell {
+  box-shadow: 0 24px 80px rgba(15, 41, 81, 0.18) !important;
+}
+
+.login-brand {
+  background: linear-gradient(145deg, #0f2647 0%, #18467a 58%, #1f6ea8 100%) !important;
+}
+
+.login-panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 251, 255, 0.94)) !important;
+}
+
+.login-panel h2 {
+  color: #132844 !important;
+}
+
+.login-panel > p,
+.login-form label {
+  color: #506482 !important;
+}
+
+.login-form input {
+  background: #ffffff !important;
+  border-color: #c4d2e5 !important;
+  color: #152949 !important;
+}
+
+.login-form input::placeholder {
+  color: #7f94b4 !important;
+}
+
+.login-form input:focus {
+  border-color: #2f7de8 !important;
+  box-shadow: 0 0 0 2px rgba(47, 125, 232, 0.2);
+}
+
+.sidebar {
+  background: linear-gradient(180deg, #1c2f4a, #13233a) !important;
+}
+
+.brand p,
+.sidebar-link,
+.sidebar-sub-link {
+  color: #c5d5ec !important;
+}
+
+.sidebar-link:hover,
+.sidebar-link-active,
+.sidebar-sub-link:hover,
+.sidebar-sub-link-active {
+  background: rgba(129, 167, 215, 0.24) !important;
+  color: #f8fbff !important;
+}
+
+.sidebar-subnav {
+  border-left-color: rgba(188, 207, 232, 0.3) !important;
+}

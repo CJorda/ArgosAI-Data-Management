@@ -1,0 +1,164 @@
+@reference "tailwindcss";
+
+.biomass-page {
+  @apply grid grid-cols-2 gap-4;
+}
+
+.biomass-summary-panel {
+  grid-column: 1 / -1;
+}
+
+.biomass-history-panel {
+  grid-column: 1 / -1;
+}
+
+.biomass-density-panel {
+  grid-column: 1 / -1;
+}
+
+.biomass-demo-note {
+  @apply mt-1 mb-3 rounded-lg border border-[#bcd2f2] bg-[#f1f6ff] px-3 py-2 text-[0.84rem] text-[#315d96];
+}
+
+.biomass-density-note {
+  @apply mt-0 mb-2 text-[0.86rem] text-[#4e6384];
+}
+
+.biomass-density-help {
+  @apply mt-0 mb-3 rounded-md border border-[#d8e3f3] bg-[#f8fbff] px-3 py-2 text-[0.82rem] text-[#4f6688];
+}
+
+.biomass-density-chart-head {
+  @apply mb-3 flex flex-wrap items-center justify-between gap-2;
+}
+
+.biomass-density-chart-head h4 {
+  @apply m-0 text-[0.95rem] font-semibold text-[#2a4669];
+}
+
+.biomass-density-mode {
+  @apply inline-flex items-center rounded-md border border-[#c3d5ec] bg-white p-1;
+}
+
+.biomass-density-mode-button {
+  @apply rounded px-3 py-1 text-[0.82rem] text-[#4d6384] transition;
+}
+
+.biomass-density-mode-button:hover {
+  @apply bg-[#edf4ff] text-[#2a4f78];
+}
+
+.biomass-density-mode-button-active {
+  @apply bg-[#d9e9ff] font-semibold text-[#1e456d];
+}
+
+.biomass-density-chart {
+  @apply mb-4 overflow-hidden rounded-lg border border-[#d6e3f4] bg-white p-2;
+}
+
+.biomass-density-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.biomass-density-table th,
+.biomass-density-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.biomass-volume-source {
+  @apply inline-flex items-center rounded-full border border-[#8db3de] bg-[#eaf3ff] px-2 py-[0.15rem] text-[0.74rem] font-semibold text-[#2d5d90];
+}
+
+.biomass-volume-source-estimated {
+  @apply border-[#d4bc7d] bg-[#fff6df] text-[#866123];
+}
+
+.biomass-volume-source-missing {
+  @apply border-[#d3d8e0] bg-[#f3f5f8] text-[#647181];
+}
+
+.biomass-edit-hint {
+  @apply mt-0 mb-3 text-[0.82rem] text-[#536b90];
+}
+
+.biomass-summary-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.biomass-summary-table th,
+.biomass-summary-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.biomass-history-wrap {
+  overflow-x: hidden;
+}
+
+.biomass-history-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.biomass-history-table th,
+.biomass-history-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.biomass-editable-cell {
+  @apply block w-full rounded-md border border-transparent bg-transparent px-2 py-0 text-left text-[#1f3556] transition;
+}
+
+.biomass-editable-cell:hover {
+  @apply border-[#c5d8f0] bg-[#f5f9ff];
+}
+
+.biomass-cell-input {
+  @apply w-full rounded-md border border-[#8eb0d6] bg-white px-2 py-0 text-[#1f3556] outline-none;
+}
+
+.biomass-computed-cell {
+  @apply block px-2 py-0 text-[#1f3556];
+}
+
+.biomass-table-empty {
+  @apply py-4 text-center text-[#5b6d89];
+}
+
+.biomass-history-pagination {
+  @apply mt-3 flex flex-wrap items-center gap-2;
+}
+
+.biomass-page-button {
+  @apply min-w-8 rounded-md border border-[#c8d6e8] bg-white px-2 py-1 text-[0.85rem] text-[#35577e] transition;
+}
+
+.biomass-page-button:hover {
+  @apply border-[#93b3d7] bg-[#eef5ff];
+}
+
+.biomass-page-button-active {
+  @apply border-[#5f8cc0] bg-[#dcecff] font-semibold text-[#20486f];
+}
+
+@media (max-width: 900px) {
+  .biomass-page {
+    @apply grid-cols-1;
+  }
+
+  .biomass-summary-panel {
+    grid-column: auto;
+  }
+
+  .biomass-history-panel {
+    grid-column: auto;
+  }
+
+  .biomass-density-chart-head {
+    @apply items-start;
+  }
+}

@@ -1,0 +1,208 @@
+@reference "tailwindcss";
+
+.sidebar {
+  @apply sticky top-0 flex h-screen flex-col overflow-hidden px-4 py-6 text-[#edf4ff] transition-[padding] duration-200;
+  background: linear-gradient(180deg, #1c2f4a, #13233a);
+}
+
+.brand h1 {
+  @apply m-0 text-2xl;
+  color: #f5fbff !important;
+}
+
+.brand p {
+  @apply mt-1 mb-6 text-[#a9bdd9];
+}
+
+.sidebar-nav {
+  @apply grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(169, 189, 217, 0.42) transparent;
+  scrollbar-gutter: stable;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 0.42rem;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 1px solid rgba(19, 35, 58, 0.55);
+  background: linear-gradient(180deg, rgba(170, 193, 222, 0.42), rgba(127, 159, 196, 0.58));
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(187, 207, 233, 0.56), rgba(145, 176, 210, 0.7));
+}
+
+.sidebar-nav::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.sidebar-group {
+  @apply grid gap-1;
+}
+
+.sidebar-link {
+  @apply flex items-center gap-2.5 rounded-[10px] px-3 py-[0.58rem] no-underline text-[#c5d5ec] transition-colors;
+}
+
+.sidebar-link-icon {
+  @apply h-[1.08rem] w-[1.08rem] shrink-0;
+}
+
+.sidebar-link:hover,
+.sidebar-link-active {
+  @apply bg-white/15 text-white;
+}
+
+.sidebar-group-caret {
+  @apply ml-auto h-0 w-0 border-l-[5px] border-r-[5px] border-l-transparent border-r-transparent border-t-[6px] border-t-current opacity-70;
+  transition: transform 180ms ease;
+}
+
+.sidebar-group-caret-open {
+  transform: rotate(180deg);
+  opacity: 0.92;
+}
+
+.sidebar-subnav {
+  @apply ml-3 grid gap-1 pl-4;
+  border-left: 1px solid rgba(188, 207, 232, 0.3);
+}
+
+.sidebar-subnav-collapsed {
+  @apply hidden;
+}
+
+.sidebar-sub-link {
+  @apply flex items-center gap-2 rounded-[8px] px-2 py-[0.42rem] no-underline text-[0.84rem] text-[#b4c7e2] transition-colors;
+}
+
+.sidebar-sub-link-dot {
+  @apply h-1.5 w-1.5 rounded-full bg-current opacity-70;
+}
+
+.sidebar-sub-link:hover,
+.sidebar-sub-link-active {
+  @apply bg-white/13 text-white;
+}
+
+.sidebar-footer {
+  @apply mt-3 grid gap-2 border-t border-white/15 pt-3;
+}
+
+.sidebar-session-card {
+  @apply grid gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2;
+}
+
+.sidebar-session-head {
+  @apply grid items-stretch gap-2;
+  grid-template-columns: 2rem minmax(0, 1fr);
+}
+
+.sidebar-session-avatar {
+  @apply grid h-8 w-8 place-items-center rounded-md border border-[#9dbce0] bg-[#2c4f79] text-[0.68rem] font-bold text-[#eaf4ff];
+}
+
+.sidebar-session-info {
+  @apply grid min-w-0;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  min-height: 2rem;
+}
+
+.sidebar-session-name {
+  @apply flex items-center text-[0.84rem] font-semibold leading-tight;
+  color: #f4f9ff !important;
+}
+
+.sidebar-session-name {
+  @apply overflow-hidden whitespace-nowrap text-ellipsis;
+}
+
+.sidebar-session-exit {
+  @apply m-0 flex items-center border-0 bg-transparent px-0 py-0 text-left text-[0.74rem] font-semibold text-[#d9e9fb] transition;
+}
+
+.sidebar-session-exit:hover {
+  @apply text-white;
+}
+
+.sidebar-collapsed {
+  @apply px-2.5;
+}
+
+.sidebar-collapsed .brand p,
+.sidebar-collapsed .sidebar-link-text,
+.sidebar-collapsed .sidebar-subnav,
+.sidebar-collapsed .sidebar-group-caret {
+  @apply hidden;
+}
+
+.sidebar-collapsed .brand h1 {
+  @apply text-center text-[1.35rem];
+}
+
+.sidebar-collapsed .sidebar-link {
+  @apply grid place-items-center gap-0 px-0 py-2;
+}
+
+.sidebar-collapsed .sidebar-footer {
+  @apply mt-2 gap-1 border-t border-white/10 pt-2;
+}
+
+.sidebar-collapsed .sidebar-session-card {
+  @apply gap-1 px-1.5 py-1;
+}
+
+.sidebar-collapsed .sidebar-session-head {
+  @apply grid-cols-1 justify-items-center;
+}
+
+.sidebar-collapsed .sidebar-session-info {
+  @apply justify-items-center;
+  grid-template-rows: none;
+  min-height: 0;
+}
+
+.sidebar-collapsed .sidebar-session-name {
+  @apply text-center text-[0.58rem];
+}
+
+.sidebar-collapsed .sidebar-session-exit {
+  @apply text-center text-[0.6rem];
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    @apply fixed inset-y-0 left-0 z-[40] w-[250px] -translate-x-full;
+    transition: transform 220ms ease;
+  }
+
+  .sidebar.sidebar-mobile-open {
+    @apply translate-x-0;
+  }
+
+  .sidebar-collapsed {
+    @apply px-4 py-6;
+  }
+
+  .sidebar-collapsed .brand p,
+  .sidebar-collapsed .sidebar-link-text {
+    @apply inline;
+  }
+
+  .sidebar-collapsed .sidebar-subnav {
+    @apply grid;
+  }
+
+  .sidebar-collapsed .sidebar-link {
+    @apply flex gap-2.5 px-3 py-[0.58rem];
+  }
+}
