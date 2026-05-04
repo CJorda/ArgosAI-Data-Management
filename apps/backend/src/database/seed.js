@@ -18,6 +18,33 @@ const pondZones = [
   { prefix: "C", count: 7, species: "trucha" }
 ];
 
+const siteSeeds = [
+  {
+    code: "NORTE",
+    name: "Centro Norte",
+    region: "Cantabrico"
+  },
+  {
+    code: "SUR",
+    name: "Centro Sur",
+    region: "Andalucia"
+  },
+  {
+    code: "LEVANTE",
+    name: "Centro Levante",
+    region: "Mediterraneo"
+  }
+];
+
+const siteCodeByPondPrefix = {
+  A: "SUR",
+  B: "SUR",
+  C: "LEVANTE",
+  D: "LEVANTE",
+  E: "NORTE",
+  F: "NORTE"
+};
+
 const oxygenSetpointZoneGroups = [
   {
     slotCodes: ["A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "C1", "C2", "C3", "C4", "C5", "C6", "C7"]
@@ -228,7 +255,8 @@ function buildPondSeeds() {
         code,
         name: `Piscina ${code}`,
         species: zone.species,
-        volumeM3: estimatePondVolumeM3(code)
+        volumeM3: estimatePondVolumeM3(code),
+        siteCode: siteCodeByPondPrefix[zone.prefix] || null
       });
     }
   }
@@ -273,9 +301,12 @@ async function seed() {
 
     const userId = userResult.rows[0].id;
     const pondSeeds = buildPondSeeds();
+    const siteByCode = new Map();
     const pondByCode = new Map();
     const sensorByCodeType = new Map();
     const ruleIdByType = new Map();
+    const broodstockBySite = new Map();
+    const layingBySite = new Map();
     let measurementsInserted = 0;
     let biomassCount = 0;
     let operationsCount = 0;
@@ -285,22 +316,46 @@ async function seed() {
     let temperatureColorSetpointsCount = 0;
     let phoneAlertSetpointsCount = 0;
     let smsAlertSetpointsCount = 0;
+    let broodstockCount = 0;
+    let layingCount = 0;
+    let larvalBatchCount = 0;
 
-    for (const pond of pondSeeds) {
-      const pondResult = await query(
+    for (const site of siteSeeds) {
+      const siteResult = await query(
         `
-          INSERT INTO ponds (tenant_id, name, species, volume_m3)
-          VALUES ($1, $2, $3, $4)
+          INSERT INTO sites (tenant_id, code, name, region, status)
+          VALUES ($1, $2, $3, $4, 'active')
           RETURNING id
         `,
-        [tenantId, pond.name, pond.species, pond.volumeM3]
+        [tenantId, site.code, site.name, site.region]
+      );
+
+      siteByCode.set(site.code, {
+        id: siteResult.rows[0].id,
+        ...site
+      });
+      broodstockBySite.set(site.code, []);
+      layingBySite.set(site.code, []);
+    }
+
+    for (const pond of pondSeeds) {
+      const siteId = siteByCode.get(pond.siteCode)?.id || null;
+      const pondResult = await query(
+        `
+          INSERT INTO ponds (tenant_id, site_id, name, species, volume_m3)
+          VALUES ($1, $2, $3, $4, $5)
+          RETURNING id
+        `,
+        [tenantId, siteId, pond.name, pond.species, pond.volumeM3]
       );
 
       pondByCode.set(pond.code, {
         id: pondResult.rows[0].id,
         code: pond.code,
         species: pond.species,
-        name: pond.name
+        name: pond.name,
+        siteId,
+        siteCode: pond.siteCode
       });
     }
 
@@ -356,6 +411,186 @@ async function seed() {
           item.fcrTarget
         ]
       );
+    }
+
+    const speciesBySiteCode = {
+      NORTE: "dorada",
+      SUR: "lubina",
+      LEVANTE: "trucha"
+    };
+
+    for (const site of siteSeeds) {
+      const siteState = siteByCode.get(site.code);
+      const species = speciesBySiteCode[site.code] || "dorada";
+
+      for (let index = 1; index <= 8; index += 1) {
+        const sex = index % 2 === 0 ? "male" : "female";
+        const tagCode = `${site.code}-BR-${String(index).padStart(3, "0")}`;
+        const hatchDate = new Date(
+          Date.now() - randomInt(380, 1150) * dayMs
+        ).toISOString().slice(0, 10);
+
+        const broodstockResult = await query(
+          `
+            INSERT INTO hatchery_broodstock (
+              tenant_id,
+              site_id,
+              tag_code,
+              species,
+              sex,
+              hatch_date,
+              avg_weight_g,
+              status,
+              origin,
+              note
+            )
+            VALUES ($1, $2, $3, $4, $5, $6::date, $7, 'active', $8, $9)
+            RETURNING id
+          `,
+          [
+            tenantId,
+            siteState.id,
+            tagCode,
+            species,
+            sex,
+            hatchDate,
+            randomFloat(1800, 4600, 1),
+            `Nucleo genetico ${site.region}`,
+            `Reproductor ${sex === "female" ? "hembra" : "macho"} en programa de seleccion`
+          ]
+        );
+
+        broodstockBySite.get(site.code).push({
+          id: broodstockResult.rows[0].id,
+          sex
+        });
+        broodstockCount += 1;
+      }
+
+      const females = broodstockBySite.get(site.code).filter((item) => item.sex === "female");
+      const males = broodstockBySite.get(site.code).filter((item) => item.sex === "male");
+
+      for (let cycle = 1; cycle <= 4; cycle += 1) {
+        const female = females[(cycle - 1) % females.length];
+        const male = males[(cycle - 1) % males.length];
+        const layingCode = `${site.code}-PUESTA-${String(cycle).padStart(2, "0")}`;
+        const laidAt = toIsoDaysAgo(randomInt(20, 145), randomInt(5, 12));
+        const eggCount = randomInt(85000, 235000);
+        const fertilizationPct = randomFloat(72, 93, 2);
+        const hatchRatePct = randomFloat(54, 88, 2);
+
+        const layingResult = await query(
+          `
+            INSERT INTO hatchery_layings (
+              tenant_id,
+              site_id,
+              female_broodstock_id,
+              male_broodstock_id,
+              laying_code,
+              laid_at,
+              egg_count,
+              fertilization_pct,
+              hatch_rate_pct,
+              note
+            )
+            VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7, $8, $9, $10)
+            RETURNING id
+          `,
+          [
+            tenantId,
+            siteState.id,
+            female?.id || null,
+            male?.id || null,
+            layingCode,
+            laidAt,
+            eggCount,
+            fertilizationPct,
+            hatchRatePct,
+            "Puesta registrada en condiciones controladas"
+          ]
+        );
+
+        layingBySite.get(site.code).push({
+          id: layingResult.rows[0].id,
+          layingCode,
+          eggCount,
+          fertilizationPct,
+          hatchRatePct,
+          laidAt
+        });
+        layingCount += 1;
+      }
+
+      const layingsForSite = layingBySite.get(site.code);
+
+      for (let index = 0; index < layingsForSite.length; index += 1) {
+        const laying = layingsForSite[index];
+        const estimatedHatched = Math.round(
+          laying.eggCount * (laying.fertilizationPct / 100) * (laying.hatchRatePct / 100)
+        );
+        const initialCount = Math.max(1200, Math.round(estimatedHatched * randomFloat(0.55, 0.88, 3)));
+        const survivalPct = randomFloat(46, 90, 2);
+        const currentCount = Math.max(600, Math.round(initialCount * (survivalPct / 100)));
+        const stage = index >= 2 ? "pre-engorde" : "larva";
+        const startedAt = new Date(new Date(laying.laidAt).getTime() + randomInt(2, 9) * dayMs).toISOString();
+
+        await query(
+          `
+            INSERT INTO hatchery_larval_batches (
+              tenant_id,
+              site_id,
+              laying_id,
+              batch_code,
+              stage,
+              started_at,
+              initial_count,
+              current_count,
+              survival_pct,
+              avg_weight_mg,
+              density_larvae_l,
+              feed_type,
+              status,
+              note,
+              updated_at
+            )
+            VALUES (
+              $1,
+              $2,
+              $3,
+              $4,
+              $5,
+              $6::timestamptz,
+              $7,
+              $8,
+              $9,
+              $10,
+              $11,
+              $12,
+              $13,
+              $14,
+              NOW()
+            )
+          `,
+          [
+            tenantId,
+            siteState.id,
+            laying.id,
+            `${laying.layingCode}-L${index + 1}`,
+            stage,
+            startedAt,
+            initialCount,
+            currentCount,
+            survivalPct,
+            randomFloat(40, 550, 2),
+            randomFloat(22, 90, 2),
+            index >= 2 ? "microdieta" : "rotiferos/artemia",
+            index >= 3 ? "transition" : "active",
+            "Lote larval generado para seguimiento de supervivencia"
+          ]
+        );
+
+        larvalBatchCount += 1;
+      }
     }
 
     const oxygenSetpointSlotCodes = oxygenSetpointZoneGroups.flatMap((group) => group.slotCodes);
@@ -1042,8 +1277,10 @@ async function seed() {
 
     const auditActions = [
       "seed.tenant.reset",
+      "seed.sites.inserted",
       "seed.ponds.inserted",
       "seed.sensors.inserted",
+      "seed.hatchery.inserted",
       "seed.operations.inserted",
       "seed.biomass.inserted",
       "seed.measurements.inserted",
@@ -1080,12 +1317,16 @@ async function seed() {
         tenantCode,
         adminEmail,
         adminPassword,
+        sites: siteSeeds.length,
         ponds: pondSeeds.length,
         sensors: pondSeeds.length * sensorTemplates.length,
-  measurements: measurementsInserted,
+        measurements: measurementsInserted,
         biomassEntries: biomassCount,
         operations: operationsCount,
         alerts: alertsCount,
+        hatcheryBroodstock: broodstockCount,
+        hatcheryLayings: layingCount,
+        hatcheryLarvalBatches: larvalBatchCount,
         oxygenSetpoints: oxygenSetpointsCount,
         oxygenColorSetpoints: oxygenColorSetpointsCount,
         temperatureColorSetpoints: temperatureColorSetpointsCount,

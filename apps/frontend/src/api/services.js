@@ -29,6 +29,11 @@ export async function pondsRequest(token) {
   return data;
 }
 
+export async function sitesRequest(token) {
+  const { data } = await apiClient.get("/data/sites", authConfig(token));
+  return data;
+}
+
 export async function oxygenSetpointsRequest(token) {
   const { data } = await apiClient.get("/data/oxygen/setpoints", authConfig(token));
   return data;
@@ -161,6 +166,76 @@ export async function lotTimelineRequest(token, lotCode) {
 
 export async function activeWithdrawalsRequest(token) {
   const { data } = await apiClient.get("/planning/withdrawals/active", authConfig(token));
+  return data;
+}
+
+export async function hatcherySummaryRequest(token) {
+  const { data } = await apiClient.get("/hatchery/summary", authConfig(token));
+  return data;
+}
+
+export async function hatcheryBroodstockRequest(token, params) {
+  const { data } = await apiClient.get("/hatchery/broodstock", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function createHatcheryBroodstockRequest(token, payload) {
+  const { data } = await apiClient.post("/hatchery/broodstock", payload, authConfig(token));
+  return data;
+}
+
+export async function hatcheryLayingsRequest(token, params) {
+  const { data } = await apiClient.get("/hatchery/layings", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function createHatcheryLayingRequest(token, payload) {
+  const { data } = await apiClient.post("/hatchery/layings", payload, authConfig(token));
+  return data;
+}
+
+export async function hatcheryLarvalBatchesRequest(token, params) {
+  const { data } = await apiClient.get("/hatchery/larval-batches", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function createHatcheryLarvalBatchRequest(token, payload) {
+  const { data } = await apiClient.post("/hatchery/larval-batches", payload, authConfig(token));
+  return data;
+}
+
+export async function consolidationSitesRequest(token) {
+  const { data } = await apiClient.get("/consolidation/sites", authConfig(token));
+  return data;
+}
+
+export async function createConsolidationSiteRequest(token, payload) {
+  const { data } = await apiClient.post("/consolidation/sites", payload, authConfig(token));
+  return data;
+}
+
+export async function consolidationOverviewRequest(token, params) {
+  const { data } = await apiClient.get("/consolidation/overview", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function strategicForecastRequest(token, params) {
+  const { data } = await apiClient.get("/consolidation/forecast", {
+    ...authConfig(token),
+    params
+  });
   return data;
 }
 

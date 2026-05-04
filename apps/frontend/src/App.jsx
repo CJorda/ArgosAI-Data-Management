@@ -5,7 +5,9 @@ import { AlertsPage } from "./pages/AlertsPage";
 import { ArgosMachinePage } from "./pages/ArgosMachinePage";
 import { BiomassPage } from "./pages/BiomassPage";
 import { CameraPage } from "./pages/CameraPage";
+import { ConsolidationPage } from "./pages/ConsolidationPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { HatcheryLarvalPage } from "./pages/HatcheryLarvalPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OxygenPage } from "./pages/OxygenPage";
@@ -15,6 +17,7 @@ import { PhoneAlertSetpointsPage } from "./pages/PhoneAlertSetpointsPage";
 import { PlantMapPage } from "./pages/PlantMapPage";
 import { PlanningPage } from "./pages/PlanningPage";
 import { SmsAlertSetpointsPage } from "./pages/SmsAlertSetpointsPage";
+import { StrategicForecastPage } from "./pages/StrategicForecastPage";
 import { TemperatureColorSetpointsPage } from "./pages/TemperatureColorSetpointsPage";
 import { TraceabilityPage } from "./pages/TraceabilityPage";
 import "./App.css";
@@ -53,6 +56,9 @@ export default function App() {
           <Route path="/trazabilidad" element={<TraceabilityPage />} />
           <Route path="/alertas" element={<AlertsPage />} />
           <Route path="/operaciones" element={<Navigate to="/operaciones/alimentacion" replace />} />
+          <Route path="/operaciones/hatchery-larval" element={<HatcheryLarvalPage />} />
+          <Route path="/operaciones/consolidacion-multi-sitio" element={<ConsolidationPage />} />
+          <Route path="/operaciones/prevision-12-36" element={<StrategicForecastPage />} />
           <Route path="/operaciones/:section" element={<OperationsPage />} />
           <Route path="/biomasa" element={<Navigate to="/biomasa/resumen" replace />} />
           <Route path="/biomasa/:section" element={<BiomassPage />} />

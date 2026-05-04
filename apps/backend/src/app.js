@@ -9,7 +9,9 @@ import { alertsRoutes } from "./routes/alertsRoutes.js";
 import { authRoutes } from "./routes/authRoutes.js";
 import { biomassRoutes } from "./routes/biomassRoutes.js";
 import { cameraRoutes } from "./routes/cameraRoutes.js";
+import { consolidationRoutes } from "./routes/consolidationRoutes.js";
 import { dataRoutes } from "./routes/dataRoutes.js";
+import { hatcheryRoutes } from "./routes/hatcheryRoutes.js";
 import { operationsRoutes } from "./routes/operationsRoutes.js";
 import { planningRoutes } from "./routes/planningRoutes.js";
 import { statsRoutes } from "./routes/statsRoutes.js";
@@ -48,6 +50,8 @@ export function createApp() {
   app.use("/api/operations", operationsRoutes);
   app.use("/api/biomass", biomassRoutes);
   app.use("/api/planning", planningRoutes);
+  app.use("/api/hatchery", hatcheryRoutes);
+  app.use("/api/consolidation", consolidationRoutes);
   app.use("/api/cameras", cameraRoutes);
   app.use("/api/stats", statsRoutes);
 

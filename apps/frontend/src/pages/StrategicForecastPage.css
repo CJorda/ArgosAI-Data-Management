@@ -1,0 +1,109 @@
+@reference "tailwindcss";
+
+.strategic-forecast-page {
+  @apply grid gap-4;
+}
+
+.strategic-intro {
+  @apply mb-4 mt-1 max-w-[78ch] text-[#4d6079];
+}
+
+.strategic-head-actions {
+  @apply mb-3 flex flex-wrap items-center justify-between gap-2;
+}
+
+.strategic-assumptions-note {
+  @apply m-0 rounded-md border border-[#d7e3f4] bg-[#f8fbff] px-3 py-2 text-[0.81rem] text-[#4e678a];
+}
+
+.strategic-reset {
+  @apply px-3 py-1.5 text-[0.79rem];
+}
+
+.strategic-filters-grid {
+  @apply grid gap-3;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.strategic-assumptions-current {
+  @apply mt-3 mb-0 rounded-md border border-[#d4e0f2] bg-[#f9fbff] px-3 py-2 text-[0.81rem] text-[#4d6688];
+}
+
+.strategic-kpi-grid {
+  @apply mt-4 grid grid-cols-4 gap-3;
+}
+
+.strategic-kpi-card {
+  @apply rounded-xl border border-[#d1dced] bg-white px-3 py-3 shadow-[0_8px_24px_rgba(30,61,95,0.08)];
+}
+
+.strategic-kpi-card p {
+  @apply m-0 text-[0.77rem] font-medium uppercase tracking-[0.02em] text-[#5b708d];
+}
+
+.strategic-kpi-card strong {
+  @apply mt-1 block text-[1.26rem] text-[#1e3657];
+}
+
+.strategic-demo-note {
+  @apply mt-3 rounded-lg border border-[#bcd2f2] bg-[#f1f6ff] px-3 py-2 text-[0.84rem] text-[#315d96];
+}
+
+.strategic-loading-note {
+  @apply mt-3 rounded-lg border border-[#d3deef] bg-[#f8fbff] px-3 py-2 text-[0.82rem] text-[#4b6386];
+}
+
+.strategic-chart-panel {
+  @apply border-[#d0dcef] bg-[linear-gradient(180deg,#fbfdff_0%,#f6f9ff_100%)];
+}
+
+.strategic-chart-shell {
+  @apply overflow-hidden rounded-xl border border-[#d6e2f2] bg-white p-2;
+}
+
+.strategic-table-wrap {
+  @apply rounded-xl border border-[#d6e0ef] bg-white;
+}
+
+.strategic-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.strategic-table th,
+.strategic-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.strategic-table-empty {
+  @apply py-4 text-center text-[#5b6d89];
+}
+
+@media (max-width: 1180px) {
+  .strategic-filters-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .strategic-kpi-grid {
+    @apply grid-cols-2;
+  }
+}
+
+@media (max-width: 760px) {
+  .strategic-head-actions {
+    @apply items-stretch;
+  }
+
+  .strategic-reset {
+    @apply w-full justify-center;
+  }
+
+  .strategic-filters-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .strategic-kpi-grid {
+    @apply grid-cols-1;
+  }
+}

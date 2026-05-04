@@ -26,15 +26,81 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS sites (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  code TEXT NOT NULL,
+  name TEXT NOT NULL,
+  region TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, code),
+  UNIQUE (tenant_id, name)
+);
+
 CREATE TABLE IF NOT EXISTS ponds (
   id BIGSERIAL PRIMARY KEY,
   tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  site_id BIGINT REFERENCES sites(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
   species TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active',
   volume_m3 DOUBLE PRECISION,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (tenant_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS hatchery_broodstock (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  site_id BIGINT REFERENCES sites(id) ON DELETE SET NULL,
+  tag_code TEXT NOT NULL,
+  species TEXT NOT NULL,
+  sex TEXT NOT NULL,
+  hatch_date DATE,
+  avg_weight_g DOUBLE PRECISION,
+  status TEXT NOT NULL DEFAULT 'active',
+  origin TEXT,
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, tag_code)
+);
+
+CREATE TABLE IF NOT EXISTS hatchery_layings (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  site_id BIGINT REFERENCES sites(id) ON DELETE SET NULL,
+  female_broodstock_id BIGINT REFERENCES hatchery_broodstock(id) ON DELETE SET NULL,
+  male_broodstock_id BIGINT REFERENCES hatchery_broodstock(id) ON DELETE SET NULL,
+  laying_code TEXT NOT NULL,
+  laid_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  egg_count INTEGER NOT NULL,
+  fertilization_pct DOUBLE PRECISION,
+  hatch_rate_pct DOUBLE PRECISION,
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, laying_code)
+);
+
+CREATE TABLE IF NOT EXISTS hatchery_larval_batches (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  site_id BIGINT REFERENCES sites(id) ON DELETE SET NULL,
+  laying_id BIGINT REFERENCES hatchery_layings(id) ON DELETE SET NULL,
+  batch_code TEXT NOT NULL,
+  stage TEXT NOT NULL DEFAULT 'larva',
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  initial_count INTEGER NOT NULL,
+  current_count INTEGER,
+  survival_pct DOUBLE PRECISION,
+  avg_weight_mg DOUBLE PRECISION,
+  density_larvae_l DOUBLE PRECISION,
+  feed_type TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  note TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, batch_code)
 );
 
 CREATE TABLE IF NOT EXISTS oxygen_valve_setpoints (
@@ -208,7 +274,23 @@ ALTER TABLE operations
   ADD COLUMN IF NOT EXISTS event_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 ALTER TABLE ponds
-  ADD COLUMN IF NOT EXISTS volume_m3 DOUBLE PRECISION;
+  ADD COLUMN IF NOT EXISTS volume_m3 DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS site_id BIGINT;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'ponds_site_id_fkey'
+  ) THEN
+    ALTER TABLE ponds
+      ADD CONSTRAINT ponds_site_id_fkey
+      FOREIGN KEY (site_id)
+      REFERENCES sites(id)
+      ON DELETE SET NULL;
+  END IF;
+END $$;
 
 ALTER TABLE phone_alert_setpoints
   ADD COLUMN IF NOT EXISTS oxygen_min_pct DOUBLE PRECISION,
@@ -283,6 +365,21 @@ CREATE INDEX IF NOT EXISTS idx_alerts_tenant_status_created
 
 CREATE INDEX IF NOT EXISTS idx_operations_tenant_pond_created
   ON operations (tenant_id, pond_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_ponds_tenant_site
+  ON ponds (tenant_id, site_id);
+
+CREATE INDEX IF NOT EXISTS idx_sites_tenant_status
+  ON sites (tenant_id, status, name);
+
+CREATE INDEX IF NOT EXISTS idx_hatchery_broodstock_tenant_site
+  ON hatchery_broodstock (tenant_id, site_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_hatchery_layings_tenant_site_laid
+  ON hatchery_layings (tenant_id, site_id, laid_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_hatchery_larval_batches_tenant_site_status
+  ON hatchery_larval_batches (tenant_id, site_id, status, started_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_operations_tenant_lot_event
   ON operations (tenant_id, lot_code, event_at DESC);

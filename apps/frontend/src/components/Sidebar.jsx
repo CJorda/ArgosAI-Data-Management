@@ -183,6 +183,18 @@ const navItems = [
         label: "Trazabilidad"
       },
       {
+        to: "/operaciones/hatchery-larval",
+        label: "Hatchery / Larval"
+      },
+      {
+        to: "/operaciones/consolidacion-multi-sitio",
+        label: "Consolidación multi-sitio"
+      },
+      {
+        to: "/operaciones/prevision-12-36",
+        label: "Previsión 12-36 meses"
+      },
+      {
         to: "/operaciones/alimentacion",
         label: "Alimentación"
       },

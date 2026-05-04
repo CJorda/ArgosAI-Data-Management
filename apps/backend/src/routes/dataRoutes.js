@@ -7,6 +7,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { HttpError } from "../utils/httpError.js";
 
 const createPondSchema = z.object({
+  siteId: z.number().int().positive().optional().nullable(),
   name: z.string().min(2),
   species: z.string().min(2),
   volumeM3: z.number().positive().optional().nullable()
@@ -24,14 +25,42 @@ export const dataRoutes = Router();
 dataRoutes.use(requireAuth);
 
 dataRoutes.get(
+  "/sites",
+  asyncHandler(async (req, res) => {
+    const result = await query(
+      `
+        SELECT id, code, name, region, status, created_at
+        FROM sites
+        WHERE tenant_id = $1
+        ORDER BY name ASC
+      `,
+      [req.user.tenantId]
+    );
+
+    res.json(result.rows);
+  })
+);
+
+dataRoutes.get(
   "/ponds",
   asyncHandler(async (req, res) => {
     const result = await query(
       `
-        SELECT id, name, species, status, volume_m3, created_at
-        FROM ponds
-        WHERE tenant_id = $1
-        ORDER BY name ASC
+        SELECT
+          p.id,
+          p.site_id,
+          s.code AS site_code,
+          s.name AS site_name,
+          s.region AS site_region,
+          p.name,
+          p.species,
+          p.status,
+          p.volume_m3,
+          p.created_at
+        FROM ponds p
+        LEFT JOIN sites s ON s.id = p.site_id
+        WHERE p.tenant_id = $1
+        ORDER BY p.name ASC
       `,
       [req.user.tenantId]
     );
@@ -236,15 +265,32 @@ dataRoutes.post(
   "/ponds",
   validate(createPondSchema),
   asyncHandler(async (req, res) => {
-    const { name, species, volumeM3 } = req.body;
+    const { siteId, name, species, volumeM3 } = req.body;
+
+    if (siteId) {
+      const siteResult = await query(
+        `
+          SELECT id
+          FROM sites
+          WHERE id = $1
+            AND tenant_id = $2
+          LIMIT 1
+        `,
+        [siteId, req.user.tenantId]
+      );
+
+      if (siteResult.rowCount === 0) {
+        throw new HttpError(404, "Site not found");
+      }
+    }
 
     const result = await query(
       `
-        INSERT INTO ponds (tenant_id, name, species, volume_m3)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, name, species, status, volume_m3, created_at
+        INSERT INTO ponds (tenant_id, site_id, name, species, volume_m3)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, site_id, name, species, status, volume_m3, created_at
       `,
-      [req.user.tenantId, name, species, volumeM3 ?? null]
+      [req.user.tenantId, siteId ?? null, name, species, volumeM3 ?? null]
     );
 
     res.status(201).json(result.rows[0]);

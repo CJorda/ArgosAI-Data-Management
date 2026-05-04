@@ -1,0 +1,109 @@
+@reference "tailwindcss";
+
+.hatchery-page {
+  @apply grid gap-4;
+}
+
+.hatchery-hero-panel {
+  @apply border-[#cfdcf0] bg-[linear-gradient(180deg,#fbfdff_0%,#f6f9ff_100%)];
+}
+
+.hatchery-intro {
+  @apply mb-4 mt-1 max-w-[72ch] text-[#4d6079];
+}
+
+.hatchery-kpi-grid {
+  @apply mt-3 grid grid-cols-4 gap-3;
+}
+
+.hatchery-kpi-card {
+  @apply rounded-xl border border-[#cfdaea] bg-white px-3 py-2.5 shadow-[0_8px_24px_rgba(33,67,107,0.08)];
+}
+
+.hatchery-kpi-card p {
+  @apply m-0 text-[0.78rem] font-medium uppercase tracking-[0.02em] text-[#5b6f8c];
+}
+
+.hatchery-kpi-card strong {
+  @apply mt-1 block text-[1.45rem] text-[#1a3557];
+}
+
+.hatchery-demo-note {
+  @apply mt-3 rounded-lg border border-[#bcd2f2] bg-[#f1f6ff] px-3 py-2 text-[0.84rem] text-[#315d96];
+}
+
+.hatchery-loading-note {
+  @apply mt-3 rounded-lg border border-[#d3deef] bg-[#f8fbff] px-3 py-2 text-[0.82rem] text-[#4b6386];
+}
+
+.hatchery-error {
+  @apply mt-3 rounded-md border border-[#edc6c6] bg-[#fff6f6] px-3 py-2 text-[0.84rem] text-[#8e3737];
+}
+
+.hatchery-feedback {
+  @apply mt-3 rounded-md border px-3 py-2 text-[0.84rem];
+}
+
+.hatchery-feedback-ok {
+  @apply border-[#badfcd] bg-[#f2fbf6] text-[#24674b];
+}
+
+.hatchery-form-grid {
+  @apply grid gap-4;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hatchery-form-panel {
+  @apply border-[#d1ddef] bg-[#fbfdff];
+}
+
+.hatchery-form-panel h3 {
+  @apply mb-3;
+}
+
+.hatchery-form-help {
+  @apply mt-0 mb-3 rounded-md border border-[#d7e3f4] bg-[#f8fbff] px-3 py-2 text-[0.81rem] text-[#4e678a];
+}
+
+.hatchery-form-panel .btn-primary {
+  @apply justify-self-start;
+}
+
+.hatchery-table-wrap {
+  @apply rounded-xl border border-[#d6e0ef] bg-white;
+}
+
+.hatchery-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.hatchery-table th,
+.hatchery-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.hatchery-table-empty {
+  @apply py-4 text-center text-[#5b6d89];
+}
+
+@media (max-width: 1200px) {
+  .hatchery-kpi-grid {
+    @apply grid-cols-2;
+  }
+
+  .hatchery-form-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .hatchery-kpi-grid {
+    @apply grid-cols-1;
+  }
+
+  .hatchery-form-panel .btn-primary {
+    @apply w-full justify-center;
+  }
+}

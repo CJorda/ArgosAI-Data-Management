@@ -17,3 +17,15 @@
   .tiny-button {
     @apply bg-[#dce7df] px-2 py-1.5 text-[0.82rem] text-[#1f2c24];
   }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-[10px] border border-[#114f90] bg-[#2167ad] px-3.5 py-2 text-[0.84rem] font-semibold text-white transition duration-150 ease-out;
+  }
+
+  .btn-primary:hover {
+    @apply -translate-y-px border-[#0f4680] bg-[#1b5a99];
+  }
+
+  .btn-primary:disabled {
+    @apply cursor-not-allowed opacity-60;
+  }

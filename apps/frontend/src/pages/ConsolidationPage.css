@@ -1,0 +1,100 @@
+@reference "tailwindcss";
+
+.consolidation-page {
+  @apply grid gap-4;
+}
+
+.consolidation-intro {
+  @apply mb-4 mt-1 max-w-[75ch] text-[#4d6079];
+}
+
+.consolidation-kpi-grid {
+  @apply mt-4 grid grid-cols-3 gap-3;
+}
+
+.consolidation-kpi-card {
+  @apply rounded-xl border border-[#d2dceb] bg-white px-3 py-3 shadow-[0_8px_24px_rgba(30,61,95,0.08)];
+}
+
+.consolidation-kpi-card p {
+  @apply m-0 text-[0.78rem] font-medium uppercase tracking-[0.02em] text-[#5d6f8a];
+}
+
+.consolidation-kpi-card strong {
+  @apply mt-1.5 block text-[1.3rem] text-[#1b3558];
+}
+
+.consolidation-demo-note {
+  @apply mt-3 rounded-lg border border-[#bcd2f2] bg-[#f1f6ff] px-3 py-2 text-[0.84rem] text-[#315d96];
+}
+
+.consolidation-loading-note {
+  @apply mt-3 rounded-lg border border-[#d3deef] bg-[#f8fbff] px-3 py-2 text-[0.82rem] text-[#4b6386];
+}
+
+.consolidation-form {
+  @apply grid-cols-5;
+}
+
+.consolidation-form-help {
+  @apply mt-0 mb-3 rounded-md border border-[#d7e3f4] bg-[#f8fbff] px-3 py-2 text-[0.81rem] text-[#4e678a];
+}
+
+.consolidation-form .btn-primary {
+  @apply self-end;
+}
+
+.consolidation-table-wrap {
+  @apply rounded-xl border border-[#d6e0ef] bg-white;
+}
+
+.consolidation-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.consolidation-table th,
+.consolidation-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.consolidation-table-empty {
+  @apply py-4 text-center text-[#5b6d89];
+}
+
+.consolidation-error {
+  @apply mt-3 rounded-md border border-[#edc8c8] bg-[#fff7f7] px-3 py-2 text-[0.85rem] text-[#913f3f];
+}
+
+.consolidation-feedback {
+  @apply mt-3 rounded-md border px-3 py-2 text-[0.84rem];
+}
+
+.consolidation-feedback-ok {
+  @apply border-[#badfcd] bg-[#f2fbf6] text-[#24674b];
+}
+
+@media (max-width: 1100px) {
+  .consolidation-kpi-grid {
+    @apply grid-cols-2;
+  }
+
+  .consolidation-form {
+    @apply grid-cols-2;
+  }
+}
+
+@media (max-width: 760px) {
+  .consolidation-kpi-grid {
+    @apply grid-cols-1;
+  }
+
+  .consolidation-form {
+    @apply grid-cols-1;
+  }
+
+  .consolidation-form .btn-primary {
+    @apply w-full justify-center;
+  }
+}
