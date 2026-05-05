@@ -388,20 +388,6 @@ function buildDemoHourlyHeatmapValue(sensorType, year, dayOfYear, hourOfDay) {
   return Number(value.toFixed(3));
 }
 
-function normalizeByIdeal(rawValue, idealMin, idealMax) {
-  const numeric = Number(rawValue);
-  if (!Number.isFinite(numeric)) {
-    return null;
-  }
-
-  const window = idealMax - idealMin;
-  if (!Number.isFinite(window) || window <= 0) {
-    return null;
-  }
-
-  return Number((((numeric - idealMin) / window) * 100).toFixed(2));
-}
-
 function buildAxisLabelConfig(axisLabels, bucket, maxLabelCount = bucket === "hour" ? 9 : 13) {
   const interval =
     axisLabels.length > maxLabelCount ? Math.ceil(axisLabels.length / maxLabelCount) - 1 : 0;
@@ -1101,23 +1087,111 @@ function historyOption(card, bucket) {
   });
 }
 
-function combinedHistoryOption(rows, bucket) {
+function combinedHistoryOption(rows, bucket, legendSelectedState = {}) {
   const axisLabels = rows.map((item) => formatBucketLabel(item.bucket_start, bucket));
-  const normalizedValues = [];
+  const legendSelected = sensorOrder.reduce((acc, sensorType) => {
+    const label = sensorMeta[sensorType].label;
+    acc[label] = legendSelectedState[label] !== false;
+    return acc;
+  }, {});
 
-  for (const row of rows) {
-    for (const sensorType of sensorOrder) {
-      const meta = sensorMeta[sensorType];
-      normalizedValues.push(normalizeByIdeal(row[sensorType], meta.idealMin, meta.idealMax));
-    }
-  }
+  const visibleSensorTypes = sensorOrder.filter(
+    (sensorType) => legendSelected[sensorMeta[sensorType].label]
+  );
+  const axisSensorTypes = visibleSensorTypes.length ? visibleSensorTypes : [sensorOrder[0]];
+  const axisOffsetStep = 40;
+  const axisIndexByType = new Map(
+    axisSensorTypes.map((sensorType, axisIndex) => [sensorType, axisIndex])
+  );
+  const axisOffsetByType = new Map(
+    axisSensorTypes.map((sensorType, axisIndex) => [sensorType, axisIndex * axisOffsetStep])
+  );
+  const leftGridPadding = 64 + Math.max(0, visibleSensorTypes.length - 1) * axisOffsetStep;
 
-  const yAxisRange = computeAxisRange(normalizedValues, { paddingRatio: 0.16, minPadding: 3 });
+  const yAxisConfigs = axisSensorTypes.map((sensorType) => {
+    const meta = sensorMeta[sensorType];
+    const isVisible = legendSelected[meta.label];
+    const axisOffset = axisOffsetByType.get(sensorType) || 0;
+    const values = rows
+      .map((row) => Number(row[sensorType]))
+      .filter((value) => Number.isFinite(value));
+    const yAxisRange = computeAxisRange(values.length ? values : [meta.idealMin, meta.idealMax], {
+      paddingRatio: 0.14,
+      minPadding: 0.06
+    });
+
+    return {
+      type: "value",
+      show: isVisible,
+      scale: true,
+      position: "left",
+      offset: axisOffset,
+      min: yAxisRange.min,
+      max: yAxisRange.max,
+      name: isVisible ? `${meta.label} (${meta.unit})` : "",
+      nameLocation: "middle",
+      nameGap: -20,
+      nameRotate: 90,
+      nameTextStyle: {
+        color: meta.color,
+        fontSize: 10
+      },
+      axisLabel: {
+        show: isVisible,
+        margin: 0,
+        color: meta.color,
+        formatter: (value) => compactAxisNumber(value, 2)
+      },
+      axisLine: {
+        show: isVisible,
+        lineStyle: {
+          color: meta.color,
+          opacity: 0.75
+        }
+      },
+      axisTick: {
+        show: isVisible,
+        lineStyle: {
+          color: meta.color,
+          opacity: 0.7
+        }
+      },
+      splitLine: {
+        show: isVisible && axisIndexByType.get(sensorType) === 0,
+        lineStyle: {
+          type: "dashed"
+        }
+      }
+    };
+  });
 
   return withDarkChartTheme({
     tooltip: {
       trigger: "axis",
-      valueFormatter: (value) => (value === null || value === undefined ? "-" : `${value}%`)
+      formatter: (params) => {
+        const rowsData = Array.isArray(params) ? params : [params];
+        if (!rowsData.length) {
+          return "-";
+        }
+
+        const label = String(rowsData[0].axisValueLabel || rowsData[0].axisValue || "-")
+          .replace(/\n/g, " ")
+          .trim();
+        const lines = [`<strong>${label}</strong>`];
+
+        for (const rowData of rowsData) {
+          const value = Number(rowData.data);
+          const sensorType = sensorOrder.find(
+            (candidateType) => sensorMeta[candidateType].label === rowData.seriesName
+          );
+          const unit = sensorType ? sensorMeta[sensorType].unit : "";
+          const valueLabel = Number.isFinite(value) ? formatNumber(value, 2) : "-";
+
+          lines.push(`${rowData.marker}${rowData.seriesName}: <strong>${valueLabel} ${unit}</strong>`);
+        }
+
+        return lines.join("<br/>");
+      }
     },
     legend: {
       type: "scroll",
@@ -1125,6 +1199,7 @@ function combinedHistoryOption(rows, bucket) {
       left: 8,
       right: 8,
       itemGap: 12,
+      selected: legendSelected,
       textStyle: {
         fontSize: 11
       },
@@ -1132,9 +1207,9 @@ function combinedHistoryOption(rows, bucket) {
     },
     grid: {
       top: 50,
-      right: 22,
+      right: 24,
       bottom: 34,
-      left: 22,
+      left: leftGridPadding,
       containLabel: false
     },
     xAxis: {
@@ -1143,21 +1218,7 @@ function combinedHistoryOption(rows, bucket) {
       data: axisLabels,
       axisLabel: buildAxisLabelConfig(axisLabels, bucket, bucket === "hour" ? 8 : 12)
     },
-    yAxis: {
-      type: "value",
-      scale: true,
-      min: yAxisRange.min,
-      max: yAxisRange.max,
-      name: "Indice (%)",
-      axisLabel: {
-        formatter: (value) => `${compactAxisNumber(value, 0)}%`
-      },
-      splitLine: {
-        lineStyle: {
-          type: "dashed"
-        }
-      }
-    },
+    yAxis: yAxisConfigs,
     series: sensorOrder.map((sensorType) => {
       const meta = sensorMeta[sensorType];
 
@@ -1166,11 +1227,15 @@ function combinedHistoryOption(rows, bucket) {
         type: "line",
         smooth: true,
         symbol: "none",
+        yAxisIndex: axisIndexByType.get(sensorType) || 0,
         lineStyle: {
           width: 2.4,
           color: meta.color
         },
-        data: rows.map((row) => normalizeByIdeal(row[sensorType], meta.idealMin, meta.idealMax))
+        data: rows.map((row) => {
+          const value = Number(row[sensorType]);
+          return Number.isFinite(value) ? Number(value.toFixed(3)) : null;
+        })
       };
     })
   });
@@ -1192,6 +1257,7 @@ export function HistoryPage() {
   const [selectedYAxisType, setSelectedYAxisType] = useState("temperature");
   const [selectedHeatmapType, setSelectedHeatmapType] = useState("oxygen");
   const [selectedHeatmapYear, setSelectedHeatmapYear] = useState(new Date().getFullYear());
+  const [combinedLegendSelected, setCombinedLegendSelected] = useState({});
 
   const sensorsQuery = useQuery({
     queryKey: ["sensors", "history"],
@@ -1600,6 +1666,14 @@ export function HistoryPage() {
   const heatmapUsesDemo = heatmapDemoCells > 0;
   const heatmapHourlyUsesDemo = heatmapHourlyDemoCells > 0;
   const shouldShowDemoNote = historySection !== "heatmap" && demoCards > 0;
+  const combinedChartEvents = useMemo(
+    () => ({
+      legendselectchanged: (event) => {
+        setCombinedLegendSelected({ ...(event?.selected || {}) });
+      }
+    }),
+    []
+  );
 
   return (
     <section className="history-page">
@@ -1623,7 +1697,35 @@ export function HistoryPage() {
               : "Vista organizada por parámetros físico-químicos para detectar estabilidad, dispersión y tendencias de cada piscina en paralelo."}
         </p>
 
-        {historySection === "xy" ? (
+        {historySection === "combined" ? (
+          <div className="filters-inline history-combined-controls">
+            <div>
+              <label htmlFor="pondSelect">Piscina</label>
+              <select
+                id="pondSelect"
+                value={activePondId}
+                onChange={(event) => setSelectedPondId(event.target.value)}
+              >
+                {displayPondOptions.map((pond) => (
+                  <option key={pond.id} value={pond.id}>
+                    {pond.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="rangeSelect">Rango</label>
+              <select id="rangeSelect" value={range} onChange={(event) => setRange(event.target.value)}>
+                <option value="24h">24 horas</option>
+                <option value="7d">7 días</option>
+                <option value="30d">30 días</option>
+                <option value="90d">90 días</option>
+                <option value="1y">1 año</option>
+              </select>
+            </div>
+          </div>
+        ) : historySection === "xy" ? (
           <div className="filters-inline history-xy-controls">
             <div>
               <label htmlFor="pondSelect">Piscina</label>
@@ -1850,14 +1952,16 @@ export function HistoryPage() {
           <header className="history-combined-header">
             <h3>Comparativa unificada</h3>
             <p>
-              Todos los parámetros en una misma gráfica usando índice normalizado: 0% equivale al
-              límite inferior ideal y 100% al límite superior ideal.
+              Los parámetros se muestran en sus unidades reales con eje Y independiente por métrica
+              para facilitar la lectura de oxígeno, temperatura, pH, salinidad y turbidez.
             </p>
           </header>
 
           <ReactECharts
-            option={combinedHistoryOption(combinedRows, rangeConfig.bucket)}
+            option={combinedHistoryOption(combinedRows, rangeConfig.bucket, combinedLegendSelected)}
             style={{ height: 500 }}
+            onEvents={combinedChartEvents}
+            notMerge
           />
         </article>
       ) : historySection === "xy" ? (

@@ -16,14 +16,14 @@
 }
 
 .login-brand {
-  @apply relative flex flex-col justify-between gap-6 px-8 py-9 text-[#e8f2ff];
-  background: linear-gradient(145deg, #0f2647 0%, #18467a 58%, #1f6ea8 100%);
+  @apply relative flex flex-col justify-center gap-6 px-8 py-9 text-[#edf6ff];
+  background: linear-gradient(155deg, #081428 0%, #0f2a4d 55%, #153f66 100%);
 }
 
 .login-brand::after {
   content: "";
   @apply pointer-events-none absolute -bottom-16 -left-16 h-56 w-56 rounded-full;
-  background: radial-gradient(circle, rgba(143, 247, 237, 0.32), transparent 65%);
+  background: radial-gradient(circle, rgba(115, 217, 255, 0.28), transparent 68%);
 }
 
 .login-logo-mark {
@@ -36,23 +36,32 @@
 }
 
 .login-kicker {
-  @apply mb-3 mt-0 text-[0.78rem] tracking-[0.2em] uppercase text-[#a9d7ff];
+  @apply mb-2 mt-0 text-[0.76rem] tracking-[0.18em] uppercase text-[#a8d8ff];
 }
 
 .login-brand h1 {
-  @apply m-0 text-[2.05rem] leading-tight;
+  @apply m-0 text-[2rem] leading-tight text-[#ffffff];
+  text-shadow: none;
+}
+
+.login-brand-title {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff;
+  opacity: 1;
+  font-weight: 700;
+  text-shadow: 0 0 16px rgba(174, 228, 255, 0.3);
 }
 
 .login-brand-copy > p {
-  @apply mb-0 mt-3 max-w-[44ch] text-[1.02rem] leading-relaxed text-[#d7e8ff];
+  @apply mb-0 mt-2 max-w-[32ch] text-[1rem] leading-relaxed text-[#d9e9ff];
 }
 
-.login-highlights {
-  @apply z-[1] m-0 grid gap-2.5 p-0 pl-5;
+.login-brand-tags {
+  @apply z-[1] m-0 flex flex-wrap gap-2 p-0;
 }
 
-.login-highlights li {
-  @apply text-[0.92rem] leading-relaxed text-[#ddf0ff];
+.login-brand-tags li {
+  @apply list-none rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-[0.8rem] font-medium text-[#eef6ff];
 }
 
 .login-panel {
@@ -86,6 +95,30 @@
 
 .login-form input:focus {
   @apply border-[#2f7de8] outline-none ring-2 ring-[#2f7de8]/20;
+}
+
+.login-form-options {
+  @apply mt-1 flex items-center justify-between gap-2;
+}
+
+.login-remember {
+  @apply inline-flex items-center gap-2 text-[0.86rem] font-medium text-[#324a6a];
+}
+
+.login-remember input {
+  @apply h-4 w-4 cursor-pointer rounded border border-[#95abcd] p-0;
+}
+
+.login-forgot {
+  @apply cursor-pointer border-0 bg-transparent p-0 text-[0.86rem] font-semibold text-[#1f66d6] underline-offset-2 transition hover:text-[#184fa8] hover:underline;
+}
+
+.login-recovery-help {
+  @apply m-0 rounded-lg border border-[#c9d8ed] bg-[#f6f9ff] px-3 py-2 text-[0.84rem] text-[#385275];
+}
+
+.login-recovery-help a {
+  @apply font-semibold text-[#1f5fbd];
 }
 
 .login-submit {
@@ -139,5 +172,9 @@
   .login-brand h1,
   .login-panel h2 {
     @apply text-[1.45rem];
+  }
+
+  .login-form-options {
+    @apply flex-col items-start;
   }
 }
