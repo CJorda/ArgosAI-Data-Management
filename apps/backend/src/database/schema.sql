@@ -211,6 +211,13 @@ CREATE TABLE IF NOT EXISTS alerts (
   rule_id BIGINT REFERENCES alert_rules(id) ON DELETE SET NULL,
   severity TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open',
+  protocol_status TEXT NOT NULL DEFAULT 'pending',
+  protocol_owner BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  protocol_started_at TIMESTAMPTZ,
+  protocol_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  protocol_steps JSONB NOT NULL DEFAULT '[]'::JSONB,
+  protocol_notes TEXT,
+  escalation_deadline TIMESTAMPTZ,
   message TEXT NOT NULL,
   current_value DOUBLE PRECISION,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -308,6 +315,21 @@ ALTER TABLE biomass_entries
   ADD COLUMN IF NOT EXISTS vaccination_coverage_pct DOUBLE PRECISION,
   ADD COLUMN IF NOT EXISTS withdrawal_days_remaining INTEGER;
 
+ALTER TABLE alerts
+  ADD COLUMN IF NOT EXISTS protocol_status TEXT NOT NULL DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS protocol_owner BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS protocol_started_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS protocol_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS protocol_steps JSONB NOT NULL DEFAULT '[]'::JSONB,
+  ADD COLUMN IF NOT EXISTS protocol_notes TEXT,
+  ADD COLUMN IF NOT EXISTS escalation_deadline TIMESTAMPTZ;
+
+UPDATE alerts
+SET protocol_status = 'resolved',
+    protocol_updated_at = NOW()
+WHERE status = 'resolved'
+  AND protocol_status <> 'resolved';
+
 UPDATE operations
 SET event_at = created_at
 WHERE event_at IS NULL;
@@ -354,6 +376,110 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS maintenance_tasks (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  pond_id BIGINT REFERENCES ponds(id) ON DELETE SET NULL,
+  linked_alert_id BIGINT REFERENCES alerts(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  source TEXT NOT NULL DEFAULT 'manual',
+  priority TEXT NOT NULL DEFAULT 'medium',
+  status TEXT NOT NULL DEFAULT 'pending',
+  due_at TIMESTAMPTZ,
+  acknowledged_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  completed_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  completed_at TIMESTAMPTZ,
+  created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS inventory_items (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  sku TEXT NOT NULL,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  unit TEXT NOT NULL DEFAULT 'kg',
+  min_stock DOUBLE PRECISION NOT NULL DEFAULT 0,
+  current_stock DOUBLE PRECISION NOT NULL DEFAULT 0,
+  location TEXT,
+  supplier TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, sku)
+);
+
+CREATE TABLE IF NOT EXISTS inventory_movements (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  item_id BIGINT NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
+  related_pond_id BIGINT REFERENCES ponds(id) ON DELETE SET NULL,
+  movement_type TEXT NOT NULL,
+  quantity DOUBLE PRECISION NOT NULL,
+  related_lot_code TEXT,
+  reason TEXT,
+  unit_cost DOUBLE PRECISION,
+  moved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS health_events (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  pond_id BIGINT NOT NULL REFERENCES ponds(id) ON DELETE CASCADE,
+  lot_code TEXT,
+  event_type TEXT NOT NULL,
+  severity TEXT NOT NULL DEFAULT 'medium',
+  status TEXT NOT NULL DEFAULT 'open',
+  title TEXT NOT NULL,
+  description TEXT,
+  medication_name TEXT,
+  dosage TEXT,
+  biosecurity_level TEXT,
+  event_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ,
+  created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS harvest_plans (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  pond_id BIGINT NOT NULL REFERENCES ponds(id) ON DELETE CASCADE,
+  lot_code TEXT NOT NULL,
+  target_weight_g DOUBLE PRECISION,
+  planned_biomass_kg DOUBLE PRECISION,
+  window_start TIMESTAMPTZ NOT NULL,
+  window_end TIMESTAMPTZ NOT NULL,
+  destination TEXT,
+  logistics_provider TEXT,
+  status TEXT NOT NULL DEFAULT 'planned',
+  notes TEXT,
+  created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS harvest_shipments (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  harvest_plan_id BIGINT NOT NULL REFERENCES harvest_plans(id) ON DELETE CASCADE,
+  dispatch_code TEXT NOT NULL,
+  truck_plate TEXT,
+  driver_name TEXT,
+  departure_at TIMESTAMPTZ,
+  arrival_eta TIMESTAMPTZ,
+  delivered_at TIMESTAMPTZ,
+  status TEXT NOT NULL DEFAULT 'scheduled',
+  documents JSONB NOT NULL DEFAULT '[]'::JSONB,
+  created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_measurements_tenant_sensor_time
   ON measurements (tenant_id, sensor_id, recorded_at DESC);
 
@@ -362,6 +488,9 @@ CREATE INDEX IF NOT EXISTS idx_measurements_tenant_pond_time
 
 CREATE INDEX IF NOT EXISTS idx_alerts_tenant_status_created
   ON alerts (tenant_id, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_alerts_tenant_protocol_status
+  ON alerts (tenant_id, protocol_status, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_operations_tenant_pond_created
   ON operations (tenant_id, pond_id, created_at DESC);
@@ -407,3 +536,36 @@ CREATE INDEX IF NOT EXISTS idx_phone_alert_setpoints_tenant_slot
 
 CREATE INDEX IF NOT EXISTS idx_sms_alert_setpoints_tenant_slot
   ON sms_alert_setpoints (tenant_id, slot_code);
+
+CREATE INDEX IF NOT EXISTS idx_maintenance_tasks_tenant_status_due
+  ON maintenance_tasks (tenant_id, status, due_at ASC);
+
+CREATE INDEX IF NOT EXISTS idx_maintenance_tasks_tenant_pond_created
+  ON maintenance_tasks (tenant_id, pond_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_inventory_items_tenant_category
+  ON inventory_items (tenant_id, category, name);
+
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_item_moved
+  ON inventory_movements (tenant_id, item_id, moved_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_pond_moved
+  ON inventory_movements (tenant_id, related_pond_id, moved_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_health_events_tenant_status_event
+  ON health_events (tenant_id, status, event_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_health_events_tenant_pond_event
+  ON health_events (tenant_id, pond_id, event_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_harvest_plans_tenant_status_window
+  ON harvest_plans (tenant_id, status, window_start ASC);
+
+CREATE INDEX IF NOT EXISTS idx_harvest_plans_tenant_pond_window
+  ON harvest_plans (tenant_id, pond_id, window_start DESC);
+
+CREATE INDEX IF NOT EXISTS idx_harvest_shipments_tenant_plan_created
+  ON harvest_shipments (tenant_id, harvest_plan_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_created
+  ON audit_logs (tenant_id, created_at DESC);

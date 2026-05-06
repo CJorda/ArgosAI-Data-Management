@@ -5,10 +5,15 @@ import { AlertsPage } from "./pages/AlertsPage";
 import { ArgosMachinePage } from "./pages/ArgosMachinePage";
 import { BiomassPage } from "./pages/BiomassPage";
 import { CameraPage } from "./pages/CameraPage";
+import { CompliancePage } from "./pages/CompliancePage";
 import { ConsolidationPage } from "./pages/ConsolidationPage";
+import { CostMarginPage } from "./pages/CostMarginPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HatcheryLarvalPage } from "./pages/HatcheryLarvalPage";
+import { HarvestLogisticsPage } from "./pages/HarvestLogisticsPage";
+import { HealthBiosecurityPage } from "./pages/HealthBiosecurityPage";
 import { HistoryPage } from "./pages/HistoryPage";
+import { InventoryPage } from "./pages/InventoryPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OxygenPage } from "./pages/OxygenPage";
 import { OxygenColorSetpointsPage } from "./pages/OxygenColorSetpointsPage";
@@ -16,6 +21,7 @@ import { OperationsPage } from "./pages/OperationsPage";
 import { PhoneAlertSetpointsPage } from "./pages/PhoneAlertSetpointsPage";
 import { PlantMapPage } from "./pages/PlantMapPage";
 import { PlanningPage } from "./pages/PlanningPage";
+import { PreventiveMaintenancePage } from "./pages/PreventiveMaintenancePage";
 import { SmsAlertSetpointsPage } from "./pages/SmsAlertSetpointsPage";
 import { StrategicForecastPage } from "./pages/StrategicForecastPage";
 import { TemperatureColorSetpointsPage } from "./pages/TemperatureColorSetpointsPage";
@@ -54,11 +60,19 @@ export default function App() {
           <Route path="/historico/heatmap" element={<HistoryPage />} />
           <Route path="/planificacion" element={<PlanningPage />} />
           <Route path="/trazabilidad" element={<TraceabilityPage />} />
-          <Route path="/alertas" element={<AlertsPage />} />
+          <Route path="/alertas" element={<Navigate to="/alertas/alertas" replace />} />
+          <Route path="/alertas/alertas" element={<AlertsPage />} />
+          <Route path="/alertas/prediccion-riesgo" element={<AlertsPage />} />
           <Route path="/operaciones" element={<Navigate to="/operaciones/alimentacion" replace />} />
           <Route path="/operaciones/hatchery-larval" element={<HatcheryLarvalPage />} />
           <Route path="/operaciones/consolidacion-multi-sitio" element={<ConsolidationPage />} />
           <Route path="/operaciones/prevision-12-36" element={<StrategicForecastPage />} />
+          <Route path="/operaciones/mantenimiento-preventivo" element={<PreventiveMaintenancePage />} />
+          <Route path="/operaciones/inventario-operativo" element={<InventoryPage />} />
+          <Route path="/operaciones/sanidad-bioseguridad" element={<HealthBiosecurityPage />} />
+          <Route path="/operaciones/cosecha-logistica" element={<HarvestLogisticsPage />} />
+          <Route path="/operaciones/coste-margen" element={<CostMarginPage />} />
+          <Route path="/operaciones/auditoria-compliance" element={<CompliancePage />} />
           <Route path="/operaciones/:section" element={<OperationsPage />} />
           <Route path="/biomasa" element={<Navigate to="/biomasa/resumen" replace />} />
           <Route path="/biomasa/:section" element={<BiomassPage />} />

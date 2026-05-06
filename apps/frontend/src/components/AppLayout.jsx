@@ -18,6 +18,7 @@ export function AppLayout() {
   const setOpenAlerts = useRealtimeStore((state) => state.setOpenAlerts);
   const pushReading = useRealtimeStore((state) => state.pushReading);
   const addAlert = useRealtimeStore((state) => state.addAlert);
+  const updateAlert = useRealtimeStore((state) => state.updateAlert);
   const resolveAlert = useRealtimeStore((state) => state.resolveAlert);
   const [isMobileView, setIsMobileView] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -76,6 +77,10 @@ export function AppLayout() {
       addAlert(payload);
     });
 
+    socket.on("alert:updated", (payload) => {
+      updateAlert(payload);
+    });
+
     socket.on("alert:resolved", (payload) => {
       resolveAlert(payload.id);
     });
@@ -83,7 +88,7 @@ export function AppLayout() {
     return () => {
       socket.disconnect();
     };
-  }, [accessToken, pushReading, addAlert, resolveAlert]);
+  }, [accessToken, pushReading, addAlert, updateAlert, resolveAlert]);
 
   const handleSidebarToggle = () => {
     if (isMobileView) {

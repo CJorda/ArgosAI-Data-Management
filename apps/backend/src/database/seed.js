@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { logger } from "../config/logger.js";
 import { pool, query } from "./pool.js";
+import { buildAlertProtocolTemplate } from "../utils/alertProtocol.js";
 
 const tenantCode = "demo";
 const tenantName = "Piscifactoria Demo";
@@ -1123,6 +1124,12 @@ async function seed() {
           : item.type === "ph"
             ? "ph outside threshold range"
             : "temperature above maximum threshold";
+      const protocolSteps = buildAlertProtocolTemplate(item.type, item.severity);
+      const protocolStatus = item.hoursAgo >= 8 ? "in_progress" : "pending";
+      const protocolOwnerId = item.hoursAgo >= 8 ? userId : null;
+      const protocolStartedAt = item.hoursAgo >= 8
+        ? new Date(Date.now() - (item.hoursAgo - 1) * 3600 * 1000).toISOString()
+        : null;
 
       await query(
         `
@@ -1133,11 +1140,31 @@ async function seed() {
             rule_id,
             severity,
             status,
+            protocol_status,
+            protocol_owner,
+            protocol_started_at,
+            protocol_updated_at,
+            protocol_steps,
             message,
             current_value,
             created_at
           )
-          VALUES ($1, $2, $3, $4, $5, 'open', $6, $7, $8::timestamptz)
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            'open',
+            $6,
+            $7,
+            $8::timestamptz,
+            NOW(),
+            $9::jsonb,
+            $10,
+            $11,
+            $12::timestamptz
+          )
         `,
         [
           tenantId,
@@ -1145,6 +1172,10 @@ async function seed() {
           sensorId,
           ruleIdByType.get(item.type) || null,
           item.severity,
+          protocolStatus,
+          protocolOwnerId,
+          protocolStartedAt,
+          JSON.stringify(protocolSteps),
           message,
           item.value,
           new Date(Date.now() - item.hoursAgo * 3600 * 1000).toISOString()
@@ -1167,6 +1198,12 @@ async function seed() {
 
       const createdAt = new Date(Date.now() - randomInt(24, 240) * 3600 * 1000);
       const resolvedAt = new Date(createdAt.getTime() + randomInt(1, 12) * 3600 * 1000);
+      const severity = sensorType === "oxygen" ? "high" : "medium";
+      const protocolSteps = buildAlertProtocolTemplate(sensorType, severity).map((step) => ({
+        ...step,
+        done: true
+      }));
+      const protocolStartedAt = new Date(createdAt.getTime() + randomInt(10, 40) * 60 * 1000);
 
       await query(
         `
@@ -1177,6 +1214,11 @@ async function seed() {
             rule_id,
             severity,
             status,
+            protocol_status,
+            protocol_owner,
+            protocol_started_at,
+            protocol_updated_at,
+            protocol_steps,
             message,
             current_value,
             created_at,
@@ -1190,11 +1232,16 @@ async function seed() {
             $4,
             $5,
             'resolved',
+            'resolved',
             $6,
-            $7,
+            $7::timestamptz,
             $8::timestamptz,
-            $9::timestamptz,
-            $10
+            $9::jsonb,
+            $10,
+            $11,
+            $12::timestamptz,
+            $13::timestamptz,
+            $14
           )
         `,
         [
@@ -1202,7 +1249,11 @@ async function seed() {
           pond.id,
           sensorId,
           ruleIdByType.get(sensorType) || null,
-          sensorType === "oxygen" ? "high" : "medium",
+          severity,
+          userId,
+          protocolStartedAt.toISOString(),
+          resolvedAt.toISOString(),
+          JSON.stringify(protocolSteps),
           `${sensorType} recovered to normal range`,
           sensorType === "oxygen" ? randomFloat(6.2, 8.6, 2) : randomFloat(7.1, 8.0, 2),
           createdAt.toISOString(),

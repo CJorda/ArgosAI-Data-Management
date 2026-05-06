@@ -1,0 +1,106 @@
+@reference "tailwindcss";
+
+.module-page {
+  @apply grid gap-4;
+}
+
+.module-grid {
+  @apply grid grid-cols-2 gap-4;
+}
+
+.module-intro {
+  @apply mt-1 mb-0 max-w-[78ch] text-[0.92rem] text-[#4d6079];
+}
+
+.module-inline-note {
+  @apply mt-1 rounded-lg border border-[#d8e2f3] bg-[#f4f8ff] px-3 py-2 text-[0.84rem] text-[#33567f];
+}
+
+.module-pill {
+  @apply inline-flex rounded-full border px-2 py-0.5 text-[0.75rem] font-semibold;
+}
+
+.module-pill-priority-low {
+  @apply border-[#d5e7cf] bg-[#eef7e9] text-[#46703f];
+}
+
+.module-pill-priority-medium {
+  @apply border-[#d8d39c] bg-[#f8f4db] text-[#7a6522];
+}
+
+.module-pill-priority-high {
+  @apply border-[#e9c7a2] bg-[#fff0e0] text-[#995727];
+}
+
+.module-pill-priority-critical {
+  @apply border-[#eab3b3] bg-[#fdecec] text-[#9c2e2e];
+}
+
+.module-pill-status-pending {
+  @apply border-[#d8d39c] bg-[#f8f4db] text-[#7a6522];
+}
+
+.module-pill-status-in_progress {
+  @apply border-[#b9cde8] bg-[#edf5ff] text-[#2f5e93];
+}
+
+.module-pill-status-blocked {
+  @apply border-[#e3b8d8] bg-[#f8eef6] text-[#8a3a73];
+}
+
+.module-pill-status-done,
+.module-pill-status-resolved,
+.module-pill-status-completed,
+.module-pill-status-delivered,
+.module-pill-status-ready {
+  @apply border-[#c3dfbf] bg-[#edf8ea] text-[#2f6f35];
+}
+
+.module-pill-status-cancelled {
+  @apply border-[#dfdfe1] bg-[#f3f4f6] text-[#5f6670];
+}
+
+.module-pill-status-in_transit,
+.module-pill-status-scheduled {
+  @apply border-[#b9d8e8] bg-[#ecf7fd] text-[#256985];
+}
+
+.module-warning {
+  @apply text-[#9f2d2d] font-semibold;
+}
+
+.module-kpi-grid {
+  @apply grid grid-cols-4 gap-3;
+}
+
+.module-kpi-card {
+  @apply rounded-xl border border-[#dce8f7] bg-[#f8fbff] px-3 py-2;
+}
+
+.module-kpi-card span {
+  @apply block text-[0.78rem] text-[#5a6f8d];
+}
+
+.module-kpi-card strong {
+  @apply mt-1 block text-[1.02rem] text-[#1f3d63];
+}
+
+.module-audit-payload {
+  @apply max-h-28 overflow-auto rounded-md bg-[#f6f8fc] px-2 py-1 text-[0.76rem] text-[#41566f];
+}
+
+@media (max-width: 1100px) {
+  .module-grid {
+    @apply grid-cols-1;
+  }
+
+  .module-kpi-grid {
+    @apply grid-cols-2;
+  }
+}
+
+@media (max-width: 680px) {
+  .module-kpi-grid {
+    @apply grid-cols-1;
+  }
+}

@@ -4,6 +4,14 @@ import { useAuth } from "../context/AuthContext";
 import { useRealtimeStore } from "../store/realtimeStore";
 import "./AlertsPanel.css";
 
+const protocolStatusLabel = {
+  pending: "Pendiente",
+  acknowledged: "Reconocida",
+  in_progress: "En ejecucion",
+  blocked: "Bloqueada",
+  resolved: "Cerrada"
+};
+
 function formatDate(value) {
   return new Date(value).toLocaleString();
 }
@@ -46,6 +54,9 @@ export function AlertsPanel({ isOpen, onClose }) {
             <div className="alert-main">
               <strong>{alert.severity}</strong>
               <p>{alert.message}</p>
+              <small>
+                Protocolo: {protocolStatusLabel[alert.protocol_status] || alert.protocol_status || "Pendiente"}
+              </small>
               <small>{formatDate(alert.created_at)}</small>
             </div>
             <button

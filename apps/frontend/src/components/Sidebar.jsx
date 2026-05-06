@@ -162,7 +162,17 @@ const navItems = [
         <path d="M12 4a4.4 4.4 0 0 0-4.4 4.4v2.1c0 .9-.3 1.8-.9 2.4L5.8 14h12.4l-.9-1.1a3.6 3.6 0 0 1-.9-2.4V8.4A4.4 4.4 0 0 0 12 4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
         <path d="M10 17.2a2.2 2.2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
       </>
-    )
+    ),
+    children: [
+      {
+        to: "/alertas/prediccion-riesgo",
+        label: "Prediccion de riesgo 24-72h"
+      },
+      {
+        to: "/alertas/alertas",
+        label: "Alertas"
+      }
+    ]
   },
   {
     to: "/operaciones",
@@ -193,6 +203,30 @@ const navItems = [
       {
         to: "/operaciones/prevision-12-36",
         label: "Previsión 12-36 meses"
+      },
+      {
+        to: "/operaciones/mantenimiento-preventivo",
+        label: "Mantenimiento preventivo"
+      },
+      {
+        to: "/operaciones/inventario-operativo",
+        label: "Inventario operativo"
+      },
+      {
+        to: "/operaciones/sanidad-bioseguridad",
+        label: "Sanidad y bioseguridad"
+      },
+      {
+        to: "/operaciones/cosecha-logistica",
+        label: "Cosecha y logística"
+      },
+      {
+        to: "/operaciones/coste-margen",
+        label: "Coste y margen"
+      },
+      {
+        to: "/operaciones/auditoria-compliance",
+        label: "Auditoría y compliance"
       },
       {
         to: "/operaciones/alimentacion",

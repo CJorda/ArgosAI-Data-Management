@@ -15,6 +15,18 @@ export const useRealtimeStore = create((set) => ({
     set((state) => ({
       openAlerts: [alert, ...state.openAlerts.filter((item) => item.id !== alert.id)]
     })),
+  updateAlert: (alert) =>
+    set((state) => {
+      if (alert.status !== "open") {
+        return {
+          openAlerts: state.openAlerts.filter((item) => item.id !== alert.id)
+        };
+      }
+
+      return {
+        openAlerts: [alert, ...state.openAlerts.filter((item) => item.id !== alert.id)]
+      };
+    }),
   resolveAlert: (alertId) =>
     set((state) => ({
       openAlerts: state.openAlerts.filter((item) => item.id !== alertId)

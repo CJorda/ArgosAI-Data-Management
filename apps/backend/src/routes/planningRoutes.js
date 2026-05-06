@@ -43,6 +43,19 @@ function parseDateRange(req, defaultDays = 30) {
   return { from, to };
 }
 
+function parseNonNegativeQueryNumber(value, fallback, fieldName) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new HttpError(400, `${fieldName} must be a valid non-negative number`);
+  }
+
+  return parsed;
+}
+
 async function getLatestBiomassWithFeedTable(tenantId) {
   const result = await query(
     `
@@ -571,5 +584,158 @@ planningRoutes.get(
     );
 
     res.json(result.rows);
+  })
+);
+
+planningRoutes.get(
+  "/cost-margin",
+  asyncHandler(async (req, res) => {
+    const { from, to } = parseDateRange(req, 45);
+    const pondId = req.query.pondId ? Number(req.query.pondId) : null;
+
+    if (req.query.pondId && !Number.isFinite(pondId)) {
+      throw new HttpError(400, "pondId must be a valid number");
+    }
+
+    const feedCostPerKg = parseNonNegativeQueryNumber(req.query.feedCostPerKg, 1.28, "feedCostPerKg");
+    const treatmentCostPerUnit = parseNonNegativeQueryNumber(
+      req.query.treatmentCostPerUnit,
+      6.2,
+      "treatmentCostPerUnit"
+    );
+    const maintenanceCostPerUnit = parseNonNegativeQueryNumber(
+      req.query.maintenanceCostPerUnit,
+      35,
+      "maintenanceCostPerUnit"
+    );
+    const salePricePerKg = parseNonNegativeQueryNumber(req.query.salePricePerKg, 6.7, "salePricePerKg");
+
+    const result = await query(
+      `
+        WITH op_agg AS (
+          SELECT
+            o.pond_id,
+            COALESCE(NULLIF(o.lot_code, ''), 'SIN-LOTE') AS lot_code,
+            ROUND(COALESCE(SUM(CASE WHEN o.type = 'feeding' THEN o.quantity ELSE 0 END), 0)::numeric, 2)
+              AS feed_kg,
+            ROUND(COALESCE(SUM(CASE WHEN o.type = 'treatment' THEN o.quantity ELSE 0 END), 0)::numeric, 2)
+              AS treatment_qty,
+            ROUND(
+              COALESCE(SUM(CASE WHEN o.type IN ('maintenance', 'cleaning') THEN o.quantity ELSE 0 END), 0)::numeric,
+              2
+            ) AS maintenance_qty,
+            COUNT(*)::int AS operations_count
+          FROM operations o
+          WHERE o.tenant_id = $1
+            AND o.event_at BETWEEN $2 AND $3
+            AND ($4::bigint IS NULL OR o.pond_id = $4)
+          GROUP BY o.pond_id, COALESCE(NULLIF(o.lot_code, ''), 'SIN-LOTE')
+        ),
+        bio_latest AS (
+          SELECT DISTINCT ON (b.pond_id, COALESCE(NULLIF(b.lot_code, ''), 'SIN-LOTE'))
+            b.pond_id,
+            COALESCE(NULLIF(b.lot_code, ''), 'SIN-LOTE') AS lot_code,
+            ROUND(((b.fish_count * b.avg_weight_g) / 1000.0)::numeric, 2) AS biomass_kg,
+            b.captured_at
+          FROM biomass_entries b
+          WHERE b.tenant_id = $1
+            AND b.captured_at BETWEEN $2 AND $3
+            AND ($4::bigint IS NULL OR b.pond_id = $4)
+          ORDER BY b.pond_id, COALESCE(NULLIF(b.lot_code, ''), 'SIN-LOTE'), b.captured_at DESC
+        )
+        SELECT
+          COALESCE(o.pond_id, b.pond_id) AS pond_id,
+          p.name AS pond_name,
+          COALESCE(o.lot_code, b.lot_code) AS lot_code,
+          COALESCE(o.feed_kg, 0) AS feed_kg,
+          COALESCE(o.treatment_qty, 0) AS treatment_qty,
+          COALESCE(o.maintenance_qty, 0) AS maintenance_qty,
+          COALESCE(o.operations_count, 0) AS operations_count,
+          COALESCE(b.biomass_kg, 0) AS biomass_kg,
+          b.captured_at AS biomass_captured_at
+        FROM op_agg o
+        FULL OUTER JOIN bio_latest b
+          ON b.pond_id = o.pond_id
+          AND b.lot_code = o.lot_code
+        JOIN ponds p
+          ON p.id = COALESCE(o.pond_id, b.pond_id)
+        WHERE p.tenant_id = $1
+        ORDER BY p.name ASC, COALESCE(o.lot_code, b.lot_code) ASC
+      `,
+      [req.user.tenantId, from.toISOString(), to.toISOString(), pondId]
+    );
+
+    const rows = result.rows.map((row) => {
+      const feedKg = numberOrNull(row.feed_kg) ?? 0;
+      const treatmentQty = numberOrNull(row.treatment_qty) ?? 0;
+      const maintenanceQty = numberOrNull(row.maintenance_qty) ?? 0;
+      const biomassKg = numberOrNull(row.biomass_kg) ?? 0;
+
+      const feedCostEur = feedKg * feedCostPerKg;
+      const treatmentCostEur = treatmentQty * treatmentCostPerUnit;
+      const maintenanceCostEur = maintenanceQty * maintenanceCostPerUnit;
+      const totalCostEur = feedCostEur + treatmentCostEur + maintenanceCostEur;
+      const projectedRevenueEur = biomassKg * salePricePerKg;
+      const marginEur = projectedRevenueEur - totalCostEur;
+
+      return {
+        pondId: row.pond_id,
+        pondName: row.pond_name,
+        lotCode: row.lot_code,
+        operationsCount: row.operations_count,
+        biomassKg: round(biomassKg, 2) ?? 0,
+        feedKg: round(feedKg, 2) ?? 0,
+        treatmentQty: round(treatmentQty, 2) ?? 0,
+        maintenanceQty: round(maintenanceQty, 2) ?? 0,
+        feedCostEur: round(feedCostEur, 2) ?? 0,
+        treatmentCostEur: round(treatmentCostEur, 2) ?? 0,
+        maintenanceCostEur: round(maintenanceCostEur, 2) ?? 0,
+        totalCostEur: round(totalCostEur, 2) ?? 0,
+        projectedRevenueEur: round(projectedRevenueEur, 2) ?? 0,
+        marginEur: round(marginEur, 2) ?? 0,
+        marginPct: projectedRevenueEur > 0
+          ? round((marginEur / projectedRevenueEur) * 100, 2)
+          : null,
+        costPerKgEur: biomassKg > 0 ? round(totalCostEur / biomassKg, 3) : null,
+        biomassCapturedAt: row.biomass_captured_at
+      };
+    });
+
+    const summary = rows.reduce(
+      (acc, row) => {
+        acc.totalBiomassKg += row.biomassKg || 0;
+        acc.totalCostEur += row.totalCostEur || 0;
+        acc.totalRevenueEur += row.projectedRevenueEur || 0;
+        acc.totalMarginEur += row.marginEur || 0;
+        return acc;
+      },
+      {
+        totalBiomassKg: 0,
+        totalCostEur: 0,
+        totalRevenueEur: 0,
+        totalMarginEur: 0
+      }
+    );
+
+    res.json({
+      from,
+      to,
+      assumptions: {
+        feedCostPerKg,
+        treatmentCostPerUnit,
+        maintenanceCostPerUnit,
+        salePricePerKg
+      },
+      summary: {
+        totalBiomassKg: round(summary.totalBiomassKg, 2) ?? 0,
+        totalCostEur: round(summary.totalCostEur, 2) ?? 0,
+        totalRevenueEur: round(summary.totalRevenueEur, 2) ?? 0,
+        totalMarginEur: round(summary.totalMarginEur, 2) ?? 0,
+        globalMarginPct: summary.totalRevenueEur > 0
+          ? round((summary.totalMarginEur / summary.totalRevenueEur) * 100, 2)
+          : null
+      },
+      rows
+    });
   })
 );

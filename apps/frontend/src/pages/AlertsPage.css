@@ -1,5 +1,148 @@
 @reference "tailwindcss";
 
-  .alerts-page {
-    @apply grid gap-4;
+.alerts-page {
+  @apply grid gap-4;
+}
+
+.alerts-intro {
+  @apply mt-0 mb-3 text-[0.9rem] text-[#4f6180];
+}
+
+.risk-pill {
+  @apply inline-flex rounded-full border px-2 py-0.5 text-[0.72rem] font-semibold;
+}
+
+.risk-pill-low {
+  @apply border-[#c9d7e8] bg-[#f6f9fd] text-[#4d6383];
+}
+
+.risk-pill-medium {
+  @apply border-[#e6d3a4] bg-[#fff9e9] text-[#8d6a12];
+}
+
+.risk-pill-high {
+  @apply border-[#f2c5bc] bg-[#fff3f1] text-[#9a4333];
+}
+
+.risk-pill-critical {
+  @apply border-[#e39c90] bg-[#ffe8e3] text-[#8b2418];
+}
+
+.protocol-chip-stack {
+  @apply grid gap-0.5;
+}
+
+.protocol-chip-stack small {
+  @apply text-[0.72rem] text-[#556887];
+}
+
+.protocol-status {
+  @apply inline-flex w-fit rounded-full border px-2 py-0.5 text-[0.72rem] font-semibold;
+}
+
+.protocol-status-pending {
+  @apply border-[#d6dee8] bg-[#f7f9fc] text-[#5b6d89];
+}
+
+.protocol-status-acknowledged {
+  @apply border-[#bfd4f2] bg-[#f2f7ff] text-[#2a5a9e];
+}
+
+.protocol-status-in_progress {
+  @apply border-[#b6e7d3] bg-[#effaf5] text-[#1f6f5b];
+}
+
+.protocol-status-blocked {
+  @apply border-[#f2c6be] bg-[#fff4f1] text-[#9b4232];
+}
+
+.protocol-status-resolved {
+  @apply border-[#c6d9ca] bg-[#f2f9f4] text-[#2f6d47];
+}
+
+.alert-actions {
+  @apply flex flex-wrap items-center gap-1.5;
+}
+
+.alert-protocol-row td {
+  @apply bg-[#fbfdff] px-3 py-2;
+}
+
+.alert-protocol-card {
+  @apply grid gap-3 rounded-lg border border-[#d7e2f0] bg-white p-3;
+}
+
+.alert-protocol-header {
+  @apply grid gap-2;
+}
+
+.alert-protocol-inline-fields {
+  @apply grid gap-2;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.alert-protocol-inline-fields label {
+  @apply mb-1 text-[0.72rem] uppercase tracking-[0.04em] text-[#5a6d8a];
+}
+
+.alert-protocol-inline-fields select,
+.alert-protocol-inline-fields input {
+  @apply py-1.5 text-[0.84rem];
+}
+
+.alert-protocol-inline-fields button {
+  @apply self-end;
+}
+
+.alert-protocol-steps {
+  @apply m-0 grid gap-2 p-0;
+  list-style: none;
+}
+
+.alert-protocol-steps li {
+  @apply rounded-md border border-[#dbe5f3] bg-[#f9fbff] px-2.5 py-2;
+}
+
+.alert-protocol-steps label {
+  @apply flex items-start gap-2 text-[0.9rem] text-[#1f3553];
+}
+
+.alert-protocol-steps label input {
+  @apply mt-0.5;
+}
+
+.alert-protocol-steps li small {
+  @apply mt-1 block text-[0.78rem] text-[#596c89];
+}
+
+.alert-protocol-notes {
+  @apply grid gap-1.5;
+}
+
+.alert-protocol-notes label {
+  @apply text-[0.75rem] uppercase tracking-[0.04em] text-[#5a6d8a];
+}
+
+.alert-protocol-notes textarea {
+  @apply min-h-[84px] resize-y rounded-lg border border-[#c6d4e6] bg-white px-2.5 py-2 text-[0.88rem] text-[#1f3553] outline-none transition focus:border-[#4f83c7] focus:ring-2 focus:ring-[#4f83c7]/20;
+}
+
+.alert-protocol-notes-footer {
+  @apply flex flex-wrap items-center justify-between gap-2;
+}
+
+.alert-protocol-notes-footer small {
+  @apply text-[0.76rem] text-[#5a6d8a];
+}
+
+@media (max-width: 1200px) {
+  .alert-protocol-inline-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+@media (max-width: 760px) {
+  .alert-protocol-inline-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

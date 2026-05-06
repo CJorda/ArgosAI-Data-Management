@@ -97,6 +97,19 @@ export async function resolveAlertRequest(token, alertId) {
   return data;
 }
 
+export async function updateAlertProtocolRequest(token, alertId, payload) {
+  const { data } = await apiClient.patch(`/alerts/${alertId}/protocol`, payload, authConfig(token));
+  return data;
+}
+
+export async function alertsRiskForecastRequest(token, params) {
+  const { data } = await apiClient.get("/alerts/risk-forecast", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
 export async function operationsRequest(token) {
   const { data } = await apiClient.get("/operations", authConfig(token));
   return data;
@@ -104,6 +117,120 @@ export async function operationsRequest(token) {
 
 export async function createOperationRequest(token, payload) {
   const { data } = await apiClient.post("/operations", payload, authConfig(token));
+  return data;
+}
+
+export async function maintenancePlanRequest(token, params) {
+  const { data } = await apiClient.get("/operations/maintenance/plan", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function createMaintenanceTaskRequest(token, payload) {
+  const { data } = await apiClient.post("/operations/maintenance/tasks", payload, authConfig(token));
+  return data;
+}
+
+export async function updateMaintenanceTaskRequest(token, taskId, payload) {
+  const { data } = await apiClient.patch(
+    `/operations/maintenance/tasks/${taskId}`,
+    payload,
+    authConfig(token)
+  );
+  return data;
+}
+
+export async function inventoryItemsRequest(token) {
+  const { data } = await apiClient.get("/operations/inventory/items", authConfig(token));
+  return data;
+}
+
+export async function createInventoryItemRequest(token, payload) {
+  const { data } = await apiClient.post("/operations/inventory/items", payload, authConfig(token));
+  return data;
+}
+
+export async function inventoryMovementsRequest(token, params) {
+  const { data } = await apiClient.get("/operations/inventory/movements", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function createInventoryMovementRequest(token, payload) {
+  const { data } = await apiClient.post("/operations/inventory/movements", payload, authConfig(token));
+  return data;
+}
+
+export async function healthEventsRequest(token, params) {
+  const { data } = await apiClient.get("/operations/health/events", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function createHealthEventRequest(token, payload) {
+  const { data } = await apiClient.post("/operations/health/events", payload, authConfig(token));
+  return data;
+}
+
+export async function updateHealthEventRequest(token, eventId, payload) {
+  const { data } = await apiClient.patch(
+    `/operations/health/events/${eventId}`,
+    payload,
+    authConfig(token)
+  );
+  return data;
+}
+
+export async function harvestPlansRequest(token, params) {
+  const { data } = await apiClient.get("/operations/harvest/plans", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function createHarvestPlanRequest(token, payload) {
+  const { data } = await apiClient.post("/operations/harvest/plans", payload, authConfig(token));
+  return data;
+}
+
+export async function updateHarvestPlanStatusRequest(token, planId, payload) {
+  const { data } = await apiClient.patch(
+    `/operations/harvest/plans/${planId}/status`,
+    payload,
+    authConfig(token)
+  );
+  return data;
+}
+
+export async function harvestShipmentsRequest(token, params) {
+  const { data } = await apiClient.get("/operations/harvest/shipments", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function createHarvestShipmentRequest(token, planId, payload) {
+  const { data } = await apiClient.post(
+    `/operations/harvest/plans/${planId}/shipments`,
+    payload,
+    authConfig(token)
+  );
+  return data;
+}
+
+export async function auditLogsRequest(token, params) {
+  const { data } = await apiClient.get("/operations/audit/logs", {
+    ...authConfig(token),
+    params
+  });
   return data;
 }
 
@@ -129,6 +256,14 @@ export async function feedingRecommendationsRequest(token) {
 
 export async function planningPerformanceRequest(token, params) {
   const { data } = await apiClient.get("/planning/performance", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function planningCostMarginRequest(token, params) {
+  const { data } = await apiClient.get("/planning/cost-margin", {
     ...authConfig(token),
     params
   });

@@ -1,6 +1,7 @@
 import { env } from "../config/env.js";
 import { query } from "../database/pool.js";
 import { emitToTenant } from "./realtimeHub.js";
+import { buildAlertProtocolTemplate } from "../utils/alertProtocol.js";
 
 const rangesByType = {
   temperature: { min: 12, max: 26 },
@@ -57,6 +58,7 @@ async function evaluateRules(measurement, sensorType) {
     const message = breachedMin
       ? `${sensorType} below minimum threshold`
       : `${sensorType} above maximum threshold`;
+    const protocolSteps = buildAlertProtocolTemplate(sensorType, rule.severity);
 
     const created = await query(
       `
@@ -67,11 +69,30 @@ async function evaluateRules(measurement, sensorType) {
           rule_id,
           severity,
           status,
+          protocol_status,
+          protocol_steps,
           message,
           current_value
         )
-        VALUES ($1, $2, $3, $4, $5, 'open', $6, $7)
-        RETURNING id, tenant_id, pond_id, sensor_id, rule_id, severity, status, message, current_value, created_at
+        VALUES ($1, $2, $3, $4, $5, 'open', 'pending', $6::jsonb, $7, $8)
+        RETURNING
+          id,
+          tenant_id,
+          pond_id,
+          sensor_id,
+          rule_id,
+          severity,
+          status,
+          protocol_status,
+          protocol_owner,
+          protocol_started_at,
+          protocol_updated_at,
+          protocol_steps,
+          protocol_notes,
+          escalation_deadline,
+          message,
+          current_value,
+          created_at
       `,
       [
         measurement.tenant_id,
@@ -79,6 +100,7 @@ async function evaluateRules(measurement, sensorType) {
         measurement.sensor_id,
         rule.id,
         rule.severity,
+        JSON.stringify(protocolSteps),
         message,
         measurement.value
       ]
