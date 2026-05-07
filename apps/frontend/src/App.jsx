@@ -14,6 +14,7 @@ import { HarvestLogisticsPage } from "./pages/HarvestLogisticsPage";
 import { HealthBiosecurityPage } from "./pages/HealthBiosecurityPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { InventoryPage } from "./pages/InventoryPage";
+import { LiveTransportPage } from "./pages/LiveTransportPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OxygenPage } from "./pages/OxygenPage";
 import { OxygenColorSetpointsPage } from "./pages/OxygenColorSetpointsPage";
@@ -70,6 +71,7 @@ export default function App() {
           <Route path="/operaciones/mantenimiento-preventivo" element={<PreventiveMaintenancePage />} />
           <Route path="/operaciones/inventario-operativo" element={<InventoryPage />} />
           <Route path="/operaciones/sanidad-bioseguridad" element={<HealthBiosecurityPage />} />
+          <Route path="/operaciones/transporte-vivo" element={<LiveTransportPage />} />
           <Route path="/operaciones/cosecha-logistica" element={<HarvestLogisticsPage />} />
           <Route path="/operaciones/coste-margen" element={<CostMarginPage />} />
           <Route path="/operaciones/auditoria-compliance" element={<CompliancePage />} />

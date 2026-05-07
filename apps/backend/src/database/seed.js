@@ -273,6 +273,14 @@ function zoneTag(code) {
   return `zona-${String(code).charAt(0).toLowerCase()}`;
 }
 
+function cycleValue(values, index) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return null;
+  }
+
+  return values[index % values.length];
+}
+
 async function seed() {
   await query("BEGIN");
 
@@ -320,6 +328,14 @@ async function seed() {
     let broodstockCount = 0;
     let layingCount = 0;
     let larvalBatchCount = 0;
+    let maintenanceTaskCount = 0;
+    let inventoryItemCount = 0;
+    let inventoryMovementCount = 0;
+    let healthEventCount = 0;
+    let harvestPlanCount = 0;
+    let harvestShipmentCount = 0;
+    let liveTransportTripCount = 0;
+    let liveTransportReadingCount = 0;
 
     for (const site of siteSeeds) {
       const siteResult = await query(
@@ -1265,6 +1281,634 @@ async function seed() {
       alertsCount += 1;
     }
 
+    const pondStates = pondSeeds
+      .map((pond) => pondByCode.get(pond.code))
+      .filter(Boolean);
+
+    const maintenanceStatusCycle = ["pending", "in_progress", "blocked", "done", "cancelled"];
+    const maintenancePriorityCycle = ["low", "medium", "high", "critical"];
+    const maintenanceTitles = [
+      "Revision de aireadores",
+      "Chequeo de compuertas",
+      "Inspeccion de sensores",
+      "Limpieza de difusores",
+      "Verificacion de cuadro electrico"
+    ];
+
+    for (let index = 0; index < 36; index += 1) {
+      const pondState = cycleValue(pondStates, index);
+      const status = cycleValue(maintenanceStatusCycle, index);
+      const priority = cycleValue(maintenancePriorityCycle, index + 1);
+      const title = `${cycleValue(maintenanceTitles, index)} ${pondState.code}`;
+      const createdAtIso = toIsoDaysAgo(randomInt(1, 24), randomInt(6, 18));
+      const dueAtDate = new Date(createdAtIso);
+      dueAtDate.setHours(dueAtDate.getHours() + randomInt(18, 96));
+      const dueAtIso = dueAtDate.toISOString();
+      const completedAtIso = status === "done"
+        ? new Date(dueAtDate.getTime() + randomInt(2, 18) * 3600 * 1000).toISOString()
+        : null;
+
+      await query(
+        `
+          INSERT INTO maintenance_tasks (
+            tenant_id,
+            pond_id,
+            linked_alert_id,
+            title,
+            description,
+            source,
+            priority,
+            status,
+            due_at,
+            acknowledged_by,
+            completed_by,
+            completed_at,
+            created_by,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            $1,
+            $2,
+            NULL,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8::timestamptz,
+            $9,
+            $10,
+            $11::timestamptz,
+            $12,
+            $13::timestamptz,
+            NOW()
+          )
+        `,
+        [
+          tenantId,
+          pondState.id,
+          title,
+          `Tarea preventiva demo para ${pondState.name}`,
+          index % 3 === 0 ? "predictive" : "manual",
+          priority,
+          status,
+          dueAtIso,
+          ["in_progress", "blocked", "done"].includes(status) ? userId : null,
+          status === "done" ? userId : null,
+          completedAtIso,
+          userId,
+          createdAtIso
+        ]
+      );
+
+      maintenanceTaskCount += 1;
+    }
+
+    const inventoryItemSeeds = [
+      {
+        sku: "PIENSO-3MM",
+        name: "Pienso extruido 3mm",
+        category: "pienso",
+        unit: "kg",
+        minStock: 850,
+        currentStock: 1320,
+        location: "Almacen Norte",
+        supplier: "NutriMar"
+      },
+      {
+        sku: "OXI-PURE-25",
+        name: "Oxigenante Pure 25L",
+        category: "quimicos",
+        unit: "L",
+        minStock: 140,
+        currentStock: 96,
+        location: "Quimicos S-02",
+        supplier: "AquaChem"
+      },
+      {
+        sku: "RED-REPARO",
+        name: "Kit reparacion redes",
+        category: "mantenimiento",
+        unit: "units",
+        minStock: 18,
+        currentStock: 31,
+        location: "Taller",
+        supplier: "Marine Tools"
+      },
+      {
+        sku: "VAC-TRIPLE",
+        name: "Vacuna triple inmersion",
+        category: "sanidad",
+        unit: "packs",
+        minStock: 28,
+        currentStock: 22,
+        location: "Camara fria",
+        supplier: "BioFish Labs"
+      },
+      {
+        sku: "FILTRO-SET",
+        name: "Set filtros bombeo",
+        category: "mantenimiento",
+        unit: "boxes",
+        minStock: 15,
+        currentStock: 27,
+        location: "Almacen Tecnico",
+        supplier: "AquaParts"
+      },
+      {
+        sku: "SAL-MARINA",
+        name: "Sal marina micronizada",
+        category: "insumos",
+        unit: "kg",
+        minStock: 480,
+        currentStock: 720,
+        location: "Silo Levante",
+        supplier: "Sea Minerals"
+      }
+    ];
+
+    const inventoryItemsBySku = new Map();
+
+    for (const item of inventoryItemSeeds) {
+      const itemResult = await query(
+        `
+          INSERT INTO inventory_items (
+            tenant_id,
+            sku,
+            name,
+            category,
+            unit,
+            min_stock,
+            current_stock,
+            location,
+            supplier,
+            created_at,
+            updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+          RETURNING id, sku
+        `,
+        [
+          tenantId,
+          item.sku,
+          item.name,
+          item.category,
+          item.unit,
+          item.minStock,
+          item.currentStock,
+          item.location,
+          item.supplier
+        ]
+      );
+
+      inventoryItemsBySku.set(itemResult.rows[0].sku, itemResult.rows[0].id);
+      inventoryItemCount += 1;
+    }
+
+    const movementReasonByType = {
+      in: "Reposicion de stock",
+      out: "Consumo operativo",
+      adjustment: "Ajuste por inventario ciclico"
+    };
+
+    for (let index = 0; index < inventoryItemSeeds.length; index += 1) {
+      const item = inventoryItemSeeds[index];
+      const itemId = inventoryItemsBySku.get(item.sku);
+
+      for (let movIndex = 0; movIndex < 4; movIndex += 1) {
+        const movementType = cycleValue(["in", "out", "adjustment", "out"], movIndex + index);
+        const relatedPond = cycleValue(pondStates, index * 2 + movIndex);
+        const quantity = movementType === "adjustment"
+          ? randomFloat(-45, 38, 2)
+          : randomFloat(18, 170, 2);
+
+        await query(
+          `
+            INSERT INTO inventory_movements (
+              tenant_id,
+              item_id,
+              related_pond_id,
+              movement_type,
+              quantity,
+              related_lot_code,
+              reason,
+              unit_cost,
+              moved_at,
+              created_by,
+              created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10, NOW())
+          `,
+          [
+            tenantId,
+            itemId,
+            relatedPond?.id || null,
+            movementType,
+            quantity,
+            relatedPond ? lotCode(relatedPond.code, movIndex % 2 === 0 ? "A" : "B") : null,
+            movementReasonByType[movementType],
+            randomFloat(0.8, 28, 4),
+            toIsoDaysAgo(randomInt(0, 22), randomInt(6, 21)),
+            userId
+          ]
+        );
+
+        inventoryMovementCount += 1;
+      }
+    }
+
+    const healthEventTypeCycle = ["treatment", "sample", "mortality", "quarantine", "vaccination", "inspection"];
+    const healthStatusCycle = ["open", "in_progress", "blocked", "resolved", "cancelled"];
+    const healthSeverityCycle = ["low", "medium", "high", "critical"];
+
+    for (let index = 0; index < 32; index += 1) {
+      const pondState = cycleValue(pondStates, index * 3);
+      const eventType = cycleValue(healthEventTypeCycle, index);
+      const status = cycleValue(healthStatusCycle, index + 1);
+      const severity = cycleValue(healthSeverityCycle, index + 2);
+      const eventAtIso = toIsoDaysAgo(randomInt(1, 38), randomInt(5, 19));
+      const resolvedAtIso = status === "resolved"
+        ? new Date(new Date(eventAtIso).getTime() + randomInt(4, 72) * 3600 * 1000).toISOString()
+        : null;
+
+      await query(
+        `
+          INSERT INTO health_events (
+            tenant_id,
+            pond_id,
+            lot_code,
+            event_type,
+            severity,
+            status,
+            title,
+            description,
+            medication_name,
+            dosage,
+            biosecurity_level,
+            event_at,
+            resolved_at,
+            created_by,
+            created_at
+          )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            $11,
+            $12::timestamptz,
+            $13::timestamptz,
+            $14,
+            $12::timestamptz
+          )
+        `,
+        [
+          tenantId,
+          pondState.id,
+          lotCode(pondState.code, index % 2 === 0 ? "A" : "B"),
+          eventType,
+          severity,
+          status,
+          `Evento ${eventType} en ${pondState.name}`,
+          `Registro demo de seguimiento sanitario (${severity})`,
+          eventType === "treatment" ? "AquaGuard" : null,
+          eventType === "treatment" ? `${randomFloat(1.5, 6.4, 2)} kg/dia` : null,
+          severity,
+          eventAtIso,
+          resolvedAtIso,
+          userId
+        ]
+      );
+
+      healthEventCount += 1;
+    }
+
+    const harvestStatusCycle = ["planned", "ready", "in_transit", "completed", "cancelled"];
+    const harvestPlansState = [];
+
+    for (let index = 0; index < 12; index += 1) {
+      const pondState = cycleValue(pondStates, index * 2 + 1);
+      const status = cycleValue(harvestStatusCycle, index);
+      const windowStart = new Date(Date.now() + (index - 4) * dayMs + randomInt(0, 6) * 3600 * 1000);
+      const windowEnd = new Date(windowStart.getTime() + randomInt(8, 20) * 3600 * 1000);
+      const completedAt = status === "completed"
+        ? new Date(windowEnd.getTime() + randomInt(2, 7) * 3600 * 1000).toISOString()
+        : null;
+
+      const harvestPlanResult = await query(
+        `
+          INSERT INTO harvest_plans (
+            tenant_id,
+            pond_id,
+            lot_code,
+            target_weight_g,
+            planned_biomass_kg,
+            window_start,
+            window_end,
+            destination,
+            logistics_provider,
+            status,
+            notes,
+            created_by,
+            completed_at,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6::timestamptz,
+            $7::timestamptz,
+            $8,
+            $9,
+            $10,
+            $11,
+            $12,
+            $13::timestamptz,
+            NOW(),
+            NOW()
+          )
+          RETURNING id, status, window_start, lot_code
+        `,
+        [
+          tenantId,
+          pondState.id,
+          lotCode(pondState.code, index % 2 === 0 ? "A" : "B"),
+          randomFloat(420, 760, 1),
+          randomFloat(2200, 8100, 2),
+          windowStart.toISOString(),
+          windowEnd.toISOString(),
+          cycleValue(["Mercado Norte", "Mercado Sur", "Planta procesado", "Centro distribucion"], index),
+          cycleValue(["LogiSea", "BlueRoute", "AquaTrans"], index),
+          status,
+          "Plan de cosecha demo",
+          userId,
+          completedAt
+        ]
+      );
+
+      harvestPlansState.push(harvestPlanResult.rows[0]);
+      harvestPlanCount += 1;
+    }
+
+    for (let index = 0; index < harvestPlansState.length; index += 1) {
+      const plan = harvestPlansState[index];
+      const planWindow = new Date(plan.window_start);
+      const shipmentCount = ["in_transit", "completed"].includes(plan.status) ? 2 : 1;
+
+      for (let shipmentIndex = 0; shipmentIndex < shipmentCount; shipmentIndex += 1) {
+        let shipmentStatus = "scheduled";
+        if (plan.status === "completed") {
+          shipmentStatus = "delivered";
+        } else if (plan.status === "in_transit") {
+          shipmentStatus = shipmentIndex === 0 ? "in_transit" : "scheduled";
+        } else if (plan.status === "cancelled") {
+          shipmentStatus = "cancelled";
+        }
+
+        const departureAt = new Date(planWindow.getTime() + shipmentIndex * 2 * 3600 * 1000);
+        const arrivalEta = new Date(departureAt.getTime() + randomInt(4, 9) * 3600 * 1000);
+        const deliveredAt = shipmentStatus === "delivered"
+          ? new Date(arrivalEta.getTime() + randomInt(20, 90) * 60000).toISOString()
+          : null;
+
+        await query(
+          `
+            INSERT INTO harvest_shipments (
+              tenant_id,
+              harvest_plan_id,
+              dispatch_code,
+              truck_plate,
+              driver_name,
+              departure_at,
+              arrival_eta,
+              delivered_at,
+              status,
+              documents,
+              created_by,
+              created_at
+            )
+            VALUES (
+              $1,
+              $2,
+              $3,
+              $4,
+              $5,
+              $6::timestamptz,
+              $7::timestamptz,
+              $8::timestamptz,
+              $9,
+              $10::jsonb,
+              $11,
+              NOW()
+            )
+          `,
+          [
+            tenantId,
+            plan.id,
+            `DSP-${String(plan.id).padStart(4, "0")}-${shipmentIndex + 1}`,
+            `${cycleValue(["1234", "5678", "9101", "1121"], index)}-${cycleValue(["ABC", "DEF", "GHI", "JKL"], shipmentIndex + index)}`,
+            cycleValue(["Carlos M.", "Ana P.", "Jorge R.", "Lucia T."], index + shipmentIndex),
+            departureAt.toISOString(),
+            arrivalEta.toISOString(),
+            deliveredAt,
+            shipmentStatus,
+            JSON.stringify([`albaran-${plan.id}-${shipmentIndex + 1}.pdf`]),
+            userId
+          ]
+        );
+
+        harvestShipmentCount += 1;
+      }
+    }
+
+    const liveTransportStatusCycle = ["planned", "in_transit", "completed", "cancelled"];
+    const liveTransportRoutes = [
+      { origin: "Centro Norte", destination: "Centro Sur", species: "dorada" },
+      { origin: "Centro Sur", destination: "Centro Levante", species: "lubina" },
+      { origin: "Centro Levante", destination: "Centro Norte", species: "trucha" },
+      { origin: "Centro Norte", destination: "Centro Levante", species: "dorada" }
+    ];
+    const liveTransportTripsState = [];
+
+    for (let index = 0; index < 8; index += 1) {
+      const route = cycleValue(liveTransportRoutes, index);
+      const status = cycleValue(liveTransportStatusCycle, index + 1);
+      const departureAt = new Date(Date.now() - randomInt(2, 36) * 3600 * 1000);
+      const arrivalEta = new Date(departureAt.getTime() + randomInt(4, 11) * 3600 * 1000);
+      const arrivedAt = status === "completed"
+        ? new Date(arrivalEta.getTime() + randomInt(10, 120) * 60000).toISOString()
+        : null;
+
+      const liveTripResult = await query(
+        `
+          INSERT INTO live_transport_trips (
+            tenant_id,
+            transport_code,
+            origin_site,
+            destination_site,
+            species,
+            lot_code,
+            fish_units,
+            tank_count,
+            departure_at,
+            arrival_eta,
+            arrived_at,
+            status,
+            notes,
+            created_by,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9::timestamptz,
+            $10::timestamptz,
+            $11::timestamptz,
+            $12,
+            $13,
+            $14,
+            NOW(),
+            NOW()
+          )
+          RETURNING id, status, tank_count, departure_at
+        `,
+        [
+          tenantId,
+          `TRP-DEMO-${String(index + 1).padStart(3, "0")}`,
+          route.origin,
+          route.destination,
+          route.species,
+          `LOTE-TRANS-${String(index + 1).padStart(3, "0")}`,
+          randomInt(1800, 6200),
+          10,
+          departureAt.toISOString(),
+          arrivalEta.toISOString(),
+          arrivedAt,
+          status,
+          "Viaje demo para seguimiento de bienestar en ruta",
+          userId
+        ]
+      );
+
+      liveTransportTripsState.push(liveTripResult.rows[0]);
+      liveTransportTripCount += 1;
+    }
+
+    for (let tripIndex = 0; tripIndex < liveTransportTripsState.length; tripIndex += 1) {
+      const trip = liveTransportTripsState[tripIndex];
+      const departureBase = trip.departure_at ? new Date(trip.departure_at) : new Date();
+      const readingRounds = trip.status === "planned" ? 1 : 2;
+
+      if (trip.status === "cancelled") {
+        continue;
+      }
+
+      for (let tankIndex = 1; tankIndex <= Math.min(Number(trip.tank_count) || 10, 10); tankIndex += 1) {
+        for (let round = 0; round < readingRounds; round += 1) {
+          const measuredAt = new Date(
+            departureBase.getTime() + (round * 90 + tankIndex * 7 + randomInt(5, 18)) * 60000
+          );
+          let ph = randomFloat(6.9, 8.35, 2);
+          let dissolvedOxygen = randomFloat(5.4, 8.6, 2);
+          const temperature = randomFloat(12.5, 23.8, 2);
+          const salinity = randomFloat(29.5, 39.5, 2);
+
+          if ((tankIndex + round + tripIndex) % 9 === 0) {
+            dissolvedOxygen = randomFloat(4.2, 4.95, 2);
+          }
+
+          if ((tankIndex + tripIndex) % 11 === 0) {
+            ph = randomFloat(8.65, 9.05, 2);
+          }
+
+          let riskLevel = "low";
+          const riskReasons = [];
+
+          if (dissolvedOxygen < 5 || ph < 6.5 || ph > 8.8) {
+            riskLevel = "critical";
+            riskReasons.push("Parametro fuera de rango critico");
+          } else if (dissolvedOxygen < 6 || ph < 6.8 || ph > 8.5 || temperature < 12 || temperature > 24) {
+            riskLevel = "high";
+            riskReasons.push("Parametro en zona de estres");
+          } else if (dissolvedOxygen < 6.5) {
+            riskLevel = "medium";
+            riskReasons.push("Oxigeno con margen reducido");
+          } else {
+            riskReasons.push("Lectura estable");
+          }
+
+          await query(
+            `
+              INSERT INTO live_transport_tank_readings (
+                tenant_id,
+                trip_id,
+                tank_code,
+                measured_at,
+                ph,
+                dissolved_oxygen_mg_l,
+                temperature_c,
+                salinity_ppt,
+                risk_level,
+                risk_reasons,
+                notes,
+                created_by,
+                created_at
+              )
+              VALUES (
+                $1,
+                $2,
+                $3,
+                $4::timestamptz,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10::text[],
+                $11,
+                $12,
+                NOW()
+              )
+            `,
+            [
+              tenantId,
+              trip.id,
+              `CUBA-${String(tankIndex).padStart(2, "0")}`,
+              measuredAt.toISOString(),
+              ph,
+              dissolvedOxygen,
+              temperature,
+              salinity,
+              riskLevel,
+              riskReasons,
+              round === 0 ? "Control de salida" : "Control en ruta",
+              userId
+            ]
+          );
+
+          liveTransportReadingCount += 1;
+        }
+      }
+    }
+
     const cameraSessionSeeds = [
       {
         machineType: "Contadora S/L",
@@ -1336,6 +1980,11 @@ async function seed() {
       "seed.biomass.inserted",
       "seed.measurements.inserted",
       "seed.alerts.inserted",
+      "seed.maintenance.inserted",
+      "seed.inventory.inserted",
+      "seed.health.inserted",
+      "seed.harvest.inserted",
+      "seed.live_transport.inserted",
       "seed.camera_sessions.inserted"
     ];
 
@@ -1375,6 +2024,14 @@ async function seed() {
         biomassEntries: biomassCount,
         operations: operationsCount,
         alerts: alertsCount,
+        maintenanceTasks: maintenanceTaskCount,
+        inventoryItems: inventoryItemCount,
+        inventoryMovements: inventoryMovementCount,
+        healthEvents: healthEventCount,
+        harvestPlans: harvestPlanCount,
+        harvestShipments: harvestShipmentCount,
+        liveTransportTrips: liveTransportTripCount,
+        liveTransportReadings: liveTransportReadingCount,
         hatcheryBroodstock: broodstockCount,
         hatcheryLayings: layingCount,
         hatcheryLarvalBatches: larvalBatchCount,

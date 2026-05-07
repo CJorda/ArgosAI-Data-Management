@@ -226,6 +226,41 @@ export async function createHarvestShipmentRequest(token, planId, payload) {
   return data;
 }
 
+export async function liveTransportTripsRequest(token, params) {
+  const { data } = await apiClient.get("/operations/live-transport/trips", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function createLiveTransportTripRequest(token, payload) {
+  const { data } = await apiClient.post("/operations/live-transport/trips", payload, authConfig(token));
+  return data;
+}
+
+export async function updateLiveTransportTripStatusRequest(token, tripId, payload) {
+  const { data } = await apiClient.patch(
+    `/operations/live-transport/trips/${tripId}/status`,
+    payload,
+    authConfig(token)
+  );
+  return data;
+}
+
+export async function liveTransportReadingsRequest(token, params) {
+  const { data } = await apiClient.get("/operations/live-transport/readings", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function createLiveTransportReadingRequest(token, payload) {
+  const { data } = await apiClient.post("/operations/live-transport/readings", payload, authConfig(token));
+  return data;
+}
+
 export async function auditLogsRequest(token, params) {
   const { data } = await apiClient.get("/operations/audit/logs", {
     ...authConfig(token),

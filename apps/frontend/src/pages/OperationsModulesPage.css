@@ -40,6 +40,10 @@
   @apply border-[#d8d39c] bg-[#f8f4db] text-[#7a6522];
 }
 
+.module-pill-status-planned {
+  @apply border-[#d8d39c] bg-[#f8f4db] text-[#7a6522];
+}
+
 .module-pill-status-in_progress {
   @apply border-[#b9cde8] bg-[#edf5ff] text-[#2f5e93];
 }
@@ -89,6 +93,81 @@
   @apply max-h-28 overflow-auto rounded-md bg-[#f6f8fc] px-2 py-1 text-[0.76rem] text-[#41566f];
 }
 
+.live-transport-hero {
+  @apply overflow-hidden;
+}
+
+.live-truck-scene {
+  @apply mt-3 rounded-2xl border border-[#d8e1ec] p-4;
+  background:
+    linear-gradient(180deg, #f8fbff 0%, #eef4fb 56%, #e3ebf6 56%, #e3ebf6 100%);
+}
+
+.live-truck-top-view {
+  @apply grid gap-2;
+  grid-template-columns: 170px minmax(0, 1fr);
+  min-height: 220px;
+}
+
+.live-truck-top-cab {
+  @apply grid content-center justify-items-center rounded-xl border border-[#8ea6bf] bg-[#c6d8eb] px-3 py-2;
+}
+
+.live-truck-top-windshield {
+  @apply mb-2 h-10 w-16 rounded-md border border-[#5f7e9f] bg-[#e9f3ff];
+}
+
+.live-truck-top-cab span {
+  @apply text-[0.74rem] font-semibold text-[#25486f];
+}
+
+.live-truck-top-bed {
+  @apply grid rounded-2xl border border-[#9fb6cf] bg-[#d4e2f2] p-3;
+}
+
+.live-truck-tank-grid {
+  @apply grid h-full gap-2;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(78px, 1fr));
+}
+
+.live-truck-tank {
+  @apply grid content-center rounded-xl border px-2 py-1.5 text-center;
+  min-height: 78px;
+}
+
+.live-truck-tank span {
+  @apply text-[0.78rem] font-semibold text-[#203b5d];
+}
+
+.live-truck-tank small {
+  @apply mt-0.5 text-[0.66rem] text-[#36557a];
+}
+
+.live-truck-tank-risk-low {
+  @apply border-[#b5d6b2] bg-[#eaf7e8];
+}
+
+.live-truck-tank-risk-medium {
+  @apply border-[#e4d09d] bg-[#fff8e4];
+}
+
+.live-truck-tank-risk-high {
+  @apply border-[#e8be97] bg-[#fff0e1];
+}
+
+.live-truck-tank-risk-critical {
+  @apply border-[#e5a7a7] bg-[#fdecec];
+}
+
+.live-truck-tank-empty {
+  @apply border-[#d6deea] bg-[#f5f8fc];
+}
+
+.live-truck-caption {
+  @apply mt-5 text-[0.83rem] text-[#4f6684];
+}
+
 @media (max-width: 1100px) {
   .module-grid {
     @apply grid-cols-1;
@@ -97,10 +176,25 @@
   .module-kpi-grid {
     @apply grid-cols-2;
   }
+
+  .live-truck-top-view {
+    grid-template-columns: 130px minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 680px) {
   .module-kpi-grid {
     @apply grid-cols-1;
   }
+
+  .live-truck-top-view {
+    grid-template-columns: 1fr;
+    min-height: 240px;
+  }
+
+  .live-truck-top-cab {
+    @apply justify-self-start;
+    width: 124px;
+  }
+
 }

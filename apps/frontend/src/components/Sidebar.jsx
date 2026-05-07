@@ -217,6 +217,10 @@ const navItems = [
         label: "Sanidad y bioseguridad"
       },
       {
+        to: "/operaciones/transporte-vivo",
+        label: "Transporte de Peces Vivo"
+      },
+      {
         to: "/operaciones/cosecha-logistica",
         label: "Cosecha y logística"
       },

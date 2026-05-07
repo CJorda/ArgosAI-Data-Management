@@ -480,6 +480,44 @@ CREATE TABLE IF NOT EXISTS harvest_shipments (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS live_transport_trips (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  transport_code TEXT NOT NULL,
+  origin_site TEXT NOT NULL,
+  destination_site TEXT NOT NULL,
+  species TEXT,
+  lot_code TEXT,
+  fish_units INTEGER,
+  tank_count INTEGER NOT NULL DEFAULT 1,
+  departure_at TIMESTAMPTZ,
+  arrival_eta TIMESTAMPTZ,
+  arrived_at TIMESTAMPTZ,
+  status TEXT NOT NULL DEFAULT 'planned',
+  notes TEXT,
+  created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, transport_code)
+);
+
+CREATE TABLE IF NOT EXISTS live_transport_tank_readings (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  trip_id BIGINT NOT NULL REFERENCES live_transport_trips(id) ON DELETE CASCADE,
+  tank_code TEXT NOT NULL,
+  measured_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ph DOUBLE PRECISION,
+  dissolved_oxygen_mg_l DOUBLE PRECISION,
+  temperature_c DOUBLE PRECISION,
+  salinity_ppt DOUBLE PRECISION,
+  risk_level TEXT NOT NULL DEFAULT 'low',
+  risk_reasons TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  notes TEXT,
+  created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_measurements_tenant_sensor_time
   ON measurements (tenant_id, sensor_id, recorded_at DESC);
 
@@ -566,6 +604,18 @@ CREATE INDEX IF NOT EXISTS idx_harvest_plans_tenant_pond_window
 
 CREATE INDEX IF NOT EXISTS idx_harvest_shipments_tenant_plan_created
   ON harvest_shipments (tenant_id, harvest_plan_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_live_transport_trips_tenant_status_departure
+  ON live_transport_trips (tenant_id, status, departure_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_live_transport_trips_tenant_code
+  ON live_transport_trips (tenant_id, transport_code);
+
+CREATE INDEX IF NOT EXISTS idx_live_transport_readings_tenant_trip_measured
+  ON live_transport_tank_readings (tenant_id, trip_id, measured_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_live_transport_readings_tenant_risk_measured
+  ON live_transport_tank_readings (tenant_id, risk_level, measured_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_created
   ON audit_logs (tenant_id, created_at DESC);

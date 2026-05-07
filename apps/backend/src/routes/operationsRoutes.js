@@ -13,6 +13,8 @@ const inventoryMovementTypeEnum = z.enum(["in", "out", "adjustment"]);
 const healthSeverityEnum = z.enum(["low", "medium", "high", "critical"]);
 const healthStatusEnum = z.enum(["open", "in_progress", "blocked", "resolved", "cancelled"]);
 const harvestStatusEnum = z.enum(["planned", "ready", "in_transit", "completed", "cancelled"]);
+const liveTransportStatusEnum = z.enum(["planned", "in_transit", "completed", "cancelled"]);
+const liveTransportRiskEnum = z.enum(["low", "medium", "high", "critical"]);
 
 const createOperationSchema = z.object({
   pondId: z.number().int().positive(),
@@ -37,6 +39,10 @@ const eventIdParamsSchema = z.object({
 
 const planIdParamsSchema = z.object({
   planId: z.coerce.number().int().positive()
+});
+
+const tripIdParamsSchema = z.object({
+  tripId: z.coerce.number().int().positive()
 });
 
 const createMaintenanceTaskSchema = z.object({
@@ -147,6 +153,61 @@ const createHarvestShipmentSchema = z.object({
   documents: z.array(z.string().min(1).max(240)).max(40).optional()
 });
 
+const createLiveTransportTripSchema = z.object({
+  transportCode: z.string().min(3).max(80),
+  originSite: z.string().min(2).max(140),
+  destinationSite: z.string().min(2).max(140),
+  species: z.string().max(80).optional().nullable(),
+  lotCode: z.string().max(80).optional().nullable(),
+  fishUnits: z.number().int().positive().optional().nullable(),
+  tankCount: z.number().int().min(1).max(60).optional(),
+  departureAt: z.string().datetime().optional().nullable(),
+  arrivalEta: z.string().datetime().optional().nullable(),
+  notes: z.string().max(1200).optional().nullable()
+}).superRefine((payload, ctx) => {
+  if (payload.departureAt && payload.arrivalEta) {
+    const departureAt = new Date(payload.departureAt).getTime();
+    const arrivalEta = new Date(payload.arrivalEta).getTime();
+
+    if (departureAt >= arrivalEta) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["arrivalEta"],
+        message: "arrivalEta must be later than departureAt"
+      });
+    }
+  }
+});
+
+const updateLiveTransportTripStatusSchema = z.object({
+  status: liveTransportStatusEnum
+});
+
+const createLiveTransportReadingSchema = z.object({
+  tripId: z.number().int().positive(),
+  tankCode: z.string().min(1).max(80),
+  measuredAt: z.string().datetime().optional().nullable(),
+  ph: z.number().min(0).max(14).optional().nullable(),
+  dissolvedOxygenMgL: z.number().min(0).max(30).optional().nullable(),
+  temperatureC: z.number().min(-5).max(45).optional().nullable(),
+  salinityPpt: z.number().min(0).max(70).optional().nullable(),
+  notes: z.string().max(600).optional().nullable()
+}).superRefine((payload, ctx) => {
+  const hasMeasurements =
+    payload.ph !== null && payload.ph !== undefined ||
+    payload.dissolvedOxygenMgL !== null && payload.dissolvedOxygenMgL !== undefined ||
+    payload.temperatureC !== null && payload.temperatureC !== undefined ||
+    payload.salinityPpt !== null && payload.salinityPpt !== undefined;
+
+  if (!hasMeasurements) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["ph"],
+      message: "At least one sensor measurement is required"
+    });
+  }
+});
+
 function normalizeText(value) {
   if (value === null || value === undefined) {
     return null;
@@ -180,6 +241,70 @@ function parseDateRange(req, defaultDays = 30) {
   }
 
   return { from, to };
+}
+
+function evaluateLiveTransportRisk({ ph, dissolvedOxygenMgL, temperatureC, salinityPpt }) {
+  const reasons = [];
+  let score = 0;
+
+  if (Number.isFinite(ph)) {
+    if (ph < 6.5 || ph > 8.8) {
+      score += 45;
+      reasons.push("pH fuera de rango critico (6.5-8.8)");
+    } else if (ph < 6.8 || ph > 8.5) {
+      score += 25;
+      reasons.push("pH en borde operativo");
+    }
+  }
+
+  if (Number.isFinite(dissolvedOxygenMgL)) {
+    if (dissolvedOxygenMgL < 5) {
+      score += 60;
+      reasons.push("Oxigeno disuelto por debajo de 5 mg/L");
+    } else if (dissolvedOxygenMgL < 6) {
+      score += 40;
+      reasons.push("Oxigeno disuelto por debajo del objetivo (6 mg/L)");
+    } else if (dissolvedOxygenMgL < 6.5) {
+      score += 20;
+      reasons.push("Oxigeno disuelto con margen bajo");
+    }
+  }
+
+  if (Number.isFinite(temperatureC)) {
+    if (temperatureC < 10 || temperatureC > 26) {
+      score += 35;
+      reasons.push("Temperatura fuera de rango recomendado (10-26 C)");
+    } else if (temperatureC < 12 || temperatureC > 24) {
+      score += 18;
+      reasons.push("Temperatura en zona de estres");
+    }
+  }
+
+  if (Number.isFinite(salinityPpt)) {
+    if (salinityPpt < 15 || salinityPpt > 45) {
+      score += 15;
+      reasons.push("Salinidad fuera de banda esperada");
+    }
+  }
+
+  let riskLevel = "low";
+  if (score >= 70) {
+    riskLevel = "critical";
+  } else if (score >= 45) {
+    riskLevel = "high";
+  } else if (score >= 20) {
+    riskLevel = "medium";
+  }
+
+  if (reasons.length === 0) {
+    reasons.push("Lectura estable para transporte");
+  }
+
+  return {
+    riskLevel,
+    riskReasons: reasons.slice(0, 3),
+    riskScore: score
+  };
 }
 
 async function writeAuditLog({ tenantId, userId, action, entity, entityId, payload }) {
@@ -1374,6 +1499,391 @@ operationsRoutes.get(
     );
 
     res.json(result.rows);
+  })
+);
+
+operationsRoutes.get(
+  "/live-transport/trips",
+  asyncHandler(async (req, res) => {
+    const statusFilter = req.query.status ? String(req.query.status).trim() : null;
+    const limit = parseLimit(req.query.limit, 180, 500);
+
+    if (statusFilter && !liveTransportStatusEnum.options.includes(statusFilter)) {
+      throw new HttpError(400, "Invalid live transport status filter");
+    }
+
+    const result = await query(
+      `
+        SELECT
+          t.id,
+          t.transport_code,
+          t.origin_site,
+          t.destination_site,
+          t.species,
+          t.lot_code,
+          t.fish_units,
+          t.tank_count,
+          t.departure_at,
+          t.arrival_eta,
+          t.arrived_at,
+          t.status,
+          t.notes,
+          t.created_at,
+          t.updated_at,
+          latest_reading.measured_at AS latest_measured_at,
+          latest_reading.tank_code AS latest_tank_code,
+          latest_reading.ph AS latest_ph,
+          latest_reading.dissolved_oxygen_mg_l AS latest_dissolved_oxygen_mg_l,
+          latest_reading.temperature_c AS latest_temperature_c,
+          latest_reading.risk_level AS latest_risk_level,
+          COALESCE(stats.readings_count, 0)::int AS readings_count,
+          COALESCE(stats.critical_readings_count, 0)::int AS critical_readings_count,
+          COALESCE(stats.high_readings_count, 0)::int AS high_readings_count
+        FROM live_transport_trips t
+        LEFT JOIN LATERAL (
+          SELECT
+            r.measured_at,
+            r.tank_code,
+            r.ph,
+            r.dissolved_oxygen_mg_l,
+            r.temperature_c,
+            r.risk_level
+          FROM live_transport_tank_readings r
+          WHERE r.tenant_id = t.tenant_id
+            AND r.trip_id = t.id
+          ORDER BY r.measured_at DESC
+          LIMIT 1
+        ) latest_reading ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT
+            COUNT(*)::int AS readings_count,
+            COUNT(*) FILTER (WHERE risk_level = 'critical')::int AS critical_readings_count,
+            COUNT(*) FILTER (WHERE risk_level = 'high')::int AS high_readings_count
+          FROM live_transport_tank_readings r
+          WHERE r.tenant_id = t.tenant_id
+            AND r.trip_id = t.id
+        ) stats ON TRUE
+        WHERE t.tenant_id = $1
+          AND ($2::text IS NULL OR t.status = $2)
+        ORDER BY COALESCE(t.departure_at, t.created_at) DESC
+        LIMIT $3
+      `,
+      [req.user.tenantId, statusFilter, limit]
+    );
+
+    res.json(result.rows);
+  })
+);
+
+operationsRoutes.post(
+  "/live-transport/trips",
+  validate(createLiveTransportTripSchema),
+  asyncHandler(async (req, res) => {
+    const payload = req.body;
+
+    const result = await query(
+      `
+        INSERT INTO live_transport_trips (
+          tenant_id,
+          transport_code,
+          origin_site,
+          destination_site,
+          species,
+          lot_code,
+          fish_units,
+          tank_count,
+          departure_at,
+          arrival_eta,
+          notes,
+          created_by
+        )
+        VALUES (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9::timestamptz,
+          $10::timestamptz,
+          $11,
+          $12
+        )
+        RETURNING
+          id,
+          transport_code,
+          origin_site,
+          destination_site,
+          species,
+          lot_code,
+          fish_units,
+          tank_count,
+          departure_at,
+          arrival_eta,
+          arrived_at,
+          status,
+          notes,
+          created_at,
+          updated_at
+      `,
+      [
+        req.user.tenantId,
+        payload.transportCode.trim().toUpperCase(),
+        payload.originSite.trim(),
+        payload.destinationSite.trim(),
+        normalizeText(payload.species),
+        normalizeText(payload.lotCode),
+        payload.fishUnits || null,
+        payload.tankCount || 1,
+        payload.departureAt || null,
+        payload.arrivalEta || null,
+        normalizeText(payload.notes),
+        req.user.id
+      ]
+    );
+
+    await writeAuditLog({
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      action: "live_transport.trip.create",
+      entity: "live_transport_trips",
+      entityId: result.rows[0].id,
+      payload
+    });
+
+    res.status(201).json(result.rows[0]);
+  })
+);
+
+operationsRoutes.patch(
+  "/live-transport/trips/:tripId/status",
+  validate(tripIdParamsSchema, "params"),
+  validate(updateLiveTransportTripStatusSchema),
+  asyncHandler(async (req, res) => {
+    const { tripId } = req.params;
+    const { status } = req.body;
+
+    const result = await query(
+      `
+        UPDATE live_transport_trips
+        SET
+          status = $3,
+          arrived_at = CASE
+            WHEN $3 = 'completed' THEN COALESCE(arrived_at, NOW())
+            WHEN $3 IN ('planned', 'in_transit') THEN NULL
+            ELSE arrived_at
+          END,
+          updated_at = NOW()
+        WHERE id = $1
+          AND tenant_id = $2
+        RETURNING
+          id,
+          transport_code,
+          origin_site,
+          destination_site,
+          species,
+          lot_code,
+          fish_units,
+          tank_count,
+          departure_at,
+          arrival_eta,
+          arrived_at,
+          status,
+          notes,
+          created_at,
+          updated_at
+      `,
+      [tripId, req.user.tenantId, status]
+    );
+
+    if (result.rowCount === 0) {
+      throw new HttpError(404, "Live transport trip not found");
+    }
+
+    await writeAuditLog({
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      action: "live_transport.trip.status.update",
+      entity: "live_transport_trips",
+      entityId: tripId,
+      payload: { status }
+    });
+
+    res.json(result.rows[0]);
+  })
+);
+
+operationsRoutes.get(
+  "/live-transport/readings",
+  asyncHandler(async (req, res) => {
+    const limit = parseLimit(req.query.limit, 220, 600);
+    const tripId = req.query.tripId ? Number(req.query.tripId) : null;
+    const riskLevel = req.query.riskLevel ? String(req.query.riskLevel).trim() : null;
+
+    if (req.query.tripId && !Number.isFinite(tripId)) {
+      throw new HttpError(400, "tripId must be a valid number");
+    }
+
+    if (riskLevel && !liveTransportRiskEnum.options.includes(riskLevel)) {
+      throw new HttpError(400, "Invalid live transport risk level filter");
+    }
+
+    const result = await query(
+      `
+        SELECT
+          r.id,
+          r.trip_id,
+          t.transport_code,
+          t.status AS trip_status,
+          r.tank_code,
+          r.measured_at,
+          r.ph,
+          r.dissolved_oxygen_mg_l,
+          r.temperature_c,
+          r.salinity_ppt,
+          r.risk_level,
+          r.risk_reasons,
+          r.notes,
+          r.created_at
+        FROM live_transport_tank_readings r
+        JOIN live_transport_trips t ON t.id = r.trip_id
+        WHERE r.tenant_id = $1
+          AND ($2::bigint IS NULL OR r.trip_id = $2)
+          AND ($3::text IS NULL OR r.risk_level = $3)
+        ORDER BY r.measured_at DESC
+        LIMIT $4
+      `,
+      [req.user.tenantId, tripId, riskLevel, limit]
+    );
+
+    res.json(result.rows);
+  })
+);
+
+operationsRoutes.post(
+  "/live-transport/readings",
+  validate(createLiveTransportReadingSchema),
+  asyncHandler(async (req, res) => {
+    const payload = req.body;
+
+    const tripResult = await query(
+      `
+        SELECT id, status
+        FROM live_transport_trips
+        WHERE id = $1
+          AND tenant_id = $2
+        LIMIT 1
+      `,
+      [payload.tripId, req.user.tenantId]
+    );
+
+    if (tripResult.rowCount === 0) {
+      throw new HttpError(404, "Live transport trip not found");
+    }
+
+    const trip = tripResult.rows[0];
+    if (trip.status === "completed" || trip.status === "cancelled") {
+      throw new HttpError(400, "Cannot add readings to completed or cancelled trips");
+    }
+
+    const risk = evaluateLiveTransportRisk({
+      ph: payload.ph,
+      dissolvedOxygenMgL: payload.dissolvedOxygenMgL,
+      temperatureC: payload.temperatureC,
+      salinityPpt: payload.salinityPpt
+    });
+
+    const result = await query(
+      `
+        INSERT INTO live_transport_tank_readings (
+          tenant_id,
+          trip_id,
+          tank_code,
+          measured_at,
+          ph,
+          dissolved_oxygen_mg_l,
+          temperature_c,
+          salinity_ppt,
+          risk_level,
+          risk_reasons,
+          notes,
+          created_by
+        )
+        VALUES (
+          $1,
+          $2,
+          $3,
+          COALESCE($4::timestamptz, NOW()),
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          $10::text[],
+          $11,
+          $12
+        )
+        RETURNING
+          id,
+          trip_id,
+          tank_code,
+          measured_at,
+          ph,
+          dissolved_oxygen_mg_l,
+          temperature_c,
+          salinity_ppt,
+          risk_level,
+          risk_reasons,
+          notes,
+          created_at
+      `,
+      [
+        req.user.tenantId,
+        payload.tripId,
+        payload.tankCode.trim().toUpperCase(),
+        payload.measuredAt || null,
+        payload.ph ?? null,
+        payload.dissolvedOxygenMgL ?? null,
+        payload.temperatureC ?? null,
+        payload.salinityPpt ?? null,
+        risk.riskLevel,
+        risk.riskReasons,
+        normalizeText(payload.notes),
+        req.user.id
+      ]
+    );
+
+    await query(
+      `
+        UPDATE live_transport_trips
+        SET
+          status = CASE WHEN status = 'planned' THEN 'in_transit' ELSE status END,
+          updated_at = NOW()
+        WHERE id = $1
+          AND tenant_id = $2
+      `,
+      [payload.tripId, req.user.tenantId]
+    );
+
+    await writeAuditLog({
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      action: "live_transport.reading.create",
+      entity: "live_transport_tank_readings",
+      entityId: result.rows[0].id,
+      payload: {
+        ...payload,
+        riskLevel: risk.riskLevel,
+        riskScore: risk.riskScore
+      }
+    });
+
+    res.status(201).json({
+      ...result.rows[0],
+      riskScore: risk.riskScore
+    });
   })
 );
 

@@ -3,9 +3,6 @@ import "./HeaderBar.css";
 
 export function HeaderBar({
   onToggleSidebar,
-  onToggleAlerts,
-  alertsCount,
-  isAlertsOpen,
   isMobileView,
   isSidebarOpenMobile,
   isSidebarCollapsed
@@ -41,17 +38,6 @@ export function HeaderBar({
         </div>
       </div>
 
-      <div className="header-actions">
-        <button
-          type="button"
-          className={`alert-toggle-button ${isAlertsOpen ? "alert-toggle-button-active" : ""}`}
-          onClick={onToggleAlerts}
-          aria-label="Mostrar alertas abiertas"
-        >
-          <span>Alertas</span>
-          <strong>{alertsCount}</strong>
-        </button>
-      </div>
     </header>
   );
 }
