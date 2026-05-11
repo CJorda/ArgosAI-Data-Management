@@ -10,6 +10,7 @@
     "build": "node -e \"console.log('No build step needed for backend')\"",
     "lint": "node -e \"console.log('No lint configured yet')\"",
     "db:bootstrap": "node src/database/bootstrapDb.js",
+    "db:provision-app-role": "node src/database/provisionAppRole.js",
     "migrate": "node src/database/runMigrations.js",
     "seed": "node src/database/seed.js",
     "setup": "pnpm run db:bootstrap && pnpm run migrate && pnpm run seed"

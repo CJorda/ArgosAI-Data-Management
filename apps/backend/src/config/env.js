@@ -19,6 +19,10 @@ export const env = {
   port: Number(process.env.PORT || 3001),
   clientOrigins,
   databaseUrl: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/argosai",
+  dbAdminUrl: process.env.DB_ADMIN_URL || null,
+  dbAppRole: process.env.DB_APP_ROLE || "argosai_app",
+  dbAppPassword: process.env.DB_APP_PASSWORD || "",
+  enforceRlsSafeRole: String(process.env.ENFORCE_RLS_SAFE_ROLE || "false") === "true",
   noPostgresMode:
     String(process.env.NO_POSTGRES_MODE || process.env.NO_POSTGRES || "false") === "true",
   demoTenantCode: process.env.DEMO_TENANT_CODE || "demo",
@@ -27,6 +31,7 @@ export const env = {
   demoAdminPassword: process.env.DEMO_ADMIN_PASSWORD || "Admin123!",
   demoAdminName: process.env.DEMO_ADMIN_NAME || "Administrador Demo",
   demoFeatures: process.env.DEMO_FEATURES || "*",
+  tenantFeaturesStrictMode: String(process.env.TENANT_FEATURES_STRICT_MODE || "false") === "true",
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "dev_access_secret",
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || "dev_refresh_secret",
   jwtAccessTtl: process.env.JWT_ACCESS_TTL || "15m",

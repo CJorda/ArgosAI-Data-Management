@@ -9,7 +9,8 @@
   }
 
   .kpi-card strong {
-    @apply text-2xl;
+    @apply block text-2xl;
+    overflow-wrap: anywhere;
   }
 
   .kpi-card span {

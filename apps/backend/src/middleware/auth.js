@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
+import { setRequestTenantId } from "../database/pool.js";
 import { HttpError } from "../utils/httpError.js";
 
 export function requireAuth(req, _res, next) {
@@ -27,6 +28,7 @@ export function requireAuth(req, _res, next) {
       fullName: payload.fullName,
       features: Array.isArray(payload.features) ? payload.features : null
     };
+    setRequestTenantId(req.user.tenantId);
 
     return next();
   } catch {

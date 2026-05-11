@@ -23,84 +23,179 @@ const navItems = [
     )
   },
   {
-    to: "/planta",
-    label: "Planta SCADA",
+    to: "/proyecto/piscifactoria",
+    label: "Automatización Piscifactoría",
     icon: (
       <>
         <path d="M4 18.5V8l8-4 8 4v10.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M8 18.5V12h8v6.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
       </>
-    )
-  },
-  {
-    to: "/oxigeno",
-    label: "Oxígeno",
-    icon: (
-      <>
-        <path
-          d="M12 3.7s5.1 5.5 5.1 9.2A5.1 5.1 0 1 1 6.9 12.9C6.9 9.2 12 3.7 12 3.7z"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </>
     ),
     children: [
       {
+        to: "/planta",
+        label: "Planta SCADA",
+        group: "Supervisión en tiempo real"
+      },
+      {
         to: "/oxigeno/electrovalvulas",
-        label: "Electroválvulas"
+        label: "Electroválvulas",
+        group: "Supervisión en tiempo real"
       },
       {
         to: "/oxigeno/economia",
-        label: "Economía oxígeno"
-      }
-    ]
-  },
-  {
-    to: "/consignas",
-    label: "Consignas PLC",
-    icon: (
-      <>
-        <path d="M6 6h12M6 12h12M6 18h12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-        <circle cx="9" cy="6" r="1.7" fill="currentColor" />
-        <circle cx="15" cy="12" r="1.7" fill="currentColor" />
-        <circle cx="11" cy="18" r="1.7" fill="currentColor" />
-      </>
-    ),
-    children: [
+        label: "Economía oxígeno",
+        group: "Supervisión en tiempo real"
+      },
       {
         to: "/consignas/oxigeno",
-        label: "Oxígeno color"
+        label: "Consigna oxígeno",
+        group: "Supervisión en tiempo real"
       },
       {
         to: "/consignas/temperatura",
-        label: "Temperatura color"
-      }
-    ]
-  },
-  {
-    to: "/avisos",
-    label: "Avisos telefónicos",
-    icon: (
-      <>
-        <path d="M7.4 4.8h3.2v3.4H7.4zM13.4 4.8h3.2v3.4h-3.2zM7.4 10.3h3.2v3.4H7.4zM13.4 10.3h3.2v3.4h-3.2z" stroke="currentColor" strokeWidth="1.4" />
-        <path d="M8.7 17.6c2.2 1.7 4.4 1.7 6.6 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      </>
-    ),
-    children: [
+        label: "Consigna temperatura",
+        group: "Supervisión en tiempo real"
+      },
       {
         to: "/avisos/consignas-telefonicas",
-        label: "Consignas telefónicas"
+        label: "Consignas telefónicas",
+        group: "Alertas y avisos"
       },
       {
         to: "/avisos/consignas-sms",
-        label: "Consignas SMS"
+        label: "Consignas SMS",
+        group: "Alertas y avisos"
+      },
+      {
+        to: "/alertas/alertas",
+        label: "Alertas operativas",
+        group: "Alertas y avisos"
+      },
+      {
+        to: "/alertas/prediccion-riesgo",
+        label: "Predicción riesgo 24-72h",
+        group: "Alertas y avisos"
+      },
+      {
+        to: "/historico/piscina",
+        label: "Analítica por piscina",
+        group: "Analítica histórica"
+      },
+      {
+        to: "/historico/parametros",
+        label: "Analítica por parámetros",
+        group: "Analítica histórica"
+      },
+      {
+        to: "/historico/xy",
+        label: "Relación calidad X-Y",
+        group: "Analítica histórica"
+      },
+      {
+        to: "/historico/heatmap",
+        label: "Heatmap mensual",
+        group: "Analítica histórica"
+      },
+      {
+        to: "/planificacion",
+        label: "Planificación",
+        group: "Planificación y biomasa"
+      },
+      {
+        to: "/trazabilidad",
+        label: "Trazabilidad",
+        group: "Planificación y biomasa"
+      },
+      {
+        to: "/biomasa/resumen",
+        label: "Resumen biomasa",
+        group: "Planificación y biomasa"
+      },
+      {
+        to: "/biomasa/historial",
+        label: "Historial biomasa",
+        group: "Planificación y biomasa"
+      },
+      {
+        to: "/biomasa/densidad-peces",
+        label: "Densidad de peces",
+        group: "Planificación y biomasa"
+      },
+      {
+        to: "/operaciones/alimentacion",
+        label: "Alimentación",
+        group: "Producción diaria"
+      },
+      {
+        to: "/operaciones/sanidad-bioseguridad",
+        label: "Sanidad y bioseguridad",
+        group: "Producción diaria"
+      },
+      {
+        to: "/operaciones/tratamiento",
+        label: "Tratamiento",
+        group: "Producción diaria"
+      },
+      {
+        to: "/operaciones/mantenimiento-preventivo",
+        label: "Mantenimiento preventivo",
+        group: "Soporte técnico"
+      },
+      {
+        to: "/operaciones/inventario-operativo",
+        label: "Inventario operativo",
+        group: "Soporte técnico"
+      },
+      {
+        to: "/operaciones/transferencia",
+        label: "Transferencia",
+        group: "Logística y cierre"
+      },
+      {
+        to: "/operaciones/transporte-vivo",
+        label: "Transporte de peces vivo",
+        group: "Logística y cierre"
+      },
+      {
+        to: "/operaciones/cosecha-logistica",
+        label: "Cosecha y logística",
+        group: "Logística y cierre"
+      },
+      {
+        to: "/operaciones/vaciado-limpieza",
+        label: "Vaciado y limpieza",
+        group: "Logística y cierre"
+      },
+      {
+        to: "/operaciones/auditoria-compliance",
+        label: "Auditoría y compliance",
+        group: "Gestión y cumplimiento"
+      },
+      {
+        to: "/operaciones/coste-margen",
+        label: "Coste y margen",
+        group: "Gestión y cumplimiento"
+      },
+      {
+        to: "/operaciones/prevision-12-36",
+        label: "Previsión 12-36 meses",
+        group: "Escalado y expansión"
+      },
+      {
+        to: "/operaciones/hatchery-larval",
+        label: "Hatchery / Larval",
+        group: "Escalado y expansión"
+      },
+      {
+        to: "/operaciones/consolidacion-multi-sitio",
+        label: "Consolidación multi-sitio",
+        group: "Escalado y expansión"
       }
     ]
   },
   {
-    to: "/maquina",
+    to: "/proyecto/argosai",
     label: "Máquina ArgosAI",
     icon: (
       <>
@@ -128,156 +223,8 @@ const navItems = [
     ]
   },
   {
-    to: "/historico",
-    label: "Históricos",
-    icon: (
-      <>
-        <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.7" />
-        <path d="M12 8v4.1l2.8 1.9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      </>
-    ),
-    children: [
-      {
-        to: "/historico/piscina",
-        label: "Analítica por piscina"
-      },
-      {
-        to: "/historico/parametros",
-        label: "Analítica por parámetros"
-      },
-      {
-        to: "/historico/xy",
-        label: "Relación calidad X-Y"
-      },
-      {
-        to: "/historico/heatmap",
-        label: "Heatmap mensual"
-      }
-    ]
-  },
-  {
-    to: "/alertas",
-    label: "Alertas",
-    icon: (
-      <>
-        <path d="M12 4a4.4 4.4 0 0 0-4.4 4.4v2.1c0 .9-.3 1.8-.9 2.4L5.8 14h12.4l-.9-1.1a3.6 3.6 0 0 1-.9-2.4V8.4A4.4 4.4 0 0 0 12 4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-        <path d="M10 17.2a2.2 2.2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      </>
-    ),
-    children: [
-      {
-        to: "/alertas/prediccion-riesgo",
-        label: "Prediccion de riesgo 24-72h"
-      },
-      {
-        to: "/alertas/alertas",
-        label: "Alertas"
-      }
-    ]
-  },
-  {
-    to: "/operaciones",
-    label: "Operaciones",
-    icon: (
-      <>
-        <path d="M14 4l6 6-3 3-6-6z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-        <path d="M11 7 5 13l-1.8 5.2L8.4 17 14 11" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-      </>
-    ),
-    children: [
-      {
-        to: "/planificacion",
-        label: "Planificación"
-      },
-      {
-        to: "/trazabilidad",
-        label: "Trazabilidad"
-      },
-      {
-        to: "/operaciones/hatchery-larval",
-        label: "Hatchery / Larval"
-      },
-      {
-        to: "/operaciones/consolidacion-multi-sitio",
-        label: "Consolidación multi-sitio"
-      },
-      {
-        to: "/operaciones/prevision-12-36",
-        label: "Previsión 12-36 meses"
-      },
-      {
-        to: "/operaciones/mantenimiento-preventivo",
-        label: "Mantenimiento preventivo"
-      },
-      {
-        to: "/operaciones/inventario-operativo",
-        label: "Inventario operativo"
-      },
-      {
-        to: "/operaciones/sanidad-bioseguridad",
-        label: "Sanidad y bioseguridad"
-      },
-      {
-        to: "/operaciones/transporte-vivo",
-        label: "Transporte de Peces Vivo"
-      },
-      {
-        to: "/operaciones/cosecha-logistica",
-        label: "Cosecha y logística"
-      },
-      {
-        to: "/operaciones/coste-margen",
-        label: "Coste y margen"
-      },
-      {
-        to: "/operaciones/auditoria-compliance",
-        label: "Auditoría y compliance"
-      },
-      {
-        to: "/operaciones/alimentacion",
-        label: "Alimentación"
-      },
-      {
-        to: "/operaciones/transferencia",
-        label: "Transferencia"
-      },
-      {
-        to: "/operaciones/tratamiento",
-        label: "Tratamiento"
-      },
-      {
-        to: "/operaciones/vaciado-limpieza",
-        label: "Vaciado y limpieza"
-      }
-    ]
-  },
-  {
-    to: "/biomasa",
-    label: "Biomasa",
-    icon: (
-      <>
-        <path d="M6 18V9M12 18V6M18 18v-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-        <path d="M4.5 18h15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      </>
-    ),
-    children: [
-      {
-        to: "/biomasa/resumen",
-        label: "Resumen biomasa"
-      },
-      {
-        to: "/biomasa/historial",
-        label: "Historial biomasa"
-      },
-      {
-        to: "/biomasa/densidad-peces",
-        label: "Densidad de peces"
-      }
-    ]
-  },
-  {
-    to: "/boyas",
-    label: "Boyas",
+    to: "/proyecto/boyas",
+    label: "Boyas Oceanográficas",
     icon: (
       <>
         <circle cx="12" cy="7" r="2.3" stroke="currentColor" strokeWidth="1.7" />
@@ -296,6 +243,14 @@ const navItems = [
         label: "Parámetros"
       },
       {
+        to: "/boyas/energia-sistema",
+        label: "Energía y autonomía"
+      },
+      {
+        to: "/boyas/recorrido-gps",
+        label: "Recorrido GPS"
+      },
+      {
         to: "/boyas/corrientes-heatmap",
         label: "Corrientes (heatmap)"
       },
@@ -309,6 +264,9 @@ const navItems = [
 
 const featureByPath = {
   "/dashboard": FEATURE_KEYS.DASHBOARD_VIEW,
+  "/proyecto/piscifactoria": FEATURE_KEYS.PLANT_VIEW,
+  "/proyecto/argosai": FEATURE_KEYS.MACHINE_VIEW,
+  "/proyecto/boyas": FEATURE_KEYS.BUOYS_VIEW,
   "/planta": FEATURE_KEYS.PLANT_VIEW,
   "/oxigeno": FEATURE_KEYS.OXYGEN_VIEW,
   "/oxigeno/electrovalvulas": FEATURE_KEYS.OXYGEN_VIEW,
@@ -355,6 +313,8 @@ const featureByPath = {
   "/biomasa/densidad-peces": FEATURE_KEYS.BIOMASS_VIEW,
   "/boyas": FEATURE_KEYS.BUOYS_VIEW,
   "/boyas/parametros": FEATURE_KEYS.BUOYS_VIEW,
+  "/boyas/energia-sistema": FEATURE_KEYS.BUOYS_VIEW,
+  "/boyas/recorrido-gps": FEATURE_KEYS.BUOYS_VIEW,
   "/boyas/corrientes-heatmap": FEATURE_KEYS.BUOYS_VIEW,
   "/boyas/rosa-vientos": FEATURE_KEYS.BUOYS_VIEW,
   "/camara": FEATURE_KEYS.CAMERA_VIEW
@@ -404,6 +364,31 @@ function buildSingleExpandedState(items, groupToOpen) {
   }, {});
 }
 
+function groupChildrenBySection(children) {
+  const orderedGroups = [];
+  const groupsByName = new Map();
+
+  for (const child of children || []) {
+    const sectionName = String(child.group || "").trim();
+    const groupKey = sectionName || "_default";
+
+    if (!groupsByName.has(groupKey)) {
+      const groupEntry = {
+        key: groupKey,
+        title: sectionName,
+        children: []
+      };
+
+      groupsByName.set(groupKey, groupEntry);
+      orderedGroups.push(groupEntry);
+    }
+
+    groupsByName.get(groupKey).children.push(child);
+  }
+
+  return orderedGroups;
+}
+
 function userInitials(fullName) {
   const raw = String(fullName || "").trim();
 
@@ -451,12 +436,16 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
     }, []);
   }, [hasFeature]);
   const [expandedGroups, setExpandedGroups] = useState(() =>
-    buildExpandedGroups(visibleNavItems, location.pathname)
+    collapsed
+      ? buildSingleExpandedState(visibleNavItems, null)
+      : buildExpandedGroups(visibleNavItems, location.pathname)
   );
 
   useEffect(() => {
     setExpandedGroups((current) => {
-      const next = buildExpandedGroups(visibleNavItems, location.pathname);
+      const next = collapsed
+        ? buildSingleExpandedState(visibleNavItems, null)
+        : buildExpandedGroups(visibleNavItems, location.pathname);
       const keys = Object.keys(next);
       const sameKeys =
         keys.length === Object.keys(current).length &&
@@ -469,7 +458,7 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
       const isEqual = keys.every((key) => Boolean(current[key]) === Boolean(next[key]));
       return isEqual ? current : next;
     });
-  }, [visibleNavItems, location.pathname]);
+  }, [visibleNavItems, location.pathname, collapsed]);
 
   useEffect(() => {
     if (collapsed) {
@@ -528,6 +517,7 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
           const isGroupRouteActive = isPathInGroup(item, location.pathname);
           const isGroupExpanded = Boolean(expandedGroups[item.to]);
           const flyoutId = `sidebar-flyout-${item.to.replace(/[^a-z0-9]+/gi, "-")}`;
+          const groupedChildren = item.children ? groupChildrenBySection(item.children) : [];
 
           if (!item.children) {
             return (
@@ -554,9 +544,13 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
                   type="button"
                   className={`sidebar-link sidebar-link-button ${isGroupRouteActive ? "sidebar-link-active" : ""}`.trim()}
                   onClick={() => {
-                    setExpandedGroups(
-                      buildSingleExpandedState(visibleNavItems, isGroupExpanded ? null : item.to)
-                    );
+                    setExpandedGroups((current) => {
+                      const isCurrentlyExpanded = Boolean(current[item.to]);
+                      return buildSingleExpandedState(
+                        visibleNavItems,
+                        isCurrentlyExpanded ? null : item.to
+                      );
+                    });
                   }}
                   aria-expanded={isGroupExpanded}
                   aria-controls={flyoutId}
@@ -571,21 +565,26 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
                   aria-label={`Subsecciones de ${item.label.toLowerCase()}`}
                 >
                   <div className="sidebar-subnav-flyout-title">{item.label}</div>
-                  {item.children.map((child) => (
-                    <NavLink
-                      key={child.to}
-                      to={child.to}
-                      onClick={() => {
-                        setExpandedGroups(buildSingleExpandedState(visibleNavItems, null));
-                        onNavigate?.();
-                      }}
-                      className={({ isActive }) =>
-                        isActive ? "sidebar-sub-link sidebar-sub-link-active" : "sidebar-sub-link"
-                      }
-                    >
-                      <span className="sidebar-sub-link-dot" aria-hidden="true" />
-                      <span className="sidebar-sub-link-text">{child.label}</span>
-                    </NavLink>
+                  {groupedChildren.map((group) => (
+                    <div key={`${item.to}-${group.key}`} className="sidebar-subgroup">
+                      {group.title ? <div className="sidebar-subgroup-title">{group.title}</div> : null}
+                      {group.children.map((child) => (
+                        <NavLink
+                          key={child.to}
+                          to={child.to}
+                          onClick={() => {
+                            setExpandedGroups(buildSingleExpandedState(visibleNavItems, null));
+                            onNavigate?.();
+                          }}
+                          className={({ isActive }) =>
+                            isActive ? "sidebar-sub-link sidebar-sub-link-active" : "sidebar-sub-link"
+                          }
+                        >
+                          <span className="sidebar-sub-link-dot" aria-hidden="true" />
+                          <span className="sidebar-sub-link-text">{child.label}</span>
+                        </NavLink>
+                      ))}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -598,13 +597,13 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
                 to={item.to}
                 onClick={(event) => {
                   event.preventDefault();
-
-                  if (isGroupExpanded) {
-                    setExpandedGroups(buildSingleExpandedState(visibleNavItems, null));
-                    return;
-                  }
-
-                  setExpandedGroups(buildSingleExpandedState(visibleNavItems, item.to));
+                  setExpandedGroups((current) => {
+                    const isCurrentlyExpanded = Boolean(current[item.to]);
+                    return buildSingleExpandedState(
+                      visibleNavItems,
+                      isCurrentlyExpanded ? null : item.to
+                    );
+                  });
                 }}
                 className={({ isActive }) =>
                   isActive || isGroupRouteActive
@@ -624,18 +623,23 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
                 className={`sidebar-subnav ${isGroupExpanded ? "" : "sidebar-subnav-collapsed"}`.trim()}
                 aria-label={`Subsecciones de ${item.label.toLowerCase()}`}
               >
-                {item.children.map((child) => (
-                  <NavLink
-                    key={child.to}
-                    to={child.to}
-                    onClick={onNavigate}
-                    className={({ isActive }) =>
-                      isActive ? "sidebar-sub-link sidebar-sub-link-active" : "sidebar-sub-link"
-                    }
-                  >
-                    <span className="sidebar-sub-link-dot" aria-hidden="true" />
-                    <span className="sidebar-sub-link-text">{child.label}</span>
-                  </NavLink>
+                {groupedChildren.map((group) => (
+                  <div key={`${item.to}-${group.key}`} className="sidebar-subgroup">
+                    {group.title ? <div className="sidebar-subgroup-title">{group.title}</div> : null}
+                    {group.children.map((child) => (
+                      <NavLink
+                        key={child.to}
+                        to={child.to}
+                        onClick={onNavigate}
+                        className={({ isActive }) =>
+                          isActive ? "sidebar-sub-link sidebar-sub-link-active" : "sidebar-sub-link"
+                        }
+                      >
+                        <span className="sidebar-sub-link-dot" aria-hidden="true" />
+                        <span className="sidebar-sub-link-text">{child.label}</span>
+                      </NavLink>
+                    ))}
+                  </div>
                 ))}
               </div>
             </div>

@@ -60,3 +60,11 @@
     @apply font-semibold text-[#4c5b52];
   }
 }
+
+[class*="kpi-grid"] {
+  @apply w-full min-w-0;
+}
+
+[class*="kpi-grid"] > * {
+  min-width: 0;
+}

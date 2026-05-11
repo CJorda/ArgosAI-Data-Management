@@ -1,48 +1,145 @@
-import { ALL_FEATURE_KEYS, FEATURE_KEYS, isKnownFeature } from "../security/featureCatalog.js";
+import { readFileSync, statSync } from "fs";
+import { isKnownFeature } from "../security/featureCatalog.js";
 
-export const FEATURE_PLANS = Object.freeze({
-  basic: Object.freeze([
-    FEATURE_KEYS.DASHBOARD_VIEW,
-    FEATURE_KEYS.OXYGEN_VIEW,
-    FEATURE_KEYS.ALERTS_VIEW,
-    FEATURE_KEYS.HISTORY_VIEW
-  ]),
-  pro: Object.freeze([
-    FEATURE_KEYS.DASHBOARD_VIEW,
-    FEATURE_KEYS.PLANT_VIEW,
-    FEATURE_KEYS.OXYGEN_VIEW,
-    FEATURE_KEYS.SETPOINTS_VIEW,
-    FEATURE_KEYS.MACHINE_VIEW,
-    FEATURE_KEYS.HISTORY_VIEW,
-    FEATURE_KEYS.ALERTS_VIEW,
-    FEATURE_KEYS.OPERATIONS_VIEW,
-    FEATURE_KEYS.PLANNING_VIEW,
-    FEATURE_KEYS.TRACEABILITY_VIEW,
-    FEATURE_KEYS.BIOMASS_VIEW,
-    FEATURE_KEYS.BUOYS_VIEW,
-    FEATURE_KEYS.CAMERA_VIEW
-  ]),
-  premium: Object.freeze([...ALL_FEATURE_KEYS])
-});
+// Production runtime overrides are read from this JSON file without restarting the server.
+const runtimeTenantFeaturesPath = new URL("./tenantFeatures.runtime.json", import.meta.url);
+const runtimeConfigPollMs = 1_000;
 
-export const DEFAULT_TENANT_PLAN = "premium";
-
-// Single source of truth to grant paid functionality per tenant.
-// To upgrade a client, just change the plan or feature overrides here.
+// Repository fallback for explicit tenant->views assignment.
+// Runtime file has priority over this map.
 export const TENANT_FEATURES = Object.freeze({
   demo: {
-    plan: "premium"
+    views: ["buoys.view"]
   }
   // Example:
   // acme: {
-  //   plan: "basic"
-  // },
-  // bluefish: {
-  //   plan: "pro",
-  //   enable: [FEATURE_KEYS.HATCHERY_VIEW],
-  //   disable: [FEATURE_KEYS.CAMERA_VIEW]
+  //   views: ["dashboard.view", "history.view"]
   // }
 });
+
+let runtimeTenantFeaturesByCode = {};
+let runtimeConfigLastCheckAt = 0;
+let runtimeConfigLastMtimeMs = 0;
+let tenantFeaturesConfigRevision = 0;
+
+function hasOwn(obj, key) {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function normalizeTenantConfigMap(rawValue) {
+  if (!rawValue || typeof rawValue !== "object" || Array.isArray(rawValue)) {
+    return {};
+  }
+
+  const normalized = {};
+
+  for (const [tenantCode, tenantConfig] of Object.entries(rawValue)) {
+    const normalizedCode = normalizeCode(tenantCode);
+
+    if (!normalizedCode) {
+      continue;
+    }
+
+    const normalizedEntry = normalizeTenantConfigEntry(tenantConfig);
+
+    if (!normalizedEntry) {
+      continue;
+    }
+
+    normalized[normalizedCode] = normalizedEntry;
+  }
+
+  return normalized;
+}
+
+function normalizeTenantConfigEntry(rawEntry) {
+  if (Array.isArray(rawEntry)) {
+    return {
+      views: normalizeFeatureList(rawEntry)
+    };
+  }
+
+  if (!rawEntry || typeof rawEntry !== "object") {
+    return null;
+  }
+
+  const hasViewsField = hasOwn(rawEntry, "views");
+  const hasFeaturesField = hasOwn(rawEntry, "features");
+
+  if (!hasViewsField && !hasFeaturesField) {
+    return null;
+  }
+
+  const candidateViews = hasViewsField ? rawEntry.views : rawEntry.features;
+
+  return {
+    views: normalizeFeatureList(candidateViews)
+  };
+}
+
+function refreshRuntimeTenantConfigIfNeeded() {
+  const now = Date.now();
+
+  if (now - runtimeConfigLastCheckAt < runtimeConfigPollMs) {
+    return;
+  }
+
+  runtimeConfigLastCheckAt = now;
+
+  let stats;
+
+  try {
+    stats = statSync(runtimeTenantFeaturesPath);
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      return;
+    }
+
+    if (runtimeConfigLastMtimeMs !== 0 || Object.keys(runtimeTenantFeaturesByCode).length > 0) {
+      runtimeTenantFeaturesByCode = {};
+      runtimeConfigLastMtimeMs = 0;
+      tenantFeaturesConfigRevision += 1;
+    }
+
+    return;
+  }
+
+  if (!stats.isFile()) {
+    return;
+  }
+
+  const mtimeMs = Number(stats.mtimeMs || 0);
+
+  if (mtimeMs <= 0 || mtimeMs === runtimeConfigLastMtimeMs) {
+    return;
+  }
+
+  try {
+    const raw = readFileSync(runtimeTenantFeaturesPath, "utf8");
+    const parsed = JSON.parse(raw);
+    runtimeTenantFeaturesByCode = normalizeTenantConfigMap(parsed);
+    runtimeConfigLastMtimeMs = mtimeMs;
+    tenantFeaturesConfigRevision += 1;
+  } catch {
+    // Keep last known valid config to avoid permission outages.
+  }
+}
+
+function resolveTenantConfig(tenantCode) {
+  refreshRuntimeTenantConfigIfNeeded();
+
+  const normalizedCode = normalizeCode(tenantCode);
+
+  if (!normalizedCode) {
+    return null;
+  }
+
+  return (
+    runtimeTenantFeaturesByCode[normalizedCode] ||
+    TENANT_FEATURES[normalizedCode] ||
+    null
+  );
+}
 
 function normalizeCode(value) {
   const code = String(value || "").trim().toLowerCase();
@@ -64,29 +161,16 @@ function normalizeFeatureList(featureList) {
 }
 
 export function resolveTenantFeaturesFromConfig(tenantCode) {
-  const normalizedCode = normalizeCode(tenantCode);
-
-  if (!normalizedCode) {
-    const defaultFeatures = normalizeFeatureList(FEATURE_PLANS[DEFAULT_TENANT_PLAN] || []);
-    return defaultFeatures.length > 0 ? defaultFeatures : null;
-  }
-
-  const tenantConfig = TENANT_FEATURES[normalizedCode] || { plan: DEFAULT_TENANT_PLAN };
+  const tenantConfig = normalizeTenantConfigEntry(resolveTenantConfig(tenantCode));
 
   if (!tenantConfig) {
     return null;
   }
 
-  const planName = String(tenantConfig.plan || "").trim().toLowerCase();
-  const planFeatures = normalizeFeatureList(FEATURE_PLANS[planName] || []);
-  const explicitFeatures = normalizeFeatureList(tenantConfig.features || []);
-  const enabledFeatures = normalizeFeatureList(tenantConfig.enable || []);
-  const disabledFeatureSet = new Set(normalizeFeatureList(tenantConfig.disable || []));
+  return [...tenantConfig.views];
+}
 
-  const baseFeatures =
-    explicitFeatures.length > 0 ? explicitFeatures : planFeatures;
-
-  return Array.from(new Set([...baseFeatures, ...enabledFeatures])).filter(
-    (featureKey) => !disabledFeatureSet.has(featureKey)
-  );
+export function getTenantFeaturesConfigRevision() {
+  refreshRuntimeTenantConfigIfNeeded();
+  return tenantFeaturesConfigRevision;
 }

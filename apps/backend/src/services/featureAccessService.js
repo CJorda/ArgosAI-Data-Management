@@ -1,11 +1,31 @@
 import { env } from "../config/env.js";
-import { resolveTenantFeaturesFromConfig } from "../config/tenantFeatures.js";
+import {
+  getTenantFeaturesConfigRevision,
+  resolveTenantFeaturesFromConfig
+} from "../config/tenantFeatures.js";
 import { query } from "../database/pool.js";
 import { ALL_FEATURE_KEYS, isKnownFeature } from "../security/featureCatalog.js";
 
 const featureCacheByTenant = new Map();
 const tenantCodeCacheByTenant = new Map();
 const cacheTtlMs = 15_000;
+let tenantConfigRevision = getTenantFeaturesConfigRevision();
+
+function defaultFeaturesByMode() {
+  return env.tenantFeaturesStrictMode ? [] : [...ALL_FEATURE_KEYS];
+}
+
+function syncCacheWithTenantConfigRevision() {
+  const currentRevision = getTenantFeaturesConfigRevision();
+
+  if (currentRevision === tenantConfigRevision) {
+    return;
+  }
+
+  tenantConfigRevision = currentRevision;
+  featureCacheByTenant.clear();
+  tenantCodeCacheByTenant.clear();
+}
 
 function dedupeFeatures(features) {
   return Array.from(new Set(features.map((item) => String(item).trim()).filter(Boolean)));
@@ -130,21 +150,22 @@ async function fetchTenantFeaturesFromDatabase(tenantId) {
     );
   } catch (error) {
     if (error?.code === "42P01") {
-      return [...ALL_FEATURE_KEYS];
+      return defaultFeaturesByMode();
     }
 
     throw error;
   }
 
   if (result.rowCount === 0) {
-    // Backward compatible default: if tenant has no explicit config, allow all features.
-    return [...ALL_FEATURE_KEYS];
+    return defaultFeaturesByMode();
   }
 
   return normalizeKnownFeatures(result.rows.map((row) => row.feature_key));
 }
 
 export async function getTenantEnabledFeatures(tenant) {
+  syncCacheWithTenantConfigRevision();
+
   const numericTenantId = Number(
     typeof tenant === "object" && tenant !== null ? tenant.tenantId : tenant
   );
@@ -152,16 +173,7 @@ export async function getTenantEnabledFeatures(tenant) {
     typeof tenant === "object" && tenant !== null ? tenant.tenantCode : null;
 
   if (!Number.isFinite(numericTenantId) || numericTenantId <= 0) {
-    return [...ALL_FEATURE_KEYS];
-  }
-
-  const tenantCode = await resolveTenantCode(numericTenantId, tenantCodeHint);
-  const configuredFeatures = resolveTenantFeaturesFromConfig(tenantCode);
-
-  if (Array.isArray(configuredFeatures)) {
-    const normalizedConfiguredFeatures = normalizeKnownFeatures(configuredFeatures);
-    setCachedFeatures(numericTenantId, normalizedConfiguredFeatures);
-    return [...normalizedConfiguredFeatures];
+    return defaultFeaturesByMode();
   }
 
   const cached = getCachedFeatures(numericTenantId);
@@ -169,9 +181,18 @@ export async function getTenantEnabledFeatures(tenant) {
     return [...cached];
   }
 
-  const features = env.noPostgresMode
-    ? [...ALL_FEATURE_KEYS]
-    : await fetchTenantFeaturesFromDatabase(numericTenantId);
+  let features;
+
+  if (env.noPostgresMode) {
+    const tenantCode = await resolveTenantCode(numericTenantId, tenantCodeHint);
+    const configuredFeatures = resolveTenantFeaturesFromConfig(tenantCode);
+
+    features = Array.isArray(configuredFeatures)
+      ? normalizeKnownFeatures(configuredFeatures)
+      : defaultFeaturesByMode();
+  } else {
+    features = await fetchTenantFeaturesFromDatabase(numericTenantId);
+  }
 
   setCachedFeatures(numericTenantId, features);
   return [...features];

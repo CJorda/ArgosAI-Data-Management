@@ -6,11 +6,10 @@ async function ensureUserFeaturesLoaded(req) {
     throw new HttpError(401, "Authorization header is required");
   }
 
-  if (Array.isArray(req.user.features)) {
-    return req.user.features;
-  }
-
-  const features = await getTenantEnabledFeatures(req.user.tenantId);
+  const features = await getTenantEnabledFeatures({
+    tenantId: req.user.tenantId,
+    tenantCode: req.user.tenantCode
+  });
   req.user.features = features;
   return features;
 }

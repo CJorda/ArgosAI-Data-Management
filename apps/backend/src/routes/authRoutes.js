@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { Router } from "express";
 import { z } from "zod";
 import { env } from "../config/env.js";
-import { query } from "../database/pool.js";
+import { query, withDbClient } from "../database/pool.js";
 import { requireAuth } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import {
@@ -10,7 +10,11 @@ import {
   getDemoUserResponse,
   isDemoLoginValid
 } from "../services/noDbDemoService.js";
-import { getTenantEnabledFeatures } from "../services/featureAccessService.js";
+import {
+  clearTenantFeatureCache,
+  getTenantEnabledFeatures
+} from "../services/featureAccessService.js";
+import { ALL_FEATURE_KEYS, isKnownFeature } from "../security/featureCatalog.js";
 import {
   decodeRefreshToken,
   findValidRefreshToken,
@@ -31,6 +35,141 @@ const loginSchema = z.object({
 const refreshSchema = z.object({
   refreshToken: z.string().min(20)
 });
+
+const tenantCodeParamsSchema = z.object({
+  tenantCode: z.string().min(2).max(64)
+});
+
+const featureKeySchema = z
+  .string()
+  .min(1)
+  .max(80)
+  .transform((value) => String(value).trim().toLowerCase())
+  .refine((value) => isKnownFeature(value), {
+    message: "Unknown feature key"
+  });
+
+const updateTenantViewsSchema = z.object({
+  views: z.array(featureKeySchema).max(ALL_FEATURE_KEYS.length)
+});
+
+function normalizeTenantCode(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeViews(views) {
+  return Array.from(new Set((views || []).map((item) => String(item).trim().toLowerCase())));
+}
+
+function normalizeRole(role) {
+  return String(role || "").trim().toLowerCase();
+}
+
+function ensureCanManageTenant(req, tenantCode) {
+  const normalizedRole = normalizeRole(req.user?.role);
+  const normalizedTargetCode = normalizeTenantCode(tenantCode);
+  const normalizedOwnCode = normalizeTenantCode(req.user?.tenantCode);
+
+  if (normalizedRole === "superadmin" || normalizedRole === "super_admin") {
+    return;
+  }
+
+  if (normalizedRole !== "admin") {
+    throw new HttpError(403, "Admin role is required to manage tenant views");
+  }
+
+  if (normalizedOwnCode !== normalizedTargetCode) {
+    throw new HttpError(403, "You can only manage views for your own tenant");
+  }
+}
+
+async function findTenantByCode(tenantCode) {
+  const normalizedCode = normalizeTenantCode(tenantCode);
+
+  const result = await query(
+    `
+      SELECT id, code, name
+      FROM tenants
+      WHERE LOWER(code) = $1
+      LIMIT 1
+    `,
+    [normalizedCode]
+  );
+
+  if (result.rowCount === 0) {
+    throw new HttpError(404, "Tenant not found");
+  }
+
+  return {
+    id: Number(result.rows[0].id),
+    code: normalizeTenantCode(result.rows[0].code),
+    name: result.rows[0].name
+  };
+}
+
+async function replaceTenantViews(tenantId, views) {
+  await withDbClient(async (client) => {
+    try {
+      await client.query("BEGIN");
+
+      await client.query(
+        `
+          CREATE TABLE IF NOT EXISTS tenant_features (
+            id BIGSERIAL PRIMARY KEY,
+            tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            feature_key TEXT NOT NULL,
+            enabled BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (tenant_id, feature_key)
+          )
+        `
+      );
+
+      await client.query(
+        `
+          DELETE FROM tenant_features
+          WHERE tenant_id = $1
+        `,
+        [tenantId]
+      );
+
+      if (views.length > 0) {
+        await client.query(
+          `
+            INSERT INTO tenant_features (tenant_id, feature_key, enabled, created_at, updated_at)
+            SELECT $1, feature_key, TRUE, NOW(), NOW()
+            FROM UNNEST($2::text[]) AS feature_key
+          `,
+          [tenantId, views]
+        );
+      }
+
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+  });
+}
+
+async function tenantFeaturesResponse(tenant) {
+  const views = await getTenantEnabledFeatures({
+    tenantId: tenant.id,
+    tenantCode: tenant.code
+  });
+
+  return {
+    tenant: {
+      id: tenant.id,
+      code: tenant.code,
+      name: tenant.name || null
+    },
+    strictMode: env.tenantFeaturesStrictMode,
+    availableViews: [...ALL_FEATURE_KEYS],
+    views
+  };
+}
 
 export const authRoutes = Router();
 
@@ -313,5 +452,151 @@ authRoutes.get(
         name: user.tenant_name
       }
     });
+  })
+);
+
+authRoutes.get(
+  "/tenant/features",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    if (!env.noPostgresMode) {
+      const tenantResult = await query(
+        `
+          SELECT id, code, name
+          FROM tenants
+          WHERE id = $1
+          LIMIT 1
+        `,
+        [req.user.tenantId]
+      );
+
+      if (tenantResult.rowCount === 0) {
+        throw new HttpError(404, "Tenant not found");
+      }
+
+      const tenant = {
+        id: Number(tenantResult.rows[0].id),
+        code: normalizeTenantCode(tenantResult.rows[0].code),
+        name: tenantResult.rows[0].name
+      };
+
+      res.json(await tenantFeaturesResponse(tenant));
+      return;
+    }
+
+    const tenant = {
+      id: Number(req.user.tenantId),
+      code: normalizeTenantCode(req.user.tenantCode || env.demoTenantCode),
+      name: env.demoTenantName
+    };
+
+    res.json(await tenantFeaturesResponse(tenant));
+  })
+);
+
+authRoutes.put(
+  "/tenant/features",
+  requireAuth,
+  validate(updateTenantViewsSchema),
+  asyncHandler(async (req, res) => {
+    ensureCanManageTenant(req, req.user.tenantCode);
+
+    if (env.noPostgresMode) {
+      throw new HttpError(400, "Tenant view management requires PostgreSQL mode");
+    }
+
+    const normalizedViews = normalizeViews(req.body.views);
+    await replaceTenantViews(req.user.tenantId, normalizedViews);
+    clearTenantFeatureCache(req.user.tenantId);
+
+    const updated = await tenantFeaturesResponse({
+      id: req.user.tenantId,
+      code: req.user.tenantCode,
+      name: null
+    });
+
+    const nextAccessToken = signAccessToken({
+      id: req.user.id,
+      tenantId: req.user.tenantId,
+      tenantCode: req.user.tenantCode,
+      role: req.user.role,
+      email: req.user.email,
+      fullName: req.user.fullName,
+      features: updated.views
+    });
+
+    res.json({
+      ...updated,
+      accessToken: nextAccessToken
+    });
+  })
+);
+
+authRoutes.get(
+  "/tenants/:tenantCode/features",
+  requireAuth,
+  validate(tenantCodeParamsSchema, "params"),
+  asyncHandler(async (req, res) => {
+    const targetCode = normalizeTenantCode(req.params.tenantCode);
+    ensureCanManageTenant(req, targetCode);
+
+    if (env.noPostgresMode) {
+      const demoCode = normalizeTenantCode(env.demoTenantCode);
+
+      if (targetCode !== demoCode) {
+        throw new HttpError(404, "Tenant not found");
+      }
+
+      res.json(
+        await tenantFeaturesResponse({
+          id: Number(req.user.tenantId),
+          code: demoCode,
+          name: env.demoTenantName
+        })
+      );
+      return;
+    }
+
+    const tenant = await findTenantByCode(targetCode);
+    res.json(await tenantFeaturesResponse(tenant));
+  })
+);
+
+authRoutes.put(
+  "/tenants/:tenantCode/features",
+  requireAuth,
+  validate(tenantCodeParamsSchema, "params"),
+  validate(updateTenantViewsSchema),
+  asyncHandler(async (req, res) => {
+    const targetCode = normalizeTenantCode(req.params.tenantCode);
+    ensureCanManageTenant(req, targetCode);
+
+    if (env.noPostgresMode) {
+      throw new HttpError(400, "Tenant view management requires PostgreSQL mode");
+    }
+
+    const tenant = await findTenantByCode(targetCode);
+    const normalizedViews = normalizeViews(req.body.views);
+    await replaceTenantViews(tenant.id, normalizedViews);
+    clearTenantFeatureCache(tenant.id);
+
+    const updated = await tenantFeaturesResponse(tenant);
+    const response = {
+      ...updated
+    };
+
+    if (Number(tenant.id) === Number(req.user.tenantId)) {
+      response.accessToken = signAccessToken({
+        id: req.user.id,
+        tenantId: req.user.tenantId,
+        tenantCode: req.user.tenantCode,
+        role: req.user.role,
+        email: req.user.email,
+        fullName: req.user.fullName,
+        features: updated.views
+      });
+    }
+
+    res.json(response);
   })
 );

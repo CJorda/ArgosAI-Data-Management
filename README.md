@@ -65,6 +65,7 @@ pnpm run dev
 - `pnpm run dev:frontend`: levanta solo frontend
 - `pnpm run dev:backend`: levanta solo backend
 - `pnpm run setup`: bootstrap DB + migraciones + seed
+- `pnpm --filter argosai-backend run db:provision-app-role`: crea/actualiza un rol de aplicacion sin BYPASSRLS
 - `pnpm run build`: build frontend y verificacion backend
 
 ## Modulos incluidos en MVP
@@ -92,3 +93,60 @@ pnpm run dev
 - `GET/POST /api/operations`
 - `GET/POST /api/biomass`
 - `GET/POST /api/cameras/session`
+
+## Gestion de views por tenant
+
+- `GET /api/auth/tenant/features`: obtiene views activas del tenant autenticado
+- `PUT /api/auth/tenant/features`: reemplaza views del tenant autenticado (rol `admin` o `superadmin`)
+- `GET /api/auth/tenants/:tenantCode/features`: obtiene views de un tenant por codigo
+- `PUT /api/auth/tenants/:tenantCode/features`: reemplaza views de un tenant por codigo
+
+Payload de actualizacion:
+
+```json
+{
+	"views": ["buoys.view", "dashboard.view"]
+}
+```
+
+Variables de entorno relevantes:
+
+- `TENANT_FEATURES_STRICT_MODE=true`: si un tenant no tiene configuracion en `tenant_features`, se queda sin acceso a views.
+- `TENANT_FEATURES_STRICT_MODE=false` (default): comportamiento retrocompatible (permite todas las views cuando no hay filas para el tenant).
+
+## Aislamiento de datos por tenant (RLS)
+
+El backend ahora aplica contexto de tenant en cada query SQL (`app.tenant_id`) y activa politicas de Row Level Security sobre tablas con `tenant_id`.
+
+- Las peticiones HTTP autenticadas se ejecutan con `app.rls_bypass=off` y `app.tenant_id=<tenant del token>`.
+- Procesos internos fuera de request (migraciones/seed/tareas del sistema) usan `app.rls_bypass=on` para no romper flujos operativos.
+- El esquema crea/actualiza politicas `tenant_isolation` de forma idempotente en migracion.
+
+Importante en produccion:
+
+- Si `DATABASE_URL` usa un rol superusuario o con `BYPASSRLS`, PostgreSQL ignora RLS para ese rol.
+- Para aislamiento real entre tenants, usa un rol de aplicacion dedicado sin privilegios de superusuario ni `BYPASSRLS`.
+
+Provision recomendada de rol seguro:
+
+1. Configura en `apps/backend/.env`:
+
+```env
+DB_ADMIN_URL=postgres://postgres:postgres@localhost:5432/argosai
+DB_APP_ROLE=argosai_app
+DB_APP_PASSWORD=CAMBIA_ESTA_PASSWORD
+```
+
+2. Ejecuta:
+
+```bash
+pnpm --filter argosai-backend run db:provision-app-role
+```
+
+3. Cambia `DATABASE_URL` para usar el rol creado (`DB_APP_ROLE`) y activa:
+
+```env
+ENFORCE_RLS_SAFE_ROLE=true
+```
+
+Con `ENFORCE_RLS_SAFE_ROLE=true`, el backend no arranca si el usuario de `DATABASE_URL` bypassa RLS.

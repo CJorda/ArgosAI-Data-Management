@@ -20,7 +20,7 @@ const demoUser = {
 const demoEnabledFeatures = (() => {
   const configuredFeatures = resolveTenantFeaturesFromConfig(demoTenant.code);
 
-  if (Array.isArray(configuredFeatures) && configuredFeatures.length > 0) {
+  if (Array.isArray(configuredFeatures)) {
     return configuredFeatures;
   }
 

@@ -1,7 +1,7 @@
 @reference "tailwindcss";
 
 .sidebar {
-  @apply sticky top-0 flex h-screen flex-col overflow-hidden px-3 py-5 text-[#edf4ff] transition-[padding] duration-200;
+  @apply sticky top-0 z-[32] flex h-screen flex-col overflow-hidden px-3 py-5 text-[#edf4ff] transition-[padding] duration-200;
   background: linear-gradient(180deg, #171a22 0%, #11141b 100%);
   border-right: 1px solid rgba(176, 188, 210, 0.12);
 }
@@ -61,12 +61,12 @@
 }
 
 .sidebar-link-icon {
-  @apply h-[1.34rem] w-[1.34rem] shrink-0;
+  @apply h-[1.8rem] w-[1.8rem] shrink-0;
   color: #d5dcea;
 }
 
 .sidebar-link-text {
-  @apply text-[14px] font-bold leading-[1.2rem];
+  @apply text-[12px] font-bold leading-[1.2rem];
   font-family: "Open Sans", sans-serif;
 }
 
@@ -91,34 +91,68 @@
   border-left: 1px solid rgba(188, 207, 232, 0.3);
 }
 
+.sidebar-subgroup {
+  @apply grid gap-1;
+}
+
+.sidebar-subgroup + .sidebar-subgroup {
+  @apply mt-1 pt-1;
+  border-top: 1px dashed rgba(176, 196, 220, 0.22);
+}
+
+.sidebar-subgroup-title {
+  @apply px-2 py-0.5 text-[0.64rem] font-semibold uppercase tracking-[0.07em] text-[#8fa3c0];
+}
+
 .sidebar-subnav-collapsed {
   @apply hidden;
 }
 
 .sidebar-subnav-flyout {
-  @apply absolute z-[70] ml-0 grid gap-1 rounded-[10px] border p-2;
-  left: calc(100% + 0.55rem);
+  @apply absolute z-[80] ml-0 grid content-start gap-1 border px-3 py-3;
+  left: calc(100% + 0.4rem);
   top: 0;
-  min-width: 14.5rem;
-  max-width: 18.5rem;
-  max-height: min(72vh, 34rem);
+  bottom: 0;
+  min-width: 16.5rem;
+  width: min(20rem, 42vw);
+  max-width: 21rem;
+  max-height: none;
   overflow-y: auto;
-  border-left: 0;
+  border-radius: 0 12px 12px 0;
   border-color: rgba(176, 190, 213, 0.3);
-  background: linear-gradient(180deg, rgba(24, 31, 44, 0.98), rgba(16, 22, 33, 0.98));
-  box-shadow: 0 14px 32px rgba(6, 10, 18, 0.45);
+  background: linear-gradient(180deg, #172033, #111723);
+  box-shadow: 0 16px 34px rgba(5, 9, 16, 0.48);
+}
+
+.sidebar-subnav-flyout.sidebar-subnav-collapsed {
+  @apply hidden;
+  pointer-events: none;
+}
+
+.sidebar-subnav-flyout:not(.sidebar-subnav-collapsed) {
+  @apply grid;
 }
 
 .sidebar-subnav-flyout-title {
-  @apply px-2 pt-1 pb-1 text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-[#9fb0c9];
+  @apply sticky top-0 z-[1] mb-1 px-2 pt-1 pb-2 text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-[#a8bad3];
+  background: linear-gradient(180deg, #172033, #172033);
+  border-bottom: 1px solid rgba(170, 189, 214, 0.2);
+}
+
+.sidebar-subnav-flyout .sidebar-subgroup + .sidebar-subgroup {
+  border-top-color: rgba(183, 201, 224, 0.28);
+}
+
+.sidebar-subnav-flyout .sidebar-subgroup-title {
+  @apply text-[#a8bad3];
 }
 
 .sidebar-subnav-flyout .sidebar-sub-link {
-  @apply px-2 py-[0.45rem] text-[14px] leading-[1.05rem];
+  @apply px-2 py-[0.45rem] text-[12px] leading-[1.05rem];
 }
 
 .sidebar-sub-link {
-  @apply flex items-center gap-2 rounded-[8px] px-2 py-[0.42rem] no-underline text-[14px] text-[#aeb9cd] transition-colors;
+  @apply flex items-center gap-2 rounded-[8px] px-2 py-[0.42rem] no-underline text-[12px] text-[#aeb9cd] transition-colors;
 }
 
 .sidebar-sub-link-dot {
@@ -204,7 +238,7 @@
 
 .sidebar-collapsed .sidebar-group {
   @apply grid w-full justify-items-center;
-  position: relative;
+  position: static;
 }
 
 .sidebar-collapsed .sidebar-link {
@@ -214,7 +248,7 @@
 }
 
 .sidebar-collapsed .sidebar-link-text {
-  @apply inline text-center text-[14px] font-bold leading-[1.02rem] text-[#d4dcea];
+  @apply inline text-center text-[12px] font-bold leading-[1.02rem] text-[#d4dcea];
   max-width: 6.2rem;
   white-space: normal;
   text-wrap: balance;
@@ -256,8 +290,12 @@
     @apply inline;
   }
 
-  .sidebar-collapsed .sidebar-subnav {
+  .sidebar-collapsed .sidebar-subnav:not(.sidebar-subnav-collapsed) {
     @apply grid;
+  }
+
+  .sidebar-collapsed .sidebar-subnav.sidebar-subnav-collapsed {
+    @apply hidden;
   }
 
   .sidebar-subnav-flyout {

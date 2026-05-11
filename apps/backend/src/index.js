@@ -16,6 +16,7 @@ const app = createApp();
 const server = http.createServer(app);
 let simulatorStarted = false;
 let schedulerStarted = false;
+let warnedBypassRlsRole = false;
 
 const io = new SocketServer(server, {
   cors: {
@@ -67,6 +68,46 @@ setIo(io);
 async function ensureDbConnection() {
   try {
     await pool.query("SELECT 1");
+
+    const roleResult = await pool.query(
+      `
+        SELECT current_user AS role_name, rolsuper, rolbypassrls
+        FROM pg_roles
+        WHERE rolname = current_user
+        LIMIT 1
+      `
+    );
+
+    if (roleResult.rowCount > 0) {
+      const role = roleResult.rows[0];
+      const bypassesRls = role.rolsuper || role.rolbypassrls;
+
+      if (bypassesRls && !warnedBypassRlsRole) {
+        if (env.enforceRlsSafeRole) {
+          const bypassError = new Error(
+            `Current PostgreSQL role (${role.role_name}) bypasses RLS, but ENFORCE_RLS_SAFE_ROLE=true`
+          );
+
+          bypassError.code = "RLS_ROLE_BYPASS";
+          throw bypassError;
+        }
+
+        warnedBypassRlsRole = true;
+        logger.warn(
+          {
+            role: role.role_name,
+            rolsuper: role.rolsuper,
+            rolbypassrls: role.rolbypassrls
+          },
+          "Current PostgreSQL role bypasses RLS. Use a dedicated non-superuser role in production."
+        );
+      }
+
+      if (!bypassesRls) {
+        warnedBypassRlsRole = false;
+      }
+    }
+
     if (!simulatorStarted) {
       startSimulator();
       simulatorStarted = true;
@@ -77,6 +118,11 @@ async function ensureDbConnection() {
     }
     logger.info("Database connection is available");
   } catch (error) {
+    if (error?.code === "RLS_ROLE_BYPASS") {
+      logger.error({ err: error }, "RLS role enforcement failed");
+      throw error;
+    }
+
     logger.warn(
       { err: error },
       "Database unavailable. API is up but DB-dependent endpoints will fail until DATABASE_URL is fixed"
@@ -117,4 +163,7 @@ async function shutdown() {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-start();
+start().catch((error) => {
+  logger.error({ err: error }, "Backend failed to start");
+  process.exit(1);
+});

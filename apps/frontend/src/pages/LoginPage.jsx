@@ -50,7 +50,7 @@ export function LoginPage() {
   }, [rememberPassword]);
 
   if (isAuthenticated) {
-    const target = location.state?.from?.pathname || "/dashboard";
+    const target = location.state?.from?.pathname || "/";
     return <Navigate to={target} replace />;
   }
 

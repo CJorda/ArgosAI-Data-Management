@@ -629,3 +629,56 @@ CREATE INDEX IF NOT EXISTS idx_live_transport_readings_tenant_risk_measured
 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_created
   ON audit_logs (tenant_id, created_at DESC);
+
+CREATE SCHEMA IF NOT EXISTS app;
+
+CREATE OR REPLACE FUNCTION app.current_tenant_id()
+RETURNS BIGINT
+LANGUAGE SQL
+STABLE
+AS $$
+  SELECT NULLIF(current_setting('app.tenant_id', TRUE), '')::BIGINT
+$$;
+
+CREATE OR REPLACE FUNCTION app.rls_bypass_enabled()
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+AS $$
+  SELECT COALESCE(NULLIF(current_setting('app.rls_bypass', TRUE), ''), 'off') = 'on'
+$$;
+
+DO $$
+DECLARE
+  table_ref TEXT;
+BEGIN
+  FOR table_ref IN
+    SELECT format('%I.%I', namespace_name, relation_name)
+    FROM (
+      SELECT DISTINCT
+        n.nspname AS namespace_name,
+        c.relname AS relation_name
+      FROM pg_class c
+      JOIN pg_namespace n
+        ON n.oid = c.relnamespace
+      JOIN pg_attribute a
+        ON a.attrelid = c.oid
+      WHERE n.nspname = 'public'
+        AND c.relkind IN ('r', 'p')
+        AND a.attname = 'tenant_id'
+        AND a.attnum > 0
+        AND NOT a.attisdropped
+        AND c.relname NOT IN ('users', 'refresh_tokens', 'tenant_features')
+    ) tenant_tables
+    ORDER BY relation_name
+  LOOP
+    EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', table_ref);
+    EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', table_ref);
+    EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %s', table_ref);
+    EXECUTE format(
+      'CREATE POLICY tenant_isolation ON %s USING (app.rls_bypass_enabled() OR tenant_id = app.current_tenant_id()) WITH CHECK (app.rls_bypass_enabled() OR tenant_id = app.current_tenant_id())',
+      table_ref
+    );
+  END LOOP;
+END
+$$;

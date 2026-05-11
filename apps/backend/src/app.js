@@ -4,6 +4,7 @@ import helmet from "helmet";
 import pinoHttp from "pino-http";
 import { env } from "./config/env.js";
 import { logger } from "./config/logger.js";
+import { runWithRequestDbContext } from "./database/pool.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { alertsRoutes } from "./routes/alertsRoutes.js";
 import { authRoutes } from "./routes/authRoutes.js";
@@ -35,6 +36,9 @@ export function createApp() {
   app.use(helmet());
   app.use(express.json({ limit: "1mb" }));
   app.use(pinoHttp({ logger }));
+  app.use((_req, _res, next) => {
+    runWithRequestDbContext(() => next());
+  });
 
   app.get("/health", (_req, res) => {
     res.json({

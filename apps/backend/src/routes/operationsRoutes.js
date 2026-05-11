@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { pool, query } from "../database/pool.js";
+import { query, withDbClient } from "../database/pool.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireAnyFeature } from "../middleware/featureAccess.js";
 import { FEATURE_KEYS } from "../security/featureCatalog.js";
@@ -1018,131 +1018,136 @@ operationsRoutes.post(
   validate(createInventoryMovementSchema),
   asyncHandler(async (req, res) => {
     const payload = req.body;
-    const client = await pool.connect();
+    const movementContext = await withDbClient(async (client) => {
+      try {
+        await client.query("BEGIN");
 
-    try {
-      await client.query("BEGIN");
+        const itemResult = await client.query(
+          `
+            SELECT id, sku, name, unit, min_stock, current_stock
+            FROM inventory_items
+            WHERE id = $1
+              AND tenant_id = $2
+            LIMIT 1
+            FOR UPDATE
+          `,
+          [payload.itemId, req.user.tenantId]
+        );
 
-      const itemResult = await client.query(
-        `
-          SELECT id, sku, name, unit, min_stock, current_stock
-          FROM inventory_items
-          WHERE id = $1
-            AND tenant_id = $2
-          LIMIT 1
-          FOR UPDATE
-        `,
-        [payload.itemId, req.user.tenantId]
-      );
-
-      if (itemResult.rowCount === 0) {
-        throw new HttpError(404, "Inventory item not found");
-      }
-
-      const item = itemResult.rows[0];
-      const currentStock = Number(item.current_stock) || 0;
-
-      let nextStock = currentStock;
-      if (payload.movementType === "in") {
-        nextStock = currentStock + payload.quantity;
-      } else if (payload.movementType === "out") {
-        nextStock = currentStock - payload.quantity;
-      } else {
-        nextStock = Number(payload.targetStock);
-      }
-
-      if (!Number.isFinite(nextStock) || nextStock < 0) {
-        throw new HttpError(400, "Stock cannot be negative after movement");
-      }
-
-      const movementQuantity = payload.movementType === "adjustment"
-        ? Number((nextStock - currentStock).toFixed(4))
-        : payload.quantity;
-
-      await client.query(
-        `
-          UPDATE inventory_items
-          SET current_stock = $1,
-              updated_at = NOW()
-          WHERE id = $2
-            AND tenant_id = $3
-        `,
-        [nextStock, payload.itemId, req.user.tenantId]
-      );
-
-      const movementResult = await client.query(
-        `
-          INSERT INTO inventory_movements (
-            tenant_id,
-            item_id,
-            related_pond_id,
-            movement_type,
-            quantity,
-            related_lot_code,
-            reason,
-            unit_cost,
-            moved_at,
-            created_by
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::timestamptz, NOW()), $10)
-          RETURNING
-            id,
-            item_id,
-            movement_type,
-            quantity,
-            related_pond_id,
-            related_lot_code,
-            reason,
-            unit_cost,
-            moved_at,
-            created_at
-        `,
-        [
-          req.user.tenantId,
-          payload.itemId,
-          payload.relatedPondId || null,
-          payload.movementType,
-          movementQuantity,
-          normalizeText(payload.relatedLotCode),
-          normalizeText(payload.reason),
-          payload.unitCost || null,
-          payload.movedAt || null,
-          req.user.id
-        ]
-      );
-
-      await client.query("COMMIT");
-
-      await writeAuditLog({
-        tenantId: req.user.tenantId,
-        userId: req.user.id,
-        action: "inventory.movement.create",
-        entity: "inventory_movements",
-        entityId: movementResult.rows[0].id,
-        payload: {
-          ...payload,
-          resultingStock: nextStock
+        if (itemResult.rowCount === 0) {
+          throw new HttpError(404, "Inventory item not found");
         }
-      });
 
-      res.status(201).json({
-        ...movementResult.rows[0],
-        item: {
-          id: item.id,
-          sku: item.sku,
-          name: item.name,
-          unit: item.unit,
-          minStock: Number(item.min_stock) || 0,
-          previousStock: currentStock,
-          resultingStock: nextStock
+        const item = itemResult.rows[0];
+        const currentStock = Number(item.current_stock) || 0;
+
+        let nextStock = currentStock;
+        if (payload.movementType === "in") {
+          nextStock = currentStock + payload.quantity;
+        } else if (payload.movementType === "out") {
+          nextStock = currentStock - payload.quantity;
+        } else {
+          nextStock = Number(payload.targetStock);
         }
-      });
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
+
+        if (!Number.isFinite(nextStock) || nextStock < 0) {
+          throw new HttpError(400, "Stock cannot be negative after movement");
+        }
+
+        const movementQuantity = payload.movementType === "adjustment"
+          ? Number((nextStock - currentStock).toFixed(4))
+          : payload.quantity;
+
+        await client.query(
+          `
+            UPDATE inventory_items
+            SET current_stock = $1,
+                updated_at = NOW()
+            WHERE id = $2
+              AND tenant_id = $3
+          `,
+          [nextStock, payload.itemId, req.user.tenantId]
+        );
+
+        const movementResult = await client.query(
+          `
+            INSERT INTO inventory_movements (
+              tenant_id,
+              item_id,
+              related_pond_id,
+              movement_type,
+              quantity,
+              related_lot_code,
+              reason,
+              unit_cost,
+              moved_at,
+              created_by
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::timestamptz, NOW()), $10)
+            RETURNING
+              id,
+              item_id,
+              movement_type,
+              quantity,
+              related_pond_id,
+              related_lot_code,
+              reason,
+              unit_cost,
+              moved_at,
+              created_at
+          `,
+          [
+            req.user.tenantId,
+            payload.itemId,
+            payload.relatedPondId || null,
+            payload.movementType,
+            movementQuantity,
+            normalizeText(payload.relatedLotCode),
+            normalizeText(payload.reason),
+            payload.unitCost || null,
+            payload.movedAt || null,
+            req.user.id
+          ]
+        );
+
+        await client.query("COMMIT");
+
+        return {
+          movement: movementResult.rows[0],
+          item,
+          currentStock,
+          nextStock
+        };
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      }
+    });
+
+    await writeAuditLog({
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      action: "inventory.movement.create",
+      entity: "inventory_movements",
+      entityId: movementContext.movement.id,
+      payload: {
+        ...payload,
+        resultingStock: movementContext.nextStock
+      }
+    });
+
+    res.status(201).json({
+      ...movementContext.movement,
+      item: {
+        id: movementContext.item.id,
+        sku: movementContext.item.sku,
+        name: movementContext.item.name,
+        unit: movementContext.item.unit,
+        minStock: Number(movementContext.item.min_stock) || 0,
+        previousStock: movementContext.currentStock,
+        resultingStock: movementContext.nextStock
+      }
+    });
   })
 );
 

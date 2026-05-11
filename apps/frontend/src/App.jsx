@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
 import { FeatureGate } from "./components/FeatureGate";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { useAuth } from "./context/AuthContext";
 import { FEATURE_KEYS } from "./features/featureCatalog";
 import { AlertsPage } from "./pages/AlertsPage";
 import { ArgosMachinePage } from "./pages/ArgosMachinePage";
@@ -40,6 +41,41 @@ function withFeature(feature, element) {
   return <FeatureGate feature={feature}>{element}</FeatureGate>;
 }
 
+const defaultFeatureRoutes = [
+  [FEATURE_KEYS.DASHBOARD_VIEW, "/dashboard"],
+  [FEATURE_KEYS.PLANT_VIEW, "/planta"],
+  [FEATURE_KEYS.OXYGEN_VIEW, "/oxigeno/electrovalvulas"],
+  [FEATURE_KEYS.SETPOINTS_VIEW, "/consignas/oxigeno"],
+  [FEATURE_KEYS.MACHINE_VIEW, "/maquina/growth-nano"],
+  [FEATURE_KEYS.HISTORY_VIEW, "/historico/piscina"],
+  [FEATURE_KEYS.ALERTS_VIEW, "/alertas/alertas"],
+  [FEATURE_KEYS.OPERATIONS_VIEW, "/operaciones/alimentacion"],
+  [FEATURE_KEYS.HATCHERY_VIEW, "/operaciones/hatchery-larval"],
+  [FEATURE_KEYS.CONSOLIDATION_VIEW, "/operaciones/consolidacion-multi-sitio"],
+  [FEATURE_KEYS.PLANNING_VIEW, "/planificacion"],
+  [FEATURE_KEYS.TRACEABILITY_VIEW, "/trazabilidad"],
+  [FEATURE_KEYS.BIOMASS_VIEW, "/biomasa/resumen"],
+  [FEATURE_KEYS.BUOYS_VIEW, "/boyas/parametros"],
+  [FEATURE_KEYS.CAMERA_VIEW, "/camara"]
+];
+
+function DefaultFeatureRoute() {
+  const { hasFeature, features } = useAuth();
+
+  // If backend omits feature list, keep historical behavior and open dashboard.
+  if (!Array.isArray(features)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  const firstEnabledRoute = defaultFeatureRoutes.find(([featureKey]) => hasFeature(featureKey));
+
+  if (!firstEnabledRoute) {
+    return <div className="app-not-found">No hay secciones habilitadas para este cliente</div>;
+  }
+
+  return <Navigate to={firstEnabledRoute[1]} replace />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -47,10 +83,7 @@ export default function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
-          <Route
-            path="/"
-            element={withFeature(FEATURE_KEYS.DASHBOARD_VIEW, <Navigate to="/dashboard" replace />)}
-          />
+          <Route path="/" element={<DefaultFeatureRoute />} />
           <Route
             path="/dashboard"
             element={withFeature(FEATURE_KEYS.DASHBOARD_VIEW, <DashboardPage />)}
