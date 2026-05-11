@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { FEATURE_KEYS } from "../features/featureCatalog";
 import "./Sidebar.css";
 
 function SidebarIcon({ children }) {
@@ -273,8 +274,95 @@ const navItems = [
         label: "Densidad de peces"
       }
     ]
+  },
+  {
+    to: "/boyas",
+    label: "Boyas",
+    icon: (
+      <>
+        <circle cx="12" cy="7" r="2.3" stroke="currentColor" strokeWidth="1.7" />
+        <path d="M12 9.3v4.8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+        <path
+          d="M3.8 16.2c1.6-1.2 3.2-1.2 4.8 0 1.6 1.2 3.2 1.2 4.8 0 1.6-1.2 3.2-1.2 4.8 0"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+        />
+      </>
+    ),
+    children: [
+      {
+        to: "/boyas/parametros",
+        label: "Parámetros"
+      },
+      {
+        to: "/boyas/corrientes-heatmap",
+        label: "Corrientes (heatmap)"
+      },
+      {
+        to: "/boyas/rosa-vientos",
+        label: "Rosa de los vientos"
+      }
+    ]
   }
 ];
+
+const featureByPath = {
+  "/dashboard": FEATURE_KEYS.DASHBOARD_VIEW,
+  "/planta": FEATURE_KEYS.PLANT_VIEW,
+  "/oxigeno": FEATURE_KEYS.OXYGEN_VIEW,
+  "/oxigeno/electrovalvulas": FEATURE_KEYS.OXYGEN_VIEW,
+  "/oxigeno/economia": FEATURE_KEYS.OXYGEN_VIEW,
+  "/consignas": FEATURE_KEYS.SETPOINTS_VIEW,
+  "/consignas/oxigeno": FEATURE_KEYS.SETPOINTS_VIEW,
+  "/consignas/temperatura": FEATURE_KEYS.SETPOINTS_VIEW,
+  "/avisos": FEATURE_KEYS.SETPOINTS_VIEW,
+  "/avisos/consignas-telefonicas": FEATURE_KEYS.SETPOINTS_VIEW,
+  "/avisos/consignas-sms": FEATURE_KEYS.SETPOINTS_VIEW,
+  "/maquina": FEATURE_KEYS.MACHINE_VIEW,
+  "/maquina/growth-nano": FEATURE_KEYS.MACHINE_VIEW,
+  "/maquina/growth-s": FEATURE_KEYS.MACHINE_VIEW,
+  "/maquina/growth-l": FEATURE_KEYS.MACHINE_VIEW,
+  "/maquina/grader": FEATURE_KEYS.MACHINE_VIEW,
+  "/historico": FEATURE_KEYS.HISTORY_VIEW,
+  "/historico/piscina": FEATURE_KEYS.HISTORY_VIEW,
+  "/historico/parametros": FEATURE_KEYS.HISTORY_VIEW,
+  "/historico/xy": FEATURE_KEYS.HISTORY_VIEW,
+  "/historico/heatmap": FEATURE_KEYS.HISTORY_VIEW,
+  "/alertas": FEATURE_KEYS.ALERTS_VIEW,
+  "/alertas/prediccion-riesgo": FEATURE_KEYS.ALERTS_VIEW,
+  "/alertas/alertas": FEATURE_KEYS.ALERTS_VIEW,
+  "/operaciones": FEATURE_KEYS.OPERATIONS_VIEW,
+  "/planificacion": FEATURE_KEYS.PLANNING_VIEW,
+  "/trazabilidad": FEATURE_KEYS.TRACEABILITY_VIEW,
+  "/operaciones/hatchery-larval": FEATURE_KEYS.HATCHERY_VIEW,
+  "/operaciones/consolidacion-multi-sitio": FEATURE_KEYS.CONSOLIDATION_VIEW,
+  "/operaciones/prevision-12-36": FEATURE_KEYS.PLANNING_VIEW,
+  "/operaciones/mantenimiento-preventivo": FEATURE_KEYS.OPERATIONS_VIEW,
+  "/operaciones/inventario-operativo": FEATURE_KEYS.OPERATIONS_VIEW,
+  "/operaciones/sanidad-bioseguridad": FEATURE_KEYS.OPERATIONS_VIEW,
+  "/operaciones/transporte-vivo": FEATURE_KEYS.OPERATIONS_VIEW,
+  "/operaciones/cosecha-logistica": FEATURE_KEYS.OPERATIONS_VIEW,
+  "/operaciones/coste-margen": FEATURE_KEYS.OPERATIONS_VIEW,
+  "/operaciones/auditoria-compliance": FEATURE_KEYS.OPERATIONS_VIEW,
+  "/operaciones/alimentacion": FEATURE_KEYS.OPERATIONS_VIEW,
+  "/operaciones/transferencia": FEATURE_KEYS.OPERATIONS_VIEW,
+  "/operaciones/tratamiento": FEATURE_KEYS.OPERATIONS_VIEW,
+  "/operaciones/vaciado-limpieza": FEATURE_KEYS.OPERATIONS_VIEW,
+  "/biomasa": FEATURE_KEYS.BIOMASS_VIEW,
+  "/biomasa/resumen": FEATURE_KEYS.BIOMASS_VIEW,
+  "/biomasa/historial": FEATURE_KEYS.BIOMASS_VIEW,
+  "/biomasa/densidad-peces": FEATURE_KEYS.BIOMASS_VIEW,
+  "/boyas": FEATURE_KEYS.BUOYS_VIEW,
+  "/boyas/parametros": FEATURE_KEYS.BUOYS_VIEW,
+  "/boyas/corrientes-heatmap": FEATURE_KEYS.BUOYS_VIEW,
+  "/boyas/rosa-vientos": FEATURE_KEYS.BUOYS_VIEW,
+  "/camara": FEATURE_KEYS.CAMERA_VIEW
+};
+
+function featureForPath(pathname) {
+  return featureByPath[pathname] || null;
+}
 
 function isPathInGroup(item, pathname) {
   if (!item?.children) {
@@ -290,15 +378,15 @@ function isPathInGroup(item, pathname) {
   );
 }
 
-function buildExpandedGroups(pathname) {
-  const expanded = navItems.reduce((acc, item) => {
+function buildExpandedGroups(items, pathname) {
+  const expanded = items.reduce((acc, item) => {
     if (item.children) {
       acc[item.to] = false;
     }
     return acc;
   }, {});
 
-  const matchingGroup = navItems.find((item) => isPathInGroup(item, pathname));
+  const matchingGroup = items.find((item) => isPathInGroup(item, pathname));
   if (matchingGroup) {
     expanded[matchingGroup.to] = true;
   }
@@ -306,8 +394,8 @@ function buildExpandedGroups(pathname) {
   return expanded;
 }
 
-function buildSingleExpandedState(groupToOpen) {
-  return navItems.reduce((acc, item) => {
+function buildSingleExpandedState(items, groupToOpen) {
+  return items.reduce((acc, item) => {
     if (item.children) {
       acc[item.to] = item.to === groupToOpen;
     }
@@ -332,26 +420,70 @@ function userInitials(fullName) {
 
 export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, hasFeature } = useAuth();
   const initials = userInitials(user?.fullName);
   const sidebarRef = useRef(null);
+  const visibleNavItems = useMemo(() => {
+    return navItems.reduce((acc, item) => {
+      if (!item.children) {
+        if (hasFeature(featureForPath(item.to))) {
+          acc.push(item);
+        }
+        return acc;
+      }
+
+      const parentFeature = featureForPath(item.to);
+      const visibleChildren = item.children.filter((child) => {
+        const childFeature = featureForPath(child.to) || parentFeature;
+        return hasFeature(childFeature);
+      });
+
+      if (visibleChildren.length === 0 && !hasFeature(parentFeature)) {
+        return acc;
+      }
+
+      acc.push({
+        ...item,
+        children: visibleChildren
+      });
+
+      return acc;
+    }, []);
+  }, [hasFeature]);
   const [expandedGroups, setExpandedGroups] = useState(() =>
-    buildExpandedGroups(location.pathname)
+    buildExpandedGroups(visibleNavItems, location.pathname)
   );
+
+  useEffect(() => {
+    setExpandedGroups((current) => {
+      const next = buildExpandedGroups(visibleNavItems, location.pathname);
+      const keys = Object.keys(next);
+      const sameKeys =
+        keys.length === Object.keys(current).length &&
+        keys.every((key) => Object.prototype.hasOwnProperty.call(current, key));
+
+      if (!sameKeys) {
+        return next;
+      }
+
+      const isEqual = keys.every((key) => Boolean(current[key]) === Boolean(next[key]));
+      return isEqual ? current : next;
+    });
+  }, [visibleNavItems, location.pathname]);
 
   useEffect(() => {
     if (collapsed) {
       return;
     }
 
-    const matchingGroup = navItems.find((item) => isPathInGroup(item, location.pathname));
+    const matchingGroup = visibleNavItems.find((item) => isPathInGroup(item, location.pathname));
 
     if (!matchingGroup) {
       return;
     }
 
     setExpandedGroups((current) => {
-      const next = buildSingleExpandedState(matchingGroup.to);
+      const next = buildSingleExpandedState(visibleNavItems, matchingGroup.to);
       const isEqual = Object.keys(next).every((key) => Boolean(current[key]) === Boolean(next[key]));
 
       if (isEqual) {
@@ -360,7 +492,7 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
 
       return next;
     });
-  }, [collapsed, location.pathname]);
+  }, [collapsed, location.pathname, visibleNavItems]);
 
   useEffect(() => {
     if (!collapsed) {
@@ -372,7 +504,7 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
         return;
       }
 
-      setExpandedGroups(buildSingleExpandedState(null));
+      setExpandedGroups(buildSingleExpandedState(visibleNavItems, null));
     }
 
     document.addEventListener("mousedown", handleOutsideClick);
@@ -380,7 +512,7 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
     return () => {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
-  }, [collapsed]);
+  }, [collapsed, visibleNavItems]);
 
   const sidebarClassName = `sidebar ${collapsed ? "sidebar-collapsed" : ""} ${mobileOpen ? "sidebar-mobile-open" : ""}`.trim();
 
@@ -392,7 +524,7 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
       </div>
 
       <nav className="sidebar-nav">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const isGroupRouteActive = isPathInGroup(item, location.pathname);
           const isGroupExpanded = Boolean(expandedGroups[item.to]);
           const flyoutId = `sidebar-flyout-${item.to.replace(/[^a-z0-9]+/gi, "-")}`;
@@ -422,7 +554,9 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
                   type="button"
                   className={`sidebar-link sidebar-link-button ${isGroupRouteActive ? "sidebar-link-active" : ""}`.trim()}
                   onClick={() => {
-                    setExpandedGroups(buildSingleExpandedState(isGroupExpanded ? null : item.to));
+                    setExpandedGroups(
+                      buildSingleExpandedState(visibleNavItems, isGroupExpanded ? null : item.to)
+                    );
                   }}
                   aria-expanded={isGroupExpanded}
                   aria-controls={flyoutId}
@@ -442,7 +576,7 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
                       key={child.to}
                       to={child.to}
                       onClick={() => {
-                        setExpandedGroups(buildSingleExpandedState(null));
+                        setExpandedGroups(buildSingleExpandedState(visibleNavItems, null));
                         onNavigate?.();
                       }}
                       className={({ isActive }) =>
@@ -466,11 +600,11 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
                   event.preventDefault();
 
                   if (isGroupExpanded) {
-                    setExpandedGroups(buildSingleExpandedState(null));
+                    setExpandedGroups(buildSingleExpandedState(visibleNavItems, null));
                     return;
                   }
 
-                  setExpandedGroups(buildSingleExpandedState(item.to));
+                  setExpandedGroups(buildSingleExpandedState(visibleNavItems, item.to));
                 }}
                 className={({ isActive }) =>
                   isActive || isGroupRouteActive

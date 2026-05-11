@@ -4,6 +4,7 @@ import { Outlet } from "react-router-dom";
 import { io } from "socket.io-client";
 import { alertsRequest } from "../api/services";
 import { useAuth } from "../context/AuthContext";
+import { FEATURE_KEYS } from "../features/featureCatalog";
 import { useRealtimeStore } from "../store/realtimeStore";
 import { AlertsPanel } from "./AlertsPanel";
 import { HeaderBar } from "./HeaderBar";
@@ -13,7 +14,8 @@ import "./AppLayout.css";
 const socketBaseUrl = (import.meta.env.VITE_API_URL || "http://localhost:3001/api").replace(/\/api\/?$/, "");
 
 export function AppLayout() {
-  const { accessToken } = useAuth();
+  const { accessToken, hasFeature } = useAuth();
+  const canUseAlerts = hasFeature(FEATURE_KEYS.ALERTS_VIEW);
   const openAlerts = useRealtimeStore((state) => state.openAlerts);
   const setOpenAlerts = useRealtimeStore((state) => state.setOpenAlerts);
   const pushReading = useRealtimeStore((state) => state.pushReading);
@@ -28,14 +30,20 @@ export function AppLayout() {
   const alertsQuery = useQuery({
     queryKey: ["alerts", "open"],
     queryFn: () => alertsRequest(accessToken, "open"),
+    enabled: Boolean(accessToken && canUseAlerts),
     refetchInterval: 20000
   });
 
   useEffect(() => {
+    if (!canUseAlerts) {
+      setOpenAlerts([]);
+      return;
+    }
+
     if (alertsQuery.data) {
       setOpenAlerts(alertsQuery.data);
     }
-  }, [alertsQuery.data, setOpenAlerts]);
+  }, [alertsQuery.data, canUseAlerts, setOpenAlerts]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 900px)");
@@ -73,22 +81,24 @@ export function AppLayout() {
       pushReading(payload);
     });
 
-    socket.on("alert:new", (payload) => {
-      addAlert(payload);
-    });
+    if (canUseAlerts) {
+      socket.on("alert:new", (payload) => {
+        addAlert(payload);
+      });
 
-    socket.on("alert:updated", (payload) => {
-      updateAlert(payload);
-    });
+      socket.on("alert:updated", (payload) => {
+        updateAlert(payload);
+      });
 
-    socket.on("alert:resolved", (payload) => {
-      resolveAlert(payload.id);
-    });
+      socket.on("alert:resolved", (payload) => {
+        resolveAlert(payload.id);
+      });
+    }
 
     return () => {
       socket.disconnect();
     };
-  }, [accessToken, pushReading, addAlert, updateAlert, resolveAlert]);
+  }, [accessToken, canUseAlerts, pushReading, addAlert, updateAlert, resolveAlert]);
 
   const handleSidebarToggle = () => {
     if (isMobileView) {
@@ -106,6 +116,10 @@ export function AppLayout() {
   };
 
   const handleAlertsToggle = () => {
+    if (!canUseAlerts) {
+      return;
+    }
+
     setIsAlertsOpen((previous) => !previous);
   };
 
@@ -141,7 +155,7 @@ export function AppLayout() {
         </main>
       </div>
 
-      {isAlertsOpen ? (
+      {canUseAlerts && isAlertsOpen ? (
         <button
           type="button"
           className="alerts-backdrop"
@@ -150,7 +164,7 @@ export function AppLayout() {
         />
       ) : null}
 
-      <AlertsPanel isOpen={isAlertsOpen} onClose={() => setIsAlertsOpen(false)} />
+      {canUseAlerts ? <AlertsPanel isOpen={isAlertsOpen} onClose={() => setIsAlertsOpen(false)} /> : null}
     </div>
   );
 }

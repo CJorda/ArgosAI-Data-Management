@@ -41,7 +41,9 @@ io.use((socket, next) => {
     socket.data.user = {
       id: Number(payload.sub),
       tenantId: Number(payload.tenantId),
-      role: payload.role
+      tenantCode: payload.tenantCode,
+      role: payload.role,
+      features: Array.isArray(payload.features) ? payload.features : null
     };
 
     return next();
@@ -86,6 +88,11 @@ async function start() {
   server.listen(env.port, () => {
     logger.info({ port: env.port }, "Backend listening");
   });
+
+  if (env.noPostgresMode) {
+    logger.warn("NO_POSTGRES mode enabled. Serving demo data from memory.");
+    return;
+  }
 
   await ensureDbConnection();
 

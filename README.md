@@ -18,17 +18,19 @@ Monorepo local para operar una version funcional de ArgosAI con:
 
 ## Configuracion de entorno
 
-Ya se incluyen archivos `.env` por defecto:
+Genera tus archivos `.env` a partir de los ejemplos incluidos:
 
-- `apps/backend/.env`
-- `apps/frontend/.env`
+```bash
+copy apps\\backend\\.env.example apps\\backend\\.env
+copy apps\\frontend\\.env.example apps\\frontend\\.env
+```
 
-Si tu PostgreSQL local no usa usuario/password `postgres/postgres`, actualiza `DATABASE_URL` en `apps/backend/.env`.
+Si tu PostgreSQL local no usa usuario/password `postgres/postgres` o escucha en otro puerto (por ejemplo `5433`), actualiza `DATABASE_URL` en `apps/backend/.env`.
 
 Ejemplo:
 
 ```env
-DATABASE_URL=postgres://TU_USUARIO:TU_PASSWORD@localhost:5432/argosai
+DATABASE_URL=postgres://TU_USUARIO:TU_PASSWORD@localhost:TU_PUERTO/argosai
 ```
 
 ## Arranque local

@@ -2,6 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { pool, query } from "../database/pool.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireAnyFeature } from "../middleware/featureAccess.js";
+import { FEATURE_KEYS } from "../security/featureCatalog.js";
 import { validate } from "../middleware/validate.js";
 import { emitToTenant } from "../services/realtimeHub.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -326,7 +328,10 @@ async function writeAuditLog({ tenantId, userId, action, entity, entityId, paylo
 
 export const operationsRoutes = Router();
 
-operationsRoutes.use(requireAuth);
+operationsRoutes.use(
+  requireAuth,
+  requireAnyFeature([FEATURE_KEYS.OPERATIONS_VIEW, FEATURE_KEYS.TRACEABILITY_VIEW])
+);
 
 operationsRoutes.get(
   "/",

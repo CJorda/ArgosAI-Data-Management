@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { logger } from "../config/logger.js";
 import { pool, query } from "./pool.js";
+import { ALL_FEATURE_KEYS } from "../security/featureCatalog.js";
 import { buildAlertProtocolTemplate } from "../utils/alertProtocol.js";
 
 const tenantCode = "demo";
@@ -309,6 +310,17 @@ async function seed() {
     );
 
     const userId = userResult.rows[0].id;
+
+    for (const featureKey of ALL_FEATURE_KEYS) {
+      await query(
+        `
+          INSERT INTO tenant_features (tenant_id, feature_key, enabled)
+          VALUES ($1, $2, TRUE)
+        `,
+        [tenantId, featureKey]
+      );
+    }
+
     const pondSeeds = buildPondSeeds();
     const siteByCode = new Map();
     const pondByCode = new Map();

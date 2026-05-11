@@ -3,6 +3,8 @@ import { z } from "zod";
 import { env } from "../config/env.js";
 import { query } from "../database/pool.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireFeature } from "../middleware/featureAccess.js";
+import { FEATURE_KEYS } from "../security/featureCatalog.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -14,7 +16,7 @@ const createSessionSchema = z.object({
 
 export const cameraRoutes = Router();
 
-cameraRoutes.use(requireAuth);
+cameraRoutes.use(requireAuth, requireFeature(FEATURE_KEYS.CAMERA_VIEW));
 
 cameraRoutes.post(
   "/session",

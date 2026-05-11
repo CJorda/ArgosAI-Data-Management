@@ -1,8 +1,19 @@
 import { Router } from "express";
 import { z } from "zod";
+import { env } from "../config/env.js";
 import { query } from "../database/pool.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireFeature } from "../middleware/featureAccess.js";
 import { validate } from "../middleware/validate.js";
+import {
+  createDemoRule,
+  getDemoRiskForecast,
+  listDemoAlerts,
+  listDemoRules,
+  resolveDemoAlert,
+  updateDemoAlertProtocol
+} from "../services/noDbDemoService.js";
+import { FEATURE_KEYS } from "../security/featureCatalog.js";
 import { emitToTenant } from "../services/realtimeHub.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { buildAlertProtocolTemplate, normalizeAlertProtocolSteps } from "../utils/alertProtocol.js";
@@ -301,7 +312,103 @@ async function getAlertByIdForTenant(alertId, tenantId) {
 
 export const alertsRoutes = Router();
 
-alertsRoutes.use(requireAuth);
+alertsRoutes.use(requireAuth, requireFeature(FEATURE_KEYS.ALERTS_VIEW));
+
+alertsRoutes.use((req, res, next) => {
+  if (!env.noPostgresMode) {
+    next();
+    return;
+  }
+
+  if (req.method === "GET" && req.path === "/") {
+    const status = String(req.query.status || "open").toLowerCase();
+    res.json(listDemoAlerts(status));
+    return;
+  }
+
+  if (req.method === "GET" && req.path === "/risk-forecast") {
+    res.json(getDemoRiskForecast());
+    return;
+  }
+
+  if (req.method === "GET" && req.path === "/rules") {
+    res.json(listDemoRules());
+    return;
+  }
+
+  if (req.method === "POST" && req.path === "/rules") {
+    const parsed = createRuleSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      next(new HttpError(400, parsed.error.issues[0]?.message || "Invalid payload"));
+      return;
+    }
+
+    if (parsed.data.minValue === null && parsed.data.maxValue === null) {
+      next(new HttpError(400, "At least one threshold is required"));
+      return;
+    }
+
+    res.status(201).json(createDemoRule(parsed.data));
+    return;
+  }
+
+  const protocolMatch = req.path.match(/^\/(\d+)\/protocol$/);
+  if (req.method === "PATCH" && protocolMatch) {
+    const alertId = Number(protocolMatch[1]);
+
+    if (!alertId) {
+      next(new HttpError(400, "Invalid alert id"));
+      return;
+    }
+
+    const parsed = updateProtocolSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      next(new HttpError(400, parsed.error.issues[0]?.message || "Invalid payload"));
+      return;
+    }
+
+    const payload = updateDemoAlertProtocol(alertId, parsed.data, req.user);
+
+    if (!payload) {
+      next(new HttpError(404, "Alert not found"));
+      return;
+    }
+
+    emitToTenant(req.user.tenantId, "alert:updated", payload);
+
+    if (payload.status === "resolved") {
+      emitToTenant(req.user.tenantId, "alert:resolved", payload);
+    }
+
+    res.json(payload);
+    return;
+  }
+
+  const resolveMatch = req.path.match(/^\/(\d+)\/resolve$/);
+  if (req.method === "PATCH" && resolveMatch) {
+    const alertId = Number(resolveMatch[1]);
+
+    if (!alertId) {
+      next(new HttpError(400, "Invalid alert id"));
+      return;
+    }
+
+    const payload = resolveDemoAlert(alertId, req.user);
+
+    if (!payload) {
+      next(new HttpError(404, "Open alert not found"));
+      return;
+    }
+
+    emitToTenant(req.user.tenantId, "alert:resolved", payload);
+    res.json(payload);
+    return;
+  }
+
+  next();
+});
 
 alertsRoutes.get(
   "/",

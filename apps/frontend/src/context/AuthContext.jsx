@@ -90,15 +90,32 @@ export function AuthProvider({ children }) {
   };
 
   const value = useMemo(
-    () => ({
-      user,
-      accessToken,
-      refreshToken,
-      isLoading,
-      isAuthenticated: Boolean(user && accessToken),
-      login,
-      logout
-    }),
+    () => {
+      const features = Array.isArray(user?.features) ? user.features : null;
+
+      return {
+        user,
+        features,
+        accessToken,
+        refreshToken,
+        isLoading,
+        isAuthenticated: Boolean(user && accessToken),
+        hasFeature: (featureKey) => {
+          if (!featureKey) {
+            return true;
+          }
+
+          // If the backend does not send explicit features, preserve full access.
+          if (!Array.isArray(features)) {
+            return true;
+          }
+
+          return features.includes(featureKey);
+        },
+        login,
+        logout
+      };
+    },
     [user, accessToken, refreshToken, isLoading]
   );
 

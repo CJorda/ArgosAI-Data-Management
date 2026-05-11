@@ -3,18 +3,27 @@ import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 import { query } from "../database/pool.js";
 
+const memoryRefreshTokens = new Map();
+
 function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
 export function signAccessToken(user) {
+  const features = Array.isArray(user.features)
+    ? Array.from(new Set(user.features.map((item) => String(item).trim()).filter(Boolean)))
+    : undefined;
+  const tenantCode = String(user.tenantCode || "").trim().toLowerCase() || undefined;
+
   return jwt.sign(
     {
       type: "access",
       tenantId: user.tenantId,
+      tenantCode,
       role: user.role,
       email: user.email,
-      fullName: user.fullName
+      fullName: user.fullName,
+      features
     },
     env.jwtAccessSecret,
     {
@@ -44,6 +53,16 @@ export function signRefreshToken(user) {
 }
 
 export async function persistRefreshToken(token, userId, tenantId, expiresAt) {
+  if (env.noPostgresMode) {
+    memoryRefreshTokens.set(hashToken(token), {
+      tenant_id: Number(tenantId),
+      user_id: Number(userId),
+      expires_at: new Date(expiresAt).toISOString(),
+      revoked_at: null
+    });
+    return;
+  }
+
   await query(
     `
       INSERT INTO refresh_tokens (tenant_id, user_id, token_hash, expires_at)
@@ -54,6 +73,28 @@ export async function persistRefreshToken(token, userId, tenantId, expiresAt) {
 }
 
 export async function findValidRefreshToken(token) {
+  if (env.noPostgresMode) {
+    const row = memoryRefreshTokens.get(hashToken(token));
+
+    if (!row) {
+      return null;
+    }
+
+    if (row.revoked_at) {
+      return null;
+    }
+
+    if (new Date(row.expires_at).getTime() <= Date.now()) {
+      return null;
+    }
+
+    return {
+      id: hashToken(token),
+      tenant_id: row.tenant_id,
+      user_id: row.user_id
+    };
+  }
+
   const result = await query(
     `
       SELECT rt.id, rt.tenant_id, rt.user_id
@@ -70,6 +111,20 @@ export async function findValidRefreshToken(token) {
 }
 
 export async function revokeRefreshToken(token) {
+  if (env.noPostgresMode) {
+    const key = hashToken(token);
+    const row = memoryRefreshTokens.get(key);
+
+    if (row) {
+      memoryRefreshTokens.set(key, {
+        ...row,
+        revoked_at: new Date().toISOString()
+      });
+    }
+
+    return;
+  }
+
   await query(
     `
       UPDATE refresh_tokens

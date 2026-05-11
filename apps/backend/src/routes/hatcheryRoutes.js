@@ -2,6 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { query } from "../database/pool.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireFeature } from "../middleware/featureAccess.js";
+import { FEATURE_KEYS } from "../security/featureCatalog.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { HttpError } from "../utils/httpError.js";
@@ -115,7 +117,7 @@ async function assertLayingBelongsTenant(tenantId, layingId) {
 
 export const hatcheryRoutes = Router();
 
-hatcheryRoutes.use(requireAuth);
+hatcheryRoutes.use(requireAuth, requireFeature(FEATURE_KEYS.HATCHERY_VIEW));
 
 hatcheryRoutes.get(
   "/summary",

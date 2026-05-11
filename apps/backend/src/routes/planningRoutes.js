@@ -2,6 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { query } from "../database/pool.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireFeature } from "../middleware/featureAccess.js";
+import { FEATURE_KEYS } from "../security/featureCatalog.js";
 import { buildExecutiveReportForTenant } from "../services/executiveReportService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { HttpError } from "../utils/httpError.js";
@@ -102,7 +104,7 @@ async function getLatestBiomassWithFeedTable(tenantId) {
 
 export const planningRoutes = Router();
 
-planningRoutes.use(requireAuth);
+planningRoutes.use(requireAuth, requireFeature(FEATURE_KEYS.PLANNING_VIEW));
 
 planningRoutes.get(
   "/forecasts",

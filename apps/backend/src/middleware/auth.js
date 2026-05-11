@@ -21,9 +21,11 @@ export function requireAuth(req, _res, next) {
     req.user = {
       id: Number(payload.sub),
       tenantId: Number(payload.tenantId),
+      tenantCode: payload.tenantCode,
       role: payload.role,
       email: payload.email,
-      fullName: payload.fullName
+      fullName: payload.fullName,
+      features: Array.isArray(payload.features) ? payload.features : null
     };
 
     return next();

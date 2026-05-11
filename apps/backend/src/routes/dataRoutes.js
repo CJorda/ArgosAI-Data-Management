@@ -1,8 +1,18 @@
 import { Router } from "express";
 import { z } from "zod";
+import { env } from "../config/env.js";
 import { query } from "../database/pool.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireAnyFeature, requireFeature } from "../middleware/featureAccess.js";
 import { validate } from "../middleware/validate.js";
+import {
+  getDemoHistory,
+  getDemoLatestReadings,
+  getDemoPonds,
+  getDemoSensors,
+  getDemoSites
+} from "../services/noDbDemoService.js";
+import { FEATURE_KEYS } from "../security/featureCatalog.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { HttpError } from "../utils/httpError.js";
 
@@ -22,7 +32,140 @@ const createSensorSchema = z.object({
 
 export const dataRoutes = Router();
 
+const requireCoreDataFeature = requireAnyFeature([
+  FEATURE_KEYS.DASHBOARD_VIEW,
+  FEATURE_KEYS.PLANT_VIEW,
+  FEATURE_KEYS.OXYGEN_VIEW,
+  FEATURE_KEYS.HISTORY_VIEW,
+  FEATURE_KEYS.ALERTS_VIEW,
+  FEATURE_KEYS.OPERATIONS_VIEW,
+  FEATURE_KEYS.PLANNING_VIEW,
+  FEATURE_KEYS.TRACEABILITY_VIEW,
+  FEATURE_KEYS.BIOMASS_VIEW,
+  FEATURE_KEYS.HATCHERY_VIEW,
+  FEATURE_KEYS.CONSOLIDATION_VIEW
+]);
+const requireReadingsFeature = requireAnyFeature([
+  FEATURE_KEYS.DASHBOARD_VIEW,
+  FEATURE_KEYS.PLANT_VIEW,
+  FEATURE_KEYS.OXYGEN_VIEW,
+  FEATURE_KEYS.HISTORY_VIEW
+]);
+const requireSetpointsFeature = requireFeature(FEATURE_KEYS.SETPOINTS_VIEW);
+
+const setpointPaths = new Set([
+  "/oxygen/setpoints",
+  "/oxygen/color-setpoints",
+  "/temperature/color-setpoints",
+  "/alerts/phone-setpoints",
+  "/alerts/sms-setpoints"
+]);
+
 dataRoutes.use(requireAuth);
+
+dataRoutes.use((req, res, next) => {
+  if (setpointPaths.has(req.path)) {
+    requireSetpointsFeature(req, res, next);
+    return;
+  }
+
+  if (req.path.startsWith("/readings/")) {
+    requireReadingsFeature(req, res, next);
+    return;
+  }
+
+  requireCoreDataFeature(req, res, next);
+});
+
+dataRoutes.use((req, res, next) => {
+  if (!env.noPostgresMode) {
+    next();
+    return;
+  }
+
+  if (req.method === "GET" && req.path === "/sites") {
+    res.json(getDemoSites());
+    return;
+  }
+
+  if (req.method === "GET" && req.path === "/ponds") {
+    res.json(getDemoPonds());
+    return;
+  }
+
+  if (req.method === "GET" && req.path === "/sensors") {
+    const pondId = req.query.pondId ? Number(req.query.pondId) : null;
+    res.json(getDemoSensors({ pondId }));
+    return;
+  }
+
+  if (req.method === "GET" && req.path === "/readings/latest") {
+    const requestedLimit = Number(req.query.limit || 24);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.max(1, Math.min(200, requestedLimit))
+      : 24;
+
+    res.json(getDemoLatestReadings(limit));
+    return;
+  }
+
+  if (req.method === "GET" && req.path === "/readings/history") {
+    const sensorId = Number(req.query.sensorId);
+
+    if (!sensorId) {
+      next(new HttpError(400, "sensorId query param is required"));
+      return;
+    }
+
+    const from = req.query.from ? new Date(req.query.from) : new Date(Date.now() - 24 * 3600 * 1000);
+    const to = req.query.to ? new Date(req.query.to) : new Date();
+
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      next(new HttpError(400, "Invalid from/to date format"));
+      return;
+    }
+
+    const durationMs = to.getTime() - from.getTime();
+    const requestedBucket = String(req.query.bucket || "auto").toLowerCase();
+    const bucket =
+      requestedBucket === "hour" || requestedBucket === "day"
+        ? requestedBucket
+        : durationMs > 30 * 24 * 3600 * 1000
+          ? "day"
+          : "hour";
+
+    const history = getDemoHistory({
+      sensorId,
+      from,
+      to,
+      bucket
+    });
+
+    if (!history) {
+      next(new HttpError(404, "Sensor not found"));
+      return;
+    }
+
+    res.json(history);
+    return;
+  }
+
+  if (
+    req.method === "GET" &&
+    [
+      "/oxygen/setpoints",
+      "/oxygen/color-setpoints",
+      "/temperature/color-setpoints",
+      "/alerts/phone-setpoints",
+      "/alerts/sms-setpoints"
+    ].includes(req.path)
+  ) {
+    res.json([]);
+    return;
+  }
+
+  next();
+});
 
 dataRoutes.get(
   "/sites",

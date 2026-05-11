@@ -1,15 +1,24 @@
 import { Router } from "express";
+import { env } from "../config/env.js";
 import { query } from "../database/pool.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireFeature } from "../middleware/featureAccess.js";
+import { getDemoSummary } from "../services/noDbDemoService.js";
+import { FEATURE_KEYS } from "../security/featureCatalog.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 export const statsRoutes = Router();
 
-statsRoutes.use(requireAuth);
+statsRoutes.use(requireAuth, requireFeature(FEATURE_KEYS.DASHBOARD_VIEW));
 
 statsRoutes.get(
   "/summary",
   asyncHandler(async (req, res) => {
+    if (env.noPostgresMode) {
+      res.json(getDemoSummary());
+      return;
+    }
+
     const tenantId = req.user.tenantId;
 
     const [alerts, ponds, sensors, operations, biomass] = await Promise.all([

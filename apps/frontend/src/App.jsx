@@ -1,9 +1,12 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
+import { FeatureGate } from "./components/FeatureGate";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { FEATURE_KEYS } from "./features/featureCatalog";
 import { AlertsPage } from "./pages/AlertsPage";
 import { ArgosMachinePage } from "./pages/ArgosMachinePage";
 import { BiomassPage } from "./pages/BiomassPage";
+import { BuoysPage } from "./pages/BuoysPage";
 import { CameraPage } from "./pages/CameraPage";
 import { CompliancePage } from "./pages/CompliancePage";
 import { ConsolidationPage } from "./pages/ConsolidationPage";
@@ -33,6 +36,10 @@ function NotFoundPage() {
   return <div className="app-not-found">Pagina no encontrada</div>;
 }
 
+function withFeature(feature, element) {
+  return <FeatureGate feature={feature}>{element}</FeatureGate>;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -40,45 +47,176 @@ export default function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/planta" element={<PlantMapPage />} />
-          <Route path="/oxigeno" element={<Navigate to="/oxigeno/electrovalvulas" replace />} />
-          <Route path="/oxigeno/electrovalvulas" element={<OxygenPage mode="electrovalvulas" />} />
-          <Route path="/oxigeno/economia" element={<OxygenPage mode="economia" />} />
-          <Route path="/consignas" element={<Navigate to="/consignas/oxigeno" replace />} />
-          <Route path="/consignas/oxigeno" element={<OxygenColorSetpointsPage />} />
-          <Route path="/consignas/temperatura" element={<TemperatureColorSetpointsPage />} />
-          <Route path="/avisos" element={<Navigate to="/avisos/consignas-telefonicas" replace />} />
-          <Route path="/avisos/consignas-telefonicas" element={<PhoneAlertSetpointsPage />} />
-          <Route path="/avisos/consignas-sms" element={<SmsAlertSetpointsPage />} />
-          <Route path="/maquina" element={<Navigate to="/maquina/growth-nano" replace />} />
-          <Route path="/maquina/:machineKey" element={<ArgosMachinePage />} />
-          <Route path="/historico" element={<Navigate to="/historico/piscina" replace />} />
-          <Route path="/historico/piscina" element={<HistoryPage />} />
-          <Route path="/historico/parametros" element={<HistoryPage />} />
-          <Route path="/historico/xy" element={<HistoryPage />} />
-          <Route path="/historico/heatmap" element={<HistoryPage />} />
-          <Route path="/planificacion" element={<PlanningPage />} />
-          <Route path="/trazabilidad" element={<TraceabilityPage />} />
-          <Route path="/alertas" element={<Navigate to="/alertas/alertas" replace />} />
-          <Route path="/alertas/alertas" element={<AlertsPage />} />
-          <Route path="/alertas/prediccion-riesgo" element={<AlertsPage />} />
-          <Route path="/operaciones" element={<Navigate to="/operaciones/alimentacion" replace />} />
-          <Route path="/operaciones/hatchery-larval" element={<HatcheryLarvalPage />} />
-          <Route path="/operaciones/consolidacion-multi-sitio" element={<ConsolidationPage />} />
-          <Route path="/operaciones/prevision-12-36" element={<StrategicForecastPage />} />
-          <Route path="/operaciones/mantenimiento-preventivo" element={<PreventiveMaintenancePage />} />
-          <Route path="/operaciones/inventario-operativo" element={<InventoryPage />} />
-          <Route path="/operaciones/sanidad-bioseguridad" element={<HealthBiosecurityPage />} />
-          <Route path="/operaciones/transporte-vivo" element={<LiveTransportPage />} />
-          <Route path="/operaciones/cosecha-logistica" element={<HarvestLogisticsPage />} />
-          <Route path="/operaciones/coste-margen" element={<CostMarginPage />} />
-          <Route path="/operaciones/auditoria-compliance" element={<CompliancePage />} />
-          <Route path="/operaciones/:section" element={<OperationsPage />} />
-          <Route path="/biomasa" element={<Navigate to="/biomasa/resumen" replace />} />
-          <Route path="/biomasa/:section" element={<BiomassPage />} />
-          <Route path="/camara" element={<CameraPage />} />
+          <Route
+            path="/"
+            element={withFeature(FEATURE_KEYS.DASHBOARD_VIEW, <Navigate to="/dashboard" replace />)}
+          />
+          <Route
+            path="/dashboard"
+            element={withFeature(FEATURE_KEYS.DASHBOARD_VIEW, <DashboardPage />)}
+          />
+          <Route path="/planta" element={withFeature(FEATURE_KEYS.PLANT_VIEW, <PlantMapPage />)} />
+          <Route
+            path="/oxigeno"
+            element={withFeature(
+              FEATURE_KEYS.OXYGEN_VIEW,
+              <Navigate to="/oxigeno/electrovalvulas" replace />
+            )}
+          />
+          <Route
+            path="/oxigeno/electrovalvulas"
+            element={withFeature(FEATURE_KEYS.OXYGEN_VIEW, <OxygenPage mode="electrovalvulas" />)}
+          />
+          <Route
+            path="/oxigeno/economia"
+            element={withFeature(FEATURE_KEYS.OXYGEN_VIEW, <OxygenPage mode="economia" />)}
+          />
+          <Route
+            path="/consignas"
+            element={withFeature(
+              FEATURE_KEYS.SETPOINTS_VIEW,
+              <Navigate to="/consignas/oxigeno" replace />
+            )}
+          />
+          <Route
+            path="/consignas/oxigeno"
+            element={withFeature(FEATURE_KEYS.SETPOINTS_VIEW, <OxygenColorSetpointsPage />)}
+          />
+          <Route
+            path="/consignas/temperatura"
+            element={withFeature(FEATURE_KEYS.SETPOINTS_VIEW, <TemperatureColorSetpointsPage />)}
+          />
+          <Route
+            path="/avisos"
+            element={withFeature(
+              FEATURE_KEYS.SETPOINTS_VIEW,
+              <Navigate to="/avisos/consignas-telefonicas" replace />
+            )}
+          />
+          <Route
+            path="/avisos/consignas-telefonicas"
+            element={withFeature(FEATURE_KEYS.SETPOINTS_VIEW, <PhoneAlertSetpointsPage />)}
+          />
+          <Route
+            path="/avisos/consignas-sms"
+            element={withFeature(FEATURE_KEYS.SETPOINTS_VIEW, <SmsAlertSetpointsPage />)}
+          />
+          <Route
+            path="/maquina"
+            element={withFeature(
+              FEATURE_KEYS.MACHINE_VIEW,
+              <Navigate to="/maquina/growth-nano" replace />
+            )}
+          />
+          <Route
+            path="/maquina/:machineKey"
+            element={withFeature(FEATURE_KEYS.MACHINE_VIEW, <ArgosMachinePage />)}
+          />
+          <Route
+            path="/historico"
+            element={withFeature(
+              FEATURE_KEYS.HISTORY_VIEW,
+              <Navigate to="/historico/piscina" replace />
+            )}
+          />
+          <Route
+            path="/historico/piscina"
+            element={withFeature(FEATURE_KEYS.HISTORY_VIEW, <HistoryPage />)}
+          />
+          <Route
+            path="/historico/parametros"
+            element={withFeature(FEATURE_KEYS.HISTORY_VIEW, <HistoryPage />)}
+          />
+          <Route path="/historico/xy" element={withFeature(FEATURE_KEYS.HISTORY_VIEW, <HistoryPage />)} />
+          <Route
+            path="/historico/heatmap"
+            element={withFeature(FEATURE_KEYS.HISTORY_VIEW, <HistoryPage />)}
+          />
+          <Route
+            path="/planificacion"
+            element={withFeature(FEATURE_KEYS.PLANNING_VIEW, <PlanningPage />)}
+          />
+          <Route
+            path="/trazabilidad"
+            element={withFeature(FEATURE_KEYS.TRACEABILITY_VIEW, <TraceabilityPage />)}
+          />
+          <Route
+            path="/alertas"
+            element={withFeature(FEATURE_KEYS.ALERTS_VIEW, <Navigate to="/alertas/alertas" replace />)}
+          />
+          <Route path="/alertas/alertas" element={withFeature(FEATURE_KEYS.ALERTS_VIEW, <AlertsPage />)} />
+          <Route
+            path="/alertas/prediccion-riesgo"
+            element={withFeature(FEATURE_KEYS.ALERTS_VIEW, <AlertsPage />)}
+          />
+          <Route
+            path="/operaciones"
+            element={withFeature(
+              FEATURE_KEYS.OPERATIONS_VIEW,
+              <Navigate to="/operaciones/alimentacion" replace />
+            )}
+          />
+          <Route
+            path="/operaciones/hatchery-larval"
+            element={withFeature(FEATURE_KEYS.HATCHERY_VIEW, <HatcheryLarvalPage />)}
+          />
+          <Route
+            path="/operaciones/consolidacion-multi-sitio"
+            element={withFeature(FEATURE_KEYS.CONSOLIDATION_VIEW, <ConsolidationPage />)}
+          />
+          <Route
+            path="/operaciones/prevision-12-36"
+            element={withFeature(FEATURE_KEYS.PLANNING_VIEW, <StrategicForecastPage />)}
+          />
+          <Route
+            path="/operaciones/mantenimiento-preventivo"
+            element={withFeature(FEATURE_KEYS.OPERATIONS_VIEW, <PreventiveMaintenancePage />)}
+          />
+          <Route
+            path="/operaciones/inventario-operativo"
+            element={withFeature(FEATURE_KEYS.OPERATIONS_VIEW, <InventoryPage />)}
+          />
+          <Route
+            path="/operaciones/sanidad-bioseguridad"
+            element={withFeature(FEATURE_KEYS.OPERATIONS_VIEW, <HealthBiosecurityPage />)}
+          />
+          <Route
+            path="/operaciones/transporte-vivo"
+            element={withFeature(FEATURE_KEYS.OPERATIONS_VIEW, <LiveTransportPage />)}
+          />
+          <Route
+            path="/operaciones/cosecha-logistica"
+            element={withFeature(FEATURE_KEYS.OPERATIONS_VIEW, <HarvestLogisticsPage />)}
+          />
+          <Route
+            path="/operaciones/coste-margen"
+            element={withFeature(FEATURE_KEYS.OPERATIONS_VIEW, <CostMarginPage />)}
+          />
+          <Route
+            path="/operaciones/auditoria-compliance"
+            element={withFeature(FEATURE_KEYS.OPERATIONS_VIEW, <CompliancePage />)}
+          />
+          <Route
+            path="/operaciones/:section"
+            element={withFeature(FEATURE_KEYS.OPERATIONS_VIEW, <OperationsPage />)}
+          />
+          <Route
+            path="/biomasa"
+            element={withFeature(FEATURE_KEYS.BIOMASS_VIEW, <Navigate to="/biomasa/resumen" replace />)}
+          />
+          <Route
+            path="/biomasa/:section"
+            element={withFeature(FEATURE_KEYS.BIOMASS_VIEW, <BiomassPage />)}
+          />
+          <Route
+            path="/boyas"
+            element={withFeature(FEATURE_KEYS.BUOYS_VIEW, <Navigate to="/boyas/parametros" replace />)}
+          />
+          <Route
+            path="/boyas/:section"
+            element={withFeature(FEATURE_KEYS.BUOYS_VIEW, <BuoysPage />)}
+          />
+          <Route path="/camara" element={withFeature(FEATURE_KEYS.CAMERA_VIEW, <CameraPage />)} />
         </Route>
       </Route>
 

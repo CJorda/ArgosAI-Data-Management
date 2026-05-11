@@ -2,6 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { query } from "../database/pool.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireFeature } from "../middleware/featureAccess.js";
+import { FEATURE_KEYS } from "../security/featureCatalog.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { HttpError } from "../utils/httpError.js";
@@ -91,7 +93,7 @@ function projectSiteSeries(base, assumptions, months) {
 
 export const consolidationRoutes = Router();
 
-consolidationRoutes.use(requireAuth);
+consolidationRoutes.use(requireAuth, requireFeature(FEATURE_KEYS.CONSOLIDATION_VIEW));
 
 consolidationRoutes.get(
   "/sites",

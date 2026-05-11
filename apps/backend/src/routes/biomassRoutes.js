@@ -2,6 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { query } from "../database/pool.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireFeature } from "../middleware/featureAccess.js";
+import { FEATURE_KEYS } from "../security/featureCatalog.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -20,7 +22,7 @@ const createBiomassSchema = z.object({
 
 export const biomassRoutes = Router();
 
-biomassRoutes.use(requireAuth);
+biomassRoutes.use(requireAuth, requireFeature(FEATURE_KEYS.BIOMASS_VIEW));
 
 biomassRoutes.get(
   "/",

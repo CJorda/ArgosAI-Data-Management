@@ -16,6 +16,16 @@ CREATE TABLE IF NOT EXISTS users (
   UNIQUE (tenant_id, email)
 );
 
+CREATE TABLE IF NOT EXISTS tenant_features (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  feature_key TEXT NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, feature_key)
+);
+
 CREATE TABLE IF NOT EXISTS refresh_tokens (
   id BIGSERIAL PRIMARY KEY,
   tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

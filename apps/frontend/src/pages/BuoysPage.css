@@ -1,0 +1,118 @@
+@reference "tailwindcss";
+
+.buoys-page {
+  @apply grid gap-4;
+}
+
+.buoys-intro {
+  @apply mb-0 mt-1 text-[0.93rem] text-[#4d607c];
+}
+
+.buoys-toolbar {
+  @apply mt-4;
+}
+
+.buoys-toolbar > div {
+  @apply min-w-44;
+}
+
+.buoys-selector-grid {
+  @apply mt-4 grid gap-3;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.buoy-selector {
+  @apply flex cursor-pointer items-start gap-2 rounded-[12px] border border-[#ccd8e5] bg-[#f5f9ff] px-3 py-3 text-[#2a4a6e] transition duration-150 ease-out;
+}
+
+.buoy-selector:hover {
+  @apply -translate-y-px border-[#96b4d3] bg-[#edf5ff];
+}
+
+.buoy-selector-active {
+  @apply border-[#2a74b9] bg-[#e6f2ff] shadow-[0_10px_20px_rgba(35,91,149,0.14)];
+}
+
+.buoy-selector input {
+  @apply mt-[2px] h-4 w-4 accent-[#2a74b9];
+}
+
+.buoy-selector-content {
+  @apply flex flex-col;
+}
+
+.buoy-selector-content strong {
+  @apply text-[0.93rem] font-semibold text-[#204468];
+}
+
+.buoy-selector-meta {
+  @apply mt-[2px] text-[0.8rem] text-[#587497];
+}
+
+.buoys-caption {
+  @apply mb-0 mt-3 text-[0.84rem] text-[#5f7390];
+}
+
+.buoys-chart-grid {
+  @apply grid gap-4;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.buoys-chart-panel h3 {
+  @apply mb-1;
+}
+
+.buoys-chart-panel p {
+  @apply m-0 text-[0.82rem] text-[#557198];
+}
+
+.buoys-detail-panel p {
+  @apply mb-0 mt-1 text-[0.9rem] text-[#4e6485];
+}
+
+.buoys-empty {
+  @apply m-0 text-[#506886];
+}
+
+.buoys-kpi-grid {
+  @apply mt-4 grid gap-3;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.buoys-kpi {
+  @apply rounded-[11px] border border-[#d3dde8] bg-[#f7fbff] px-3 py-2;
+}
+
+.buoys-kpi-label {
+  @apply block text-[0.75rem] font-semibold uppercase tracking-[0.04em] text-[#607793];
+}
+
+.buoys-kpi-value {
+  @apply mt-1 block text-[1.01rem] font-semibold text-[#1f436b];
+}
+
+@media (max-width: 1320px) {
+  .buoys-chart-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 940px) {
+  .buoys-toolbar > div {
+    @apply min-w-0;
+  }
+
+  .buoys-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .buoys-selector-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .buoys-kpi-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+}

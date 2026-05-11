@@ -1,9 +1,16 @@
 import bcrypt from "bcryptjs";
 import { Router } from "express";
 import { z } from "zod";
+import { env } from "../config/env.js";
 import { query } from "../database/pool.js";
 import { requireAuth } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
+import {
+  getDemoUserIdentity,
+  getDemoUserResponse,
+  isDemoLoginValid
+} from "../services/noDbDemoService.js";
+import { getTenantEnabledFeatures } from "../services/featureAccessService.js";
 import {
   decodeRefreshToken,
   findValidRefreshToken,
@@ -32,6 +39,31 @@ authRoutes.post(
   validate(loginSchema),
   asyncHandler(async (req, res) => {
     const { tenantCode, email, password } = req.body;
+
+    if (env.noPostgresMode) {
+      if (!isDemoLoginValid({ tenantCode, email, password })) {
+        throw new HttpError(401, "Invalid credentials");
+      }
+
+      const user = getDemoUserIdentity();
+      const accessToken = signAccessToken(user);
+      const { token: refreshToken } = signRefreshToken(user);
+      const refreshPayload = decodeRefreshToken(refreshToken);
+
+      await persistRefreshToken(
+        refreshToken,
+        user.id,
+        user.tenantId,
+        new Date(refreshPayload.exp * 1000)
+      );
+
+      res.json({
+        accessToken,
+        refreshToken,
+        user: getDemoUserResponse()
+      });
+      return;
+    }
 
     const userResult = await query(
       `
@@ -67,9 +99,14 @@ authRoutes.post(
     const user = {
       id: Number(userRow.id),
       tenantId: Number(userRow.tenant_id),
+      tenantCode: String(userRow.tenant_code || "").trim().toLowerCase(),
       fullName: userRow.full_name,
       email: userRow.email,
-      role: userRow.role
+      role: userRow.role,
+      features: await getTenantEnabledFeatures({
+        tenantId: userRow.tenant_id,
+        tenantCode: userRow.tenant_code
+      })
     };
 
     const accessToken = signAccessToken(user);
@@ -92,6 +129,7 @@ authRoutes.post(
         fullName: user.fullName,
         email: user.email,
         role: user.role,
+        features: user.features,
         tenant: {
           code: userRow.tenant_code,
           name: userRow.tenant_name
@@ -128,12 +166,49 @@ authRoutes.post(
       throw new HttpError(401, "Refresh token mismatch");
     }
 
+    if (env.noPostgresMode) {
+      const demoUser = getDemoUserIdentity();
+
+      if (
+        Number(payload.sub) !== Number(demoUser.id) ||
+        Number(payload.tenantId) !== Number(demoUser.tenantId)
+      ) {
+        throw new HttpError(401, "User not found for refresh token");
+      }
+
+      await revokeRefreshToken(refreshToken);
+
+      const newAccessToken = signAccessToken(demoUser);
+      const { token: newRefreshToken } = signRefreshToken(demoUser);
+      const newPayload = decodeRefreshToken(newRefreshToken);
+
+      await persistRefreshToken(
+        newRefreshToken,
+        demoUser.id,
+        demoUser.tenantId,
+        new Date(newPayload.exp * 1000)
+      );
+
+      res.json({
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken
+      });
+      return;
+    }
+
     const userResult = await query(
       `
-        SELECT id, tenant_id, full_name, email, role
-        FROM users
-        WHERE id = $1
-          AND tenant_id = $2
+        SELECT
+          u.id,
+          u.tenant_id,
+          u.full_name,
+          u.email,
+          u.role,
+          t.code AS tenant_code
+        FROM users u
+        JOIN tenants t ON t.id = u.tenant_id
+        WHERE u.id = $1
+          AND u.tenant_id = $2
         LIMIT 1
       `,
       [persisted.user_id, persisted.tenant_id]
@@ -150,9 +225,14 @@ authRoutes.post(
     const user = {
       id: Number(userRow.id),
       tenantId: Number(userRow.tenant_id),
+      tenantCode: String(userRow.tenant_code || "").trim().toLowerCase(),
       fullName: userRow.full_name,
       email: userRow.email,
-      role: userRow.role
+      role: userRow.role,
+      features: await getTenantEnabledFeatures({
+        tenantId: userRow.tenant_id,
+        tenantCode: userRow.tenant_code
+      })
     };
 
     const newAccessToken = signAccessToken(user);
@@ -187,6 +267,11 @@ authRoutes.get(
   "/me",
   requireAuth,
   asyncHandler(async (req, res) => {
+    if (env.noPostgresMode) {
+      res.json(getDemoUserResponse());
+      return;
+    }
+
     const userResult = await query(
       `
         SELECT
@@ -211,6 +296,10 @@ authRoutes.get(
     }
 
     const user = userResult.rows[0];
+    const features = await getTenantEnabledFeatures({
+      tenantId: user.tenant_id,
+      tenantCode: user.tenant_code
+    });
 
     res.json({
       id: user.id,
@@ -218,6 +307,7 @@ authRoutes.get(
       fullName: user.full_name,
       email: user.email,
       role: user.role,
+      features,
       tenant: {
         code: user.tenant_code,
         name: user.tenant_name
