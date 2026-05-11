@@ -1,5 +1,5 @@
 import { readFileSync, statSync } from "fs";
-import { isKnownFeature } from "../security/featureCatalog.js";
+import { ALL_FEATURE_KEYS, isKnownFeature } from "../security/featureCatalog.js";
 
 // Production runtime overrides are read from this JSON file without restarting the server.
 const runtimeTenantFeaturesPath = new URL("./tenantFeatures.runtime.json", import.meta.url);
@@ -9,7 +9,7 @@ const runtimeConfigPollMs = 1_000;
 // Runtime file has priority over this map.
 export const TENANT_FEATURES = Object.freeze({
   demo: {
-    views: ["buoys.view"]
+    views: [...ALL_FEATURE_KEYS]
   }
   // Example:
   // acme: {

@@ -1,3 +1,19 @@
 {
-  "demo": ["buoys.view"]
+  "demo": [
+    "dashboard.view",
+    "plant.view",
+    "oxygen.view",
+    "setpoints.view",
+    "machine.view",
+    "history.view",
+    "alerts.view",
+    "operations.view",
+    "planning.view",
+    "traceability.view",
+    "biomass.view",
+    "camera.view",
+    "hatchery.view",
+    "consolidation.view",
+    "buoys.view"
+  ]
 }
