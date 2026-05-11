@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { auditLogsRequest } from "../api/services";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import { auditLogsRequest, planningExecutiveReportRequest } from "../api/services";
 import { useAuth } from "../context/AuthContext";
 import "./OperationsModulesPage.css";
 
@@ -18,6 +20,50 @@ function safeJsonPreview(payload) {
   } catch {
     return "{}";
   }
+}
+
+function downloadBlob(content, mimeType, fileName) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function csvEscape(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+
+  if (/[",\n;]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  return text;
+}
+
+function buildExecutiveReportCsv(executiveReport) {
+  const economics = executiveReport?.report?.economics || {};
+  const rows = [
+    ["seccion", "metrica", "valor"],
+    ["kpi", "operationalPressureScore", executiveReport?.kpis?.operationalPressureScore ?? 0],
+    ["kpi", "openAlerts", executiveReport?.kpis?.openAlerts ?? 0],
+    ["kpi", "severeOpenAlerts", executiveReport?.kpis?.severeOpenAlerts ?? 0],
+    ["kpi", "openMaintenanceTasks", executiveReport?.kpis?.openMaintenanceTasks ?? 0],
+    ["economics", "currentBiomassKg", economics.currentBiomassKg ?? 0],
+    ["economics", "projectedCostEur", economics.projectedCostEur ?? 0],
+    ["economics", "projectedRevenueEur", economics.projectedRevenueEur ?? 0],
+    ["economics", "projectedMarginEur", economics.projectedMarginEur ?? 0],
+    ["economics", "projectedMarginPct", economics.projectedMarginPct ?? ""],
+    ["period", "from", executiveReport?.period?.from || ""],
+    ["period", "to", executiveReport?.period?.to || ""]
+  ];
+
+  (executiveReport?.recommendations || []).forEach((item, index) => {
+    rows.push(["recommendation", String(index + 1), item]);
+  });
+
+  return rows.map((row) => row.map(csvEscape).join(";")).join("\n");
 }
 
 export function CompliancePage() {
@@ -40,12 +86,126 @@ export function CompliancePage() {
     [fromDate, toDate, actionFilter, entityFilter, limit]
   );
 
+  const reportParams = useMemo(
+    () => ({
+      from: new Date(`${fromDate}T00:00:00`).toISOString(),
+      to: new Date(`${toDate}T23:59:59`).toISOString()
+    }),
+    [fromDate, toDate]
+  );
+
   const auditQuery = useQuery({
     queryKey: ["operations", "audit", queryParams],
     queryFn: () => auditLogsRequest(accessToken, queryParams)
   });
 
+  const executiveReportQuery = useQuery({
+    queryKey: ["planning", "executive-report", reportParams],
+    queryFn: () => planningExecutiveReportRequest(accessToken, reportParams)
+  });
+
   const rows = auditQuery.data?.rows || [];
+  const executiveReport = executiveReportQuery.data;
+
+  const downloadExecutiveReport = () => {
+    if (!executiveReport) {
+      return;
+    }
+
+    downloadBlob(
+      JSON.stringify(executiveReport, null, 2),
+      "application/json;charset=utf-8",
+      `informe-ejecutivo-${toDate}.json`
+    );
+  };
+
+  const downloadExecutiveReportCsv = () => {
+    if (!executiveReport) {
+      return;
+    }
+
+    const csv = buildExecutiveReportCsv(executiveReport);
+    downloadBlob(csv, "text/csv;charset=utf-8", `informe-ejecutivo-${toDate}.csv`);
+  };
+
+  const downloadExecutiveReportPdf = () => {
+    if (!executiveReport) {
+      return;
+    }
+
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+    doc.setFillColor(16, 48, 86);
+    doc.rect(0, 0, 210, 26, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(17);
+    doc.text("Informe ejecutivo automático", 14, 12);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10.5);
+    doc.text(`Periodo: ${fromDate} a ${toDate}`, 14, 20);
+
+    doc.setTextColor(30, 52, 82);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.text(`Generado: ${new Date(executiveReport.generatedAt).toLocaleString("es-ES")}`, 14, 33);
+
+    autoTable(doc, {
+      startY: 38,
+      head: [["Indicador", "Valor"]],
+      body: [
+        ["Presión operativa", executiveReport.kpis?.operationalPressureScore ?? 0],
+        ["Alertas abiertas", executiveReport.kpis?.openAlerts ?? 0],
+        ["Alertas severas", executiveReport.kpis?.severeOpenAlerts ?? 0],
+        ["Tareas mantenimiento abiertas", executiveReport.kpis?.openMaintenanceTasks ?? 0],
+        ["Margen proyectado EUR", executiveReport.report?.economics?.projectedMarginEur ?? 0],
+        ["Margen proyectado %", executiveReport.report?.economics?.projectedMarginPct ?? "-"]
+      ],
+      styles: {
+        fontSize: 10,
+        cellPadding: 2.8,
+        textColor: [40, 58, 84],
+        lineColor: [213, 225, 241],
+        lineWidth: 0.1
+      },
+      headStyles: {
+        fillColor: [18, 88, 144],
+        textColor: [255, 255, 255],
+        fontStyle: "bold"
+      },
+      columnStyles: {
+        0: { cellWidth: 96 },
+        1: { cellWidth: 84 }
+      }
+    });
+
+    const recommendations = executiveReport.recommendations || [];
+    autoTable(doc, {
+      startY: (doc.lastAutoTable?.finalY || 80) + 8,
+      head: [["#", "Recomendación"]],
+      body: recommendations.length > 0
+        ? recommendations.map((item, index) => [index + 1, item])
+        : [["-", "Sin recomendaciones generadas para este periodo"]],
+      styles: {
+        fontSize: 10,
+        cellPadding: 2.6,
+        textColor: [40, 58, 84],
+        lineColor: [213, 225, 241],
+        lineWidth: 0.1
+      },
+      headStyles: {
+        fillColor: [227, 238, 252],
+        textColor: [29, 70, 110],
+        fontStyle: "bold"
+      },
+      columnStyles: {
+        0: { cellWidth: 14, halign: "center" },
+        1: { cellWidth: 166 }
+      }
+    });
+
+    doc.save(`informe-ejecutivo-${toDate}.pdf`);
+  };
 
   return (
     <section className="module-page">
@@ -109,6 +269,96 @@ export function CompliancePage() {
         </div>
 
         <p className="module-inline-note">Registros encontrados: {rows.length}</p>
+      </article>
+
+      <article className="panel">
+        <h3>Informe ejecutivo automático</h3>
+        <p className="module-intro">
+          Resumen operacional multi-módulo con riesgo, mantenimiento, logística y margen proyectado
+          para revisión de dirección y cumplimiento.
+        </p>
+
+        {executiveReport ? (
+          <>
+            <div className="module-kpi-grid">
+              <article className="module-kpi-card">
+                <span>Presión operativa</span>
+                <strong>{executiveReport.kpis?.operationalPressureScore ?? 0}</strong>
+              </article>
+              <article className="module-kpi-card">
+                <span>Alertas abiertas</span>
+                <strong>{executiveReport.kpis?.openAlerts ?? 0}</strong>
+              </article>
+              <article className="module-kpi-card">
+                <span>Mantenimiento abierto</span>
+                <strong>{executiveReport.kpis?.openMaintenanceTasks ?? 0}</strong>
+              </article>
+              <article className="module-kpi-card">
+                <span>Margen proyectado</span>
+                <strong>
+                  {(executiveReport.report?.economics?.projectedMarginEur ?? 0).toLocaleString("es-ES")} EUR
+                </strong>
+              </article>
+            </div>
+
+            <p className="module-inline-note">
+              Cadencia sugerida: {executiveReport.cadenceSuggestion?.frequency || "daily"}
+              {executiveReport.cadenceSuggestion?.nextRunAt
+                ? ` | Próxima ejecución sugerida: ${new Date(executiveReport.cadenceSuggestion.nextRunAt).toLocaleString()}`
+                : ""}
+            </p>
+
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Recomendación</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(executiveReport.recommendations || []).map((item, index) => (
+                    <tr key={`rec-${index + 1}`}>
+                      <td>{index + 1}</td>
+                      <td>{item}</td>
+                    </tr>
+                  ))}
+                  {(executiveReport.recommendations || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={2} className="empty-text">No hay recomendaciones generadas.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="filters-inline">
+              <button
+                type="button"
+                className="tiny-button"
+                onClick={() => executiveReportQuery.refetch()}
+                disabled={executiveReportQuery.isFetching}
+              >
+                {executiveReportQuery.isFetching ? "Actualizando..." : "Actualizar informe"}
+              </button>
+              <button type="button" className="tiny-button" onClick={downloadExecutiveReportPdf}>
+                Descargar PDF
+              </button>
+              <button type="button" className="tiny-button" onClick={downloadExecutiveReportCsv}>
+                Descargar CSV
+              </button>
+              <button type="button" className="tiny-button" onClick={downloadExecutiveReport}>
+                Descargar JSON
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="empty-text">
+            {executiveReportQuery.isFetching
+              ? "Generando informe ejecutivo..."
+              : "No se pudo generar el informe automático para este periodo."}
+          </p>
+        )}
       </article>
 
       <article className="panel">

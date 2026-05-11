@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "./Sidebar.css";
@@ -334,6 +334,7 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
   const location = useLocation();
   const { user, logout } = useAuth();
   const initials = userInitials(user?.fullName);
+  const sidebarRef = useRef(null);
   const [expandedGroups, setExpandedGroups] = useState(() =>
     buildExpandedGroups(location.pathname)
   );
@@ -361,10 +362,30 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
     });
   }, [collapsed, location.pathname]);
 
+  useEffect(() => {
+    if (!collapsed) {
+      return;
+    }
+
+    function handleOutsideClick(event) {
+      if (sidebarRef.current?.contains(event.target)) {
+        return;
+      }
+
+      setExpandedGroups(buildSingleExpandedState(null));
+    }
+
+    document.addEventListener("mousedown", handleOutsideClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [collapsed]);
+
   const sidebarClassName = `sidebar ${collapsed ? "sidebar-collapsed" : ""} ${mobileOpen ? "sidebar-mobile-open" : ""}`.trim();
 
   return (
-    <aside className={sidebarClassName}>
+    <aside className={sidebarClassName} ref={sidebarRef}>
       <div className="brand">
         <h1>{collapsed ? "AI" : "ArgosAI"}</h1>
         <p>{collapsed ? "PF" : "Piscifactoría"}</p>
@@ -373,8 +394,10 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
       <nav className="sidebar-nav">
         {navItems.map((item) => {
           const isGroupRouteActive = isPathInGroup(item, location.pathname);
+          const isGroupExpanded = Boolean(expandedGroups[item.to]);
+          const flyoutId = `sidebar-flyout-${item.to.replace(/[^a-z0-9]+/gi, "-")}`;
 
-          if (!item.children || collapsed) {
+          if (!item.children) {
             return (
               <NavLink
                 key={item.to}
@@ -392,22 +415,62 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
             );
           }
 
-          const isGroupExpanded = Boolean(expandedGroups[item.to]);
+          if (collapsed) {
+            return (
+              <div key={item.to} className="sidebar-group sidebar-group-collapsed">
+                <button
+                  type="button"
+                  className={`sidebar-link sidebar-link-button ${isGroupRouteActive ? "sidebar-link-active" : ""}`.trim()}
+                  onClick={() => {
+                    setExpandedGroups(buildSingleExpandedState(isGroupExpanded ? null : item.to));
+                  }}
+                  aria-expanded={isGroupExpanded}
+                  aria-controls={flyoutId}
+                >
+                  <SidebarIcon>{item.icon}</SidebarIcon>
+                  <span className="sidebar-link-text">{item.label}</span>
+                </button>
+
+                <div
+                  id={flyoutId}
+                  className={`sidebar-subnav sidebar-subnav-flyout ${isGroupExpanded ? "" : "sidebar-subnav-collapsed"}`.trim()}
+                  aria-label={`Subsecciones de ${item.label.toLowerCase()}`}
+                >
+                  <div className="sidebar-subnav-flyout-title">{item.label}</div>
+                  {item.children.map((child) => (
+                    <NavLink
+                      key={child.to}
+                      to={child.to}
+                      onClick={() => {
+                        setExpandedGroups(buildSingleExpandedState(null));
+                        onNavigate?.();
+                      }}
+                      className={({ isActive }) =>
+                        isActive ? "sidebar-sub-link sidebar-sub-link-active" : "sidebar-sub-link"
+                      }
+                    >
+                      <span className="sidebar-sub-link-dot" aria-hidden="true" />
+                      <span className="sidebar-sub-link-text">{child.label}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            );
+          }
 
           return (
             <div key={item.to} className="sidebar-group">
               <NavLink
                 to={item.to}
                 onClick={(event) => {
+                  event.preventDefault();
+
                   if (isGroupExpanded) {
-                    event.preventDefault();
                     setExpandedGroups(buildSingleExpandedState(null));
                     return;
                   }
 
                   setExpandedGroups(buildSingleExpandedState(item.to));
-
-                  onNavigate?.();
                 }}
                 className={({ isActive }) =>
                   isActive || isGroupRouteActive

@@ -21,7 +21,7 @@
 }
 
 .trace-lot-kpi-grid {
-  @apply mt-4 grid grid-cols-4 gap-3;
+  @apply mt-4 grid grid-cols-5 gap-3;
 }
 
 .trace-lot-kpi-card {
@@ -46,7 +46,7 @@
   }
 
   .trace-lot-kpi-grid {
-    @apply grid-cols-2;
+    @apply grid-cols-3;
   }
 }
 

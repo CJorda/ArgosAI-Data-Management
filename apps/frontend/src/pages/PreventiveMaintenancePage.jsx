@@ -167,6 +167,8 @@ export function PreventiveMaintenancePage() {
                 <tr>
                   <th>Piscina</th>
                   <th>Prioridad</th>
+                  <th>Prob. fallo 7d</th>
+                  <th>Ventana sugerida</th>
                   <th>Motivo</th>
                   <th>Último mantenimiento</th>
                   <th>Acción</th>
@@ -180,6 +182,8 @@ export function PreventiveMaintenancePage() {
                       <td>
                         <span className={priorityClass(item.priority)}>{item.priority}</span>
                       </td>
+                      <td>{item.predictedFailurePct}%</td>
+                      <td>{item.recommendedWindowHours} h</td>
                       <td>{item.reason}</td>
                       <td>
                         {item.lastMaintenanceAt
@@ -200,7 +204,7 @@ export function PreventiveMaintenancePage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="empty-text">No hay recomendaciones para este filtro.</td>
+                    <td colSpan={7} className="empty-text">No hay recomendaciones para este filtro.</td>
                   </tr>
                 )}
               </tbody>

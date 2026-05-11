@@ -1,6 +1,10 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { planningCostMarginRequest, pondsRequest } from "../api/services";
+import {
+  planningAutoCostAssumptionsRequest,
+  planningCostMarginRequest,
+  pondsRequest
+} from "../api/services";
 import { useAuth } from "../context/AuthContext";
 import "./OperationsModulesPage.css";
 
@@ -30,6 +34,22 @@ function formatNumber(value, digits = 2) {
   return numeric.toFixed(digits);
 }
 
+function formatConfidence(confidence) {
+  if (confidence === "high") {
+    return "Alta";
+  }
+
+  if (confidence === "medium") {
+    return "Media";
+  }
+
+  if (confidence === "low") {
+    return "Baja";
+  }
+
+  return "-";
+}
+
 export function CostMarginPage() {
   const { accessToken } = useAuth();
   const [pondId, setPondId] = useState("");
@@ -43,6 +63,24 @@ export function CostMarginPage() {
   const pondsQuery = useQuery({
     queryKey: ["ponds", "cost-margin"],
     queryFn: () => pondsRequest(accessToken)
+  });
+
+  const autoAssumptionParams = useMemo(() => {
+    const params = {
+      from: new Date(`${fromDate}T00:00:00`).toISOString(),
+      to: new Date(`${toDate}T23:59:59`).toISOString()
+    };
+
+    if (pondId) {
+      params.pondId = Number(pondId);
+    }
+
+    return params;
+  }, [fromDate, toDate, pondId]);
+
+  const autoCostAssumptionsQuery = useQuery({
+    queryKey: ["planning", "cost-assumptions", autoAssumptionParams],
+    queryFn: () => planningAutoCostAssumptionsRequest(accessToken, autoAssumptionParams)
   });
 
   const queryParams = useMemo(() => {
@@ -74,6 +112,20 @@ export function CostMarginPage() {
     queryKey: ["planning", "cost-margin", queryParams],
     queryFn: () => planningCostMarginRequest(accessToken, queryParams)
   });
+
+  const autoAssumptions = autoCostAssumptionsQuery.data?.assumptions;
+  const autoSources = autoCostAssumptionsQuery.data?.sources;
+
+  const applyAutomaticAssumptions = () => {
+    if (!autoAssumptions) {
+      return;
+    }
+
+    setFeedCostPerKg(String(autoAssumptions.feedCostPerKg));
+    setTreatmentCostPerUnit(String(autoAssumptions.treatmentCostPerUnit));
+    setMaintenanceCostPerUnit(String(autoAssumptions.maintenanceCostPerUnit));
+    setSalePricePerKg(String(autoAssumptions.salePricePerKg));
+  };
 
   const rows = costMarginQuery.data?.rows || [];
   const summary = costMarginQuery.data?.summary || {
@@ -173,7 +225,33 @@ export function CostMarginPage() {
               onChange={(event) => setSalePricePerKg(event.target.value)}
             />
           </div>
+
+          <div>
+            <label htmlFor="applyAutoCosts">Costes automáticos</label>
+            <button
+              id="applyAutoCosts"
+              type="button"
+              className="tiny-button"
+              onClick={applyAutomaticAssumptions}
+              disabled={autoCostAssumptionsQuery.isFetching || !autoAssumptions}
+            >
+              {autoCostAssumptionsQuery.isFetching ? "Calculando..." : "Aplicar costes reales"}
+            </button>
+          </div>
         </div>
+
+        {autoAssumptions ? (
+          <p className="module-inline-note">
+            Sugerencia automática (inventario): feed {formatNumber(autoAssumptions.feedCostPerKg, 4)} €/kg
+            ({formatConfidence(autoSources?.feed?.confidence)}), tratamiento {formatNumber(
+              autoAssumptions.treatmentCostPerUnit,
+              4
+            )} €/u ({formatConfidence(autoSources?.treatment?.confidence)}), mantto {formatNumber(
+              autoAssumptions.maintenanceCostPerUnit,
+              4
+            )} €/u ({formatConfidence(autoSources?.maintenance?.confidence)}).
+          </p>
+        ) : null}
       </article>
 
       <div className="module-kpi-grid">

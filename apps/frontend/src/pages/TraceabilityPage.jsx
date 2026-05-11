@@ -20,7 +20,18 @@ const EVENT_LABELS = {
   treatment: "Tratamiento",
   cleaning: "Limpieza",
   maintenance: "Mantenimiento",
-  biomass_sample: "Muestra de biomasa"
+  biomass_sample: "Muestra de biomasa",
+  harvest_plan: "Plan de cosecha",
+  harvest_shipment: "Despacho de cosecha",
+  live_transport: "Transporte vivo"
+};
+
+const SOURCE_LABELS = {
+  operation: "Operación",
+  biomass: "Biomasa",
+  harvest_plan: "Plan de cosecha",
+  harvest_shipment: "Despacho",
+  live_transport_trip: "Transporte vivo"
 };
 
 function pseudo(seed) {
@@ -75,6 +86,10 @@ function formatSensorType(sensorType) {
 
 function formatEventType(eventType) {
   return EVENT_LABELS[eventType] || eventType;
+}
+
+function formatSourceType(sourceType) {
+  return SOURCE_LABELS[sourceType] || sourceType;
 }
 
 function buildDemoPondHistory(pond, fromDate, toDate) {
@@ -303,7 +318,10 @@ function buildDemoTraceabilityDataset(ponds, fromDate, toDate) {
           avg_weight_g: null,
           fish_count: null,
           mortality_pct: null,
-          feed_kg: null
+          feed_kg: null,
+          status: null,
+          route_label: null,
+          external_code: null
         });
       }
 
@@ -333,7 +351,10 @@ function buildDemoTraceabilityDataset(ponds, fromDate, toDate) {
         avg_weight_g: bio.avg_weight_g,
         fish_count: bio.fish_count,
         mortality_pct: bio.mortality_pct,
-        feed_kg: bio.feed_kg
+        feed_kg: bio.feed_kg,
+        status: null,
+        route_label: null,
+        external_code: null
       });
     }
   }
@@ -503,6 +524,9 @@ export function TraceabilityPage() {
         event.event_type,
         event.pond_name,
         event.note,
+        event.status,
+        event.route_label,
+        event.external_code,
         event.quantity,
         event.quantity_unit,
         event.mix_with_lot_code,
@@ -519,6 +543,9 @@ export function TraceabilityPage() {
   const timelineStats = useMemo(() => {
     const operationCount = filteredTimelineRows.filter((event) => event.source === "operation").length;
     const biomassCount = filteredTimelineRows.filter((event) => event.source === "biomass").length;
+    const logisticsCount = filteredTimelineRows.filter((event) =>
+      ["harvest_plan", "harvest_shipment", "live_transport_trip"].includes(event.source)
+    ).length;
 
     const totalQuantity = filteredTimelineRows.reduce((sum, event) => {
       const numericQuantity = Number(event.quantity);
@@ -529,6 +556,7 @@ export function TraceabilityPage() {
       totalEvents: filteredTimelineRows.length,
       operationCount,
       biomassCount,
+      logisticsCount,
       totalQuantity
     };
   }, [filteredTimelineRows]);
@@ -684,6 +712,9 @@ export function TraceabilityPage() {
               <option value="all">Todos</option>
               <option value="operation">Operación</option>
               <option value="biomass">Biomasa</option>
+              <option value="harvest_plan">Plan de cosecha</option>
+              <option value="harvest_shipment">Despacho</option>
+              <option value="live_transport_trip">Transporte vivo</option>
             </select>
           </div>
 
@@ -714,6 +745,10 @@ export function TraceabilityPage() {
             <strong>{timelineStats.biomassCount}</strong>
           </div>
           <div className="trace-lot-kpi-card">
+            <span>Eventos logísticos</span>
+            <strong>{timelineStats.logisticsCount}</strong>
+          </div>
+          <div className="trace-lot-kpi-card">
             <span>Cantidad total movida</span>
             <strong>{timelineStats.totalQuantity.toFixed(2)}</strong>
           </div>
@@ -727,6 +762,8 @@ export function TraceabilityPage() {
                 <th>Origen</th>
                 <th>Piscina</th>
                 <th>Evento</th>
+                <th>Estado</th>
+                <th>Ruta / código</th>
                 <th>Cantidad</th>
                 <th>Biomasa</th>
                 <th>Nota</th>
@@ -737,9 +774,14 @@ export function TraceabilityPage() {
                 filteredTimelineRows.map((event, index) => (
                   <tr key={`${event.source}-${event.source_id}-${index}`}>
                     <td>{new Date(event.event_at).toLocaleString()}</td>
-                    <td>{event.source === "operation" ? "Operación" : "Biomasa"}</td>
+                    <td>{formatSourceType(event.source)}</td>
                     <td>{event.pond_name}</td>
                     <td>{formatEventType(event.event_type)}</td>
+                    <td>{event.status || "-"}</td>
+                    <td>
+                      {event.route_label || "-"}
+                      {event.external_code ? ` (${event.external_code})` : ""}
+                    </td>
                     <td>
                       {event.quantity !== null && event.quantity !== undefined
                         ? `${event.quantity} ${event.quantity_unit || ""}`
@@ -755,7 +797,7 @@ export function TraceabilityPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="empty-text">No hay eventos para los filtros seleccionados.</td>
+                  <td colSpan={9} className="empty-text">No hay eventos para los filtros seleccionados.</td>
                 </tr>
               )}
             </tbody>

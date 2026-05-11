@@ -6,11 +6,16 @@ import { env } from "./config/env.js";
 import { logger } from "./config/logger.js";
 import { pool } from "./database/pool.js";
 import { setIo, tenantRoom } from "./services/realtimeHub.js";
+import {
+  startExecutiveReportScheduler,
+  stopExecutiveReportScheduler
+} from "./services/executiveReportScheduler.js";
 import { startSimulator, stopSimulator } from "./services/simulatorService.js";
 
 const app = createApp();
 const server = http.createServer(app);
 let simulatorStarted = false;
+let schedulerStarted = false;
 
 const io = new SocketServer(server, {
   cors: {
@@ -64,6 +69,10 @@ async function ensureDbConnection() {
       startSimulator();
       simulatorStarted = true;
     }
+    if (!schedulerStarted) {
+      startExecutiveReportScheduler();
+      schedulerStarted = true;
+    }
     logger.info("Database connection is available");
   } catch (error) {
     logger.warn(
@@ -89,6 +98,7 @@ async function start() {
 
 async function shutdown() {
   stopSimulator();
+  stopExecutiveReportScheduler();
   io.removeAllListeners();
   await pool.end();
   server.close(() => {

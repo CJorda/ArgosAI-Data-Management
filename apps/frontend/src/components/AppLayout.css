@@ -5,7 +5,7 @@
 }
 
 .app-shell-sidebar-collapsed {
-  grid-template-columns: 84px minmax(0, 1fr);
+  grid-template-columns: 132px minmax(0, 1fr);
 }
 
 .center-area {
@@ -31,7 +31,7 @@
   }
 
   .app-shell-sidebar-collapsed {
-    grid-template-columns: 78px minmax(0, 1fr);
+    grid-template-columns: 120px minmax(0, 1fr);
   }
 }
 

@@ -472,7 +472,7 @@ operationsRoutes.get(
       throw new HttpError(400, "Invalid maintenance status filter");
     }
 
-    const [tasksResult, recommendationsResult] = await Promise.all([
+    const [tasksResult, recommendationsResult, historicalModelResult] = await Promise.all([
       query(
         `
           SELECT
@@ -522,10 +522,22 @@ operationsRoutes.get(
             SELECT
               pond_id,
               COUNT(*)::int AS open_alerts,
-              COUNT(*) FILTER (WHERE severity = 'high')::int AS severe_open_alerts
+              COUNT(*) FILTER (WHERE severity IN ('high', 'critical'))::int AS severe_open_alerts
             FROM alerts
             WHERE tenant_id = $1
               AND status = 'open'
+            GROUP BY pond_id
+          ),
+          alert_trend AS (
+            SELECT
+              pond_id,
+              COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::int AS alerts_7d,
+              COUNT(*) FILTER (
+                WHERE created_at >= NOW() - INTERVAL '7 days'
+                  AND severity IN ('high', 'critical')
+              )::int AS severe_alerts_7d
+            FROM alerts
+            WHERE tenant_id = $1
             GROUP BY pond_id
           )
           SELECT
@@ -534,6 +546,8 @@ operationsRoutes.get(
             lo.last_maintenance_at,
             COALESCE(oa.open_alerts, 0) AS open_alerts,
             COALESCE(oa.severe_open_alerts, 0) AS severe_open_alerts,
+            COALESCE(at.alerts_7d, 0) AS alerts_7d,
+            COALESCE(at.severe_alerts_7d, 0) AS severe_alerts_7d,
             ROUND(
               COALESCE(
                 EXTRACT(EPOCH FROM (NOW() - lo.last_maintenance_at)) / 86400,
@@ -544,17 +558,106 @@ operationsRoutes.get(
           FROM ponds p
           LEFT JOIN last_ops lo ON lo.pond_id = p.id
           LEFT JOIN open_alerts oa ON oa.pond_id = p.id
+          LEFT JOIN alert_trend at ON at.pond_id = p.id
           WHERE p.tenant_id = $1
           ORDER BY p.name ASC
+        `,
+        [req.user.tenantId]
+      ),
+      query(
+        `
+          WITH alert_hist AS (
+            SELECT
+              COUNT(*) FILTER (
+                WHERE created_at >= NOW() - INTERVAL '60 days'
+              )::double precision AS alerts_60d,
+              COUNT(*) FILTER (
+                WHERE created_at >= NOW() - INTERVAL '60 days'
+                  AND severity IN ('high', 'critical')
+              )::double precision AS severe_alerts_60d
+            FROM alerts
+            WHERE tenant_id = $1
+          ),
+          maintenance_hist AS (
+            SELECT
+              (SELECT COUNT(*)::double precision FROM maintenance_tasks WHERE tenant_id = $1) AS total_tasks,
+              COUNT(*) FILTER (
+                WHERE status IN ('pending', 'in_progress', 'blocked')
+              )::double precision AS open_tasks,
+              (
+                SELECT ROUND(
+                  COALESCE(
+                    AVG(
+                      EXTRACT(EPOCH FROM (NOW() - latest.last_maintenance_at)) / 86400
+                    ),
+                    14
+                  )::numeric,
+                  2
+                )
+                FROM (
+                  SELECT
+                    pond_id,
+                    MAX(event_at) FILTER (WHERE type IN ('maintenance', 'cleaning')) AS last_maintenance_at
+                  FROM operations
+                  WHERE tenant_id = $1
+                  GROUP BY pond_id
+                ) latest
+                WHERE latest.last_maintenance_at IS NOT NULL
+              ) AS avg_days_since_maintenance
+            FROM maintenance_tasks
+            WHERE tenant_id = $1
+          )
+          SELECT
+            COALESCE(
+              a.severe_alerts_60d / NULLIF(a.alerts_60d, 0),
+              0
+            ) AS severe_alert_ratio_60d,
+            COALESCE(
+              m.open_tasks / NULLIF(m.total_tasks, 0),
+              0
+            ) AS open_task_ratio,
+            COALESCE(m.avg_days_since_maintenance, 14) AS avg_days_since_maintenance
+          FROM alert_hist a
+          CROSS JOIN maintenance_hist m
         `,
         [req.user.tenantId]
       )
     ]);
 
+    const historicalModel = historicalModelResult.rows[0] || {};
+    const severeAlertRatio60d = Number(historicalModel.severe_alert_ratio_60d) || 0;
+    const openTaskRatio = Number(historicalModel.open_task_ratio) || 0;
+    const avgDaysSinceMaintenance = Number(historicalModel.avg_days_since_maintenance) || 14;
+
+    const predictiveWeights = {
+      daysWithoutMaintenance: Math.min(
+        3.8,
+        Math.max(2, 2.3 + avgDaysSinceMaintenance / 45)
+      ),
+      openAlerts: Math.min(
+        12,
+        Math.max(6, 7 + openTaskRatio * 8)
+      ),
+      severeOpenAlerts: Math.min(
+        30,
+        Math.max(16, 18 + severeAlertRatio60d * 30)
+      ),
+      alerts7d: Math.min(
+        4,
+        Math.max(1.5, 1.8 + openTaskRatio * 1.5)
+      ),
+      severeAlerts7d: Math.min(
+        16,
+        Math.max(8, 9 + severeAlertRatio60d * 8)
+      )
+    };
+
     const recommendations = recommendationsResult.rows.map((row) => {
       const daysSince = Number(row.days_since_maintenance) || 0;
       const openAlerts = Number(row.open_alerts) || 0;
       const severeOpenAlerts = Number(row.severe_open_alerts) || 0;
+      const alerts7d = Number(row.alerts_7d) || 0;
+      const severeAlerts7d = Number(row.severe_alerts_7d) || 0;
 
       let priority = "low";
       if (severeOpenAlerts > 0 || daysSince >= 21) {
@@ -569,6 +672,32 @@ operationsRoutes.get(
         Date.now() + (priority === "critical" ? 0 : priority === "high" ? 1 : 3) * 24 * 3600 * 1000
       ).toISOString();
 
+      const predictiveScore = Math.min(
+        100,
+        daysSince * predictiveWeights.daysWithoutMaintenance
+          + openAlerts * predictiveWeights.openAlerts
+          + severeOpenAlerts * predictiveWeights.severeOpenAlerts
+          + alerts7d * predictiveWeights.alerts7d
+          + severeAlerts7d * predictiveWeights.severeAlerts7d
+          + severeAlertRatio60d * 12
+      );
+      const predictedFailurePct = Math.max(5, predictiveScore);
+
+      let recommendedWindowHours = 72;
+      if (predictedFailurePct >= 80) {
+        recommendedWindowHours = 8;
+      } else if (predictedFailurePct >= 60) {
+        recommendedWindowHours = 24;
+      } else if (predictedFailurePct >= 40) {
+        recommendedWindowHours = 48;
+      }
+
+      const primaryDriver = severeOpenAlerts > 0 || severeAlerts7d > 0
+        ? "alertas severas"
+        : daysSince >= 14
+          ? "tiempo sin mantenimiento"
+          : "actividad de alertas";
+
       return {
         pondId: row.pond_id,
         pondName: row.pond_name,
@@ -578,6 +707,11 @@ operationsRoutes.get(
         daysSinceMaintenance: daysSince,
         openAlerts,
         severeOpenAlerts,
+        alerts7d,
+        severeAlerts7d,
+        predictedFailurePct: Number(predictedFailurePct.toFixed(1)),
+        recommendedWindowHours,
+        primaryDriver,
         suggestedTitle: severeOpenAlerts > 0
           ? `Inspeccion correctiva por alertas en ${row.pond_name}`
           : `Mantenimiento preventivo ${row.pond_name}`,
@@ -589,7 +723,21 @@ operationsRoutes.get(
 
     res.json({
       tasks: tasksResult.rows,
-      recommendations
+      recommendations,
+      predictiveModel: {
+        historicalSignals: {
+          severeAlertRatio60d: Number(severeAlertRatio60d.toFixed(4)),
+          openTaskRatio: Number(openTaskRatio.toFixed(4)),
+          avgDaysSinceMaintenance: Number(avgDaysSinceMaintenance.toFixed(2))
+        },
+        weights: {
+          daysWithoutMaintenance: Number(predictiveWeights.daysWithoutMaintenance.toFixed(3)),
+          openAlerts: Number(predictiveWeights.openAlerts.toFixed(3)),
+          severeOpenAlerts: Number(predictiveWeights.severeOpenAlerts.toFixed(3)),
+          alerts7d: Number(predictiveWeights.alerts7d.toFixed(3)),
+          severeAlerts7d: Number(predictiveWeights.severeAlerts7d.toFixed(3))
+        }
+      }
     });
   })
 );

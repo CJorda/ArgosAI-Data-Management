@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap");
 
 @layer theme, base, components, utilities;
 
@@ -9,8 +9,8 @@
 @import "./styles/primitives/tables.css";
 
 @theme {
-  --font-sans: "IBM Plex Sans", sans-serif;
-  --font-display: "Space Grotesk", sans-serif;
+  --font-sans: "Open Sans", sans-serif;
+  --font-display: "Open Sans", sans-serif;
 }
 
 @layer base {

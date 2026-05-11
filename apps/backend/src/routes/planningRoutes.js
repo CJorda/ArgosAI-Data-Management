@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { query } from "../database/pool.js";
 import { requireAuth } from "../middleware/auth.js";
+import { buildExecutiveReportForTenant } from "../services/executiveReportService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { HttpError } from "../utils/httpError.js";
 
@@ -461,20 +462,37 @@ planningRoutes.get(
           MAX(event_at) AS last_event_at,
           COUNT(*)::int AS total_events
         FROM (
-          SELECT lot_code, event_at
-          FROM operations
-          WHERE tenant_id = $1
-            AND lot_code IS NOT NULL
-            AND lot_code <> ''
+          SELECT o.lot_code, o.event_at
+          FROM operations o
+          WHERE o.tenant_id = $1
 
           UNION ALL
 
-          SELECT lot_code, captured_at AS event_at
-          FROM biomass_entries
-          WHERE tenant_id = $1
-            AND lot_code IS NOT NULL
-            AND lot_code <> ''
+          SELECT b.lot_code, b.captured_at AS event_at
+          FROM biomass_entries b
+          WHERE b.tenant_id = $1
+
+          UNION ALL
+
+          SELECT hp.lot_code, hp.window_start AS event_at
+          FROM harvest_plans hp
+          WHERE hp.tenant_id = $1
+
+          UNION ALL
+
+          SELECT hp.lot_code, COALESCE(hs.departure_at, hs.created_at) AS event_at
+          FROM harvest_shipments hs
+          JOIN harvest_plans hp ON hp.id = hs.harvest_plan_id
+          WHERE hs.tenant_id = $1
+
+          UNION ALL
+
+          SELECT t.lot_code, COALESCE(t.departure_at, t.created_at) AS event_at
+          FROM live_transport_trips t
+          WHERE t.tenant_id = $1
         ) timeline
+        WHERE lot_code IS NOT NULL
+          AND lot_code <> ''
         GROUP BY lot_code
         ORDER BY last_event_at DESC
         LIMIT 300
@@ -516,7 +534,10 @@ planningRoutes.get(
             NULL::double precision AS avg_weight_g,
             NULL::integer AS fish_count,
             NULL::double precision AS mortality_pct,
-            NULL::double precision AS feed_kg
+            NULL::double precision AS feed_kg,
+            NULL::text AS status,
+            NULL::text AS route_label,
+            NULL::text AS external_code
           FROM operations o
           JOIN ponds p ON p.id = o.pond_id
           WHERE o.tenant_id = $1
@@ -539,14 +560,100 @@ planningRoutes.get(
             b.avg_weight_g,
             b.fish_count,
             b.mortality_pct,
-            b.feed_kg
+            b.feed_kg,
+            NULL::text AS status,
+            NULL::text AS route_label,
+            NULL::text AS external_code
           FROM biomass_entries b
           JOIN ponds p ON p.id = b.pond_id
           WHERE b.tenant_id = $1
             AND b.lot_code = $2
+
+          UNION ALL
+
+          SELECT
+            'harvest_plan'::text AS source,
+            hp.id::text AS source_id,
+            hp.window_start AS event_at,
+            p.name AS pond_name,
+            'harvest_plan'::text AS event_type,
+            hp.planned_biomass_kg AS quantity,
+            'kg'::text AS quantity_unit,
+            hp.notes AS note,
+            NULL::text AS mix_with_lot_code,
+            ARRAY_REMOVE(ARRAY[NULLIF(hp.destination, ''), NULLIF(hp.logistics_provider, '')], NULL)::text[] AS label_tags,
+            NULL::timestamptz AS withdrawal_until,
+            NULL::double precision AS avg_weight_g,
+            NULL::integer AS fish_count,
+            NULL::double precision AS mortality_pct,
+            NULL::double precision AS feed_kg,
+            hp.status,
+            COALESCE(NULLIF(hp.destination, ''), 'Destino por definir') AS route_label,
+            CONCAT('HP-', hp.id::text) AS external_code
+          FROM harvest_plans hp
+          JOIN ponds p ON p.id = hp.pond_id
+          WHERE hp.tenant_id = $1
+            AND hp.lot_code = $2
+
+          UNION ALL
+
+          SELECT
+            'harvest_shipment'::text AS source,
+            hs.id::text AS source_id,
+            COALESCE(hs.departure_at, hs.created_at) AS event_at,
+            p.name AS pond_name,
+            'harvest_shipment'::text AS event_type,
+            NULL::double precision AS quantity,
+            NULL::text AS quantity_unit,
+            TRIM(BOTH ' ' FROM CONCAT(
+              'Conductor: ',
+              COALESCE(hs.driver_name, '-'),
+              ' | Camion: ',
+              COALESCE(hs.truck_plate, '-')
+            )) AS note,
+            NULL::text AS mix_with_lot_code,
+            ARRAY[]::text[] AS label_tags,
+            NULL::timestamptz AS withdrawal_until,
+            NULL::double precision AS avg_weight_g,
+            NULL::integer AS fish_count,
+            NULL::double precision AS mortality_pct,
+            NULL::double precision AS feed_kg,
+            hs.status,
+            CONCAT(p.name, ' -> ', COALESCE(NULLIF(hp.destination, ''), 'Destino por definir')) AS route_label,
+            hs.dispatch_code AS external_code
+          FROM harvest_shipments hs
+          JOIN harvest_plans hp ON hp.id = hs.harvest_plan_id
+          JOIN ponds p ON p.id = hp.pond_id
+          WHERE hs.tenant_id = $1
+            AND hp.lot_code = $2
+
+          UNION ALL
+
+          SELECT
+            'live_transport_trip'::text AS source,
+            t.id::text AS source_id,
+            COALESCE(t.departure_at, t.created_at) AS event_at,
+            COALESCE(t.origin_site, '-') AS pond_name,
+            'live_transport'::text AS event_type,
+            t.fish_units::double precision AS quantity,
+            'units'::text AS quantity_unit,
+            t.notes AS note,
+            NULL::text AS mix_with_lot_code,
+            ARRAY[]::text[] AS label_tags,
+            NULL::timestamptz AS withdrawal_until,
+            NULL::double precision AS avg_weight_g,
+            NULL::integer AS fish_count,
+            NULL::double precision AS mortality_pct,
+            NULL::double precision AS feed_kg,
+            t.status,
+            CONCAT(t.origin_site, ' -> ', t.destination_site) AS route_label,
+            t.transport_code AS external_code
+          FROM live_transport_trips t
+          WHERE t.tenant_id = $1
+            AND t.lot_code = $2
         ) timeline
         ORDER BY event_at DESC
-        LIMIT 500
+        LIMIT 700
       `,
       [req.user.tenantId, lotCode]
     );
@@ -737,5 +844,524 @@ planningRoutes.get(
       },
       rows
     });
+  })
+);
+
+planningRoutes.get(
+  "/cost-assumptions/auto",
+  asyncHandler(async (req, res) => {
+    const { from, to } = parseDateRange(req, 45);
+    const pondId = req.query.pondId ? Number(req.query.pondId) : null;
+
+    if (req.query.pondId && !Number.isFinite(pondId)) {
+      throw new HttpError(400, "pondId must be a valid number");
+    }
+
+    const defaults = {
+      feedCostPerKg: 1.28,
+      treatmentCostPerUnit: 6.2,
+      maintenanceCostPerUnit: 35,
+      salePricePerKg: 6.7
+    };
+
+    const salePricePerKg = parseNonNegativeQueryNumber(
+      req.query.salePricePerKg,
+      defaults.salePricePerKg,
+      "salePricePerKg"
+    );
+
+    const result = await query(
+      `
+        WITH categorized_costs AS (
+          SELECT
+            CASE
+              WHEN LOWER(i.category) LIKE '%piens%'
+                OR LOWER(i.category) LIKE '%feed%'
+                OR LOWER(i.category) LIKE '%alimen%'
+                THEN 'feed'
+              WHEN LOWER(i.category) LIKE '%sanid%'
+                OR LOWER(i.category) LIKE '%trat%'
+                OR LOWER(i.category) LIKE '%medic%'
+                THEN 'treatment'
+              WHEN LOWER(i.category) LIKE '%mant%'
+                OR LOWER(i.category) LIKE '%clean%'
+                OR LOWER(i.category) LIKE '%limp%'
+                THEN 'maintenance'
+              ELSE 'other'
+            END AS bucket,
+            ABS(m.quantity) AS qty,
+            m.unit_cost
+          FROM inventory_movements m
+          JOIN inventory_items i ON i.id = m.item_id
+          WHERE m.tenant_id = $1
+            AND m.movement_type = 'out'
+            AND m.moved_at BETWEEN $2 AND $3
+            AND ($4::bigint IS NULL OR m.related_pond_id = $4)
+            AND m.unit_cost IS NOT NULL
+            AND m.unit_cost > 0
+            AND m.quantity <> 0
+        )
+        SELECT
+          bucket,
+          COUNT(*)::int AS priced_events,
+          ROUND(COALESCE(SUM(qty), 0)::numeric, 2) AS total_qty,
+          ROUND(
+            (
+              COALESCE(SUM(qty * unit_cost), 0)
+              / NULLIF(COALESCE(SUM(qty), 0), 0)
+            )::numeric,
+            4
+          ) AS weighted_unit_cost
+        FROM categorized_costs
+        GROUP BY bucket
+      `,
+      [req.user.tenantId, from.toISOString(), to.toISOString(), pondId]
+    );
+
+    const rowsByBucket = new Map(
+      result.rows
+        .filter((row) => row.bucket !== "other")
+        .map((row) => [row.bucket, row])
+    );
+
+    const buildBucket = (bucket, fallback) => {
+      const row = rowsByBucket.get(bucket);
+      const pricedEvents = Number(row?.priced_events || 0);
+      const weightedUnitCost = numberOrNull(row?.weighted_unit_cost);
+      const sampledQuantity = numberOrNull(row?.total_qty) ?? 0;
+      const hasRealValue = Number.isFinite(weightedUnitCost) && weightedUnitCost > 0;
+
+      return {
+        value: round(hasRealValue ? weightedUnitCost : fallback, 4) ?? fallback,
+        source: hasRealValue ? "inventory_weighted_avg" : "default_fallback",
+        pricedEvents,
+        sampledQuantity: round(sampledQuantity, 2) ?? 0,
+        confidence: pricedEvents >= 12 ? "high" : pricedEvents >= 5 ? "medium" : "low"
+      };
+    };
+
+    const feed = buildBucket("feed", defaults.feedCostPerKg);
+    const treatment = buildBucket("treatment", defaults.treatmentCostPerUnit);
+    const maintenance = buildBucket("maintenance", defaults.maintenanceCostPerUnit);
+
+    res.json({
+      from,
+      to,
+      assumptions: {
+        feedCostPerKg: feed.value,
+        treatmentCostPerUnit: treatment.value,
+        maintenanceCostPerUnit: maintenance.value,
+        salePricePerKg
+      },
+      sources: {
+        feed,
+        treatment,
+        maintenance,
+        salePricePerKg: {
+          value: salePricePerKg,
+          source: "manual_or_default"
+        }
+      }
+    });
+  })
+);
+
+planningRoutes.get(
+  "/harvest-simulator",
+  asyncHandler(async (req, res) => {
+    const pondId = req.query.pondId ? Number(req.query.pondId) : null;
+    const lotCode = req.query.lotCode ? String(req.query.lotCode).trim() : null;
+
+    if (req.query.pondId && !Number.isFinite(pondId)) {
+      throw new HttpError(400, "pondId must be a valid number");
+    }
+
+    const windowDays = Math.round(parseNonNegativeQueryNumber(req.query.windowDays, 21, "windowDays"));
+    if (windowDays < 3 || windowDays > 90) {
+      throw new HttpError(400, "windowDays must be between 3 and 90");
+    }
+
+    const feedCostPerKg = parseNonNegativeQueryNumber(req.query.feedCostPerKg, 1.28, "feedCostPerKg");
+    const salePricePerKg = parseNonNegativeQueryNumber(req.query.salePricePerKg, 6.7, "salePricePerKg");
+    const logisticsCostPerKg = parseNonNegativeQueryNumber(
+      req.query.logisticsCostPerKg,
+      0.55,
+      "logisticsCostPerKg"
+    );
+    const riskPenaltyPct = parseNonNegativeQueryNumber(req.query.riskPenaltyPct, 4.5, "riskPenaltyPct");
+    const mortalityStressFactor = parseNonNegativeQueryNumber(
+      req.query.mortalityStressFactor,
+      1,
+      "mortalityStressFactor"
+    );
+
+    const historicalSignalsResult = await query(
+      `
+        WITH alert_hist AS (
+          SELECT
+            COUNT(*) FILTER (
+              WHERE created_at >= NOW() - INTERVAL '30 days'
+            )::double precision AS total_alerts_30d,
+            COUNT(*) FILTER (
+              WHERE created_at >= NOW() - INTERVAL '30 days'
+                AND severity IN ('high', 'critical')
+            )::double precision AS severe_alerts_30d
+          FROM alerts
+          WHERE tenant_id = $1
+        ),
+        mortality_hist AS (
+          SELECT
+            ROUND(COALESCE(AVG(mortality_pct), 0)::numeric, 3) AS avg_mortality_pct_60d
+          FROM biomass_entries
+          WHERE tenant_id = $1
+            AND captured_at >= NOW() - INTERVAL '60 days'
+        ),
+        shipment_hist AS (
+          SELECT
+            COUNT(*) FILTER (
+              WHERE COALESCE(departure_at, created_at) >= NOW() - INTERVAL '90 days'
+                AND arrival_eta IS NOT NULL
+            )::double precision AS shipments_with_eta_90d,
+            COUNT(*) FILTER (
+              WHERE COALESCE(departure_at, created_at) >= NOW() - INTERVAL '90 days'
+                AND arrival_eta IS NOT NULL
+                AND delivered_at IS NOT NULL
+                AND delivered_at > arrival_eta
+            )::double precision AS delayed_shipments_90d
+          FROM harvest_shipments
+          WHERE tenant_id = $1
+        ),
+        maintenance_hist AS (
+          SELECT
+            COUNT(*)::double precision AS total_tasks,
+            COUNT(*) FILTER (
+              WHERE status IN ('pending', 'in_progress', 'blocked')
+            )::double precision AS open_tasks
+          FROM maintenance_tasks
+          WHERE tenant_id = $1
+        )
+        SELECT
+          COALESCE(m.avg_mortality_pct_60d, 0) AS avg_mortality_pct_60d,
+          COALESCE(
+            a.severe_alerts_30d / NULLIF(a.total_alerts_30d, 0),
+            0
+          ) AS severe_alert_rate_30d,
+          COALESCE(
+            s.delayed_shipments_90d / NULLIF(s.shipments_with_eta_90d, 0),
+            0
+          ) AS delayed_shipment_ratio_90d,
+          COALESCE(
+            mt.open_tasks / NULLIF(mt.total_tasks, 0),
+            0
+          ) AS open_maintenance_ratio
+        FROM alert_hist a
+        CROSS JOIN mortality_hist m
+        CROSS JOIN shipment_hist s
+        CROSS JOIN maintenance_hist mt
+      `,
+      [req.user.tenantId]
+    );
+
+    const historicalSignals = historicalSignalsResult.rows[0] || {};
+    const avgMortalityPct60d = numberOrNull(historicalSignals.avg_mortality_pct_60d) ?? 0;
+    const severeAlertRate30d = numberOrNull(historicalSignals.severe_alert_rate_30d) ?? 0;
+    const delayedShipmentRatio90d = numberOrNull(historicalSignals.delayed_shipment_ratio_90d) ?? 0;
+    const openMaintenanceRatio = numberOrNull(historicalSignals.open_maintenance_ratio) ?? 0;
+
+    const dynamicWeights = {
+      severeAlertLossWeight: Math.min(
+        0.065,
+        Math.max(0.02, 0.024 + severeAlertRate30d * 0.08 + delayedShipmentRatio90d * 0.03)
+      ),
+      openAlertLossWeight: Math.min(
+        0.03,
+        Math.max(0.007, 0.009 + severeAlertRate30d * 0.03 + openMaintenanceRatio * 0.01)
+      ),
+      mortalityAmplifier: Math.min(
+        1.95,
+        Math.max(0.75, 0.85 + avgMortalityPct60d / 2.6 + delayedShipmentRatio90d * 0.24)
+      ),
+      riskScoreLossWeight: Math.min(
+        250,
+        Math.max(145, 155 + avgMortalityPct60d * 24 + delayedShipmentRatio90d * 82)
+      ),
+      riskScoreSevereWeight: Math.min(
+        30,
+        Math.max(17, 19 + severeAlertRate30d * 38)
+      ),
+      riskScoreOpenWeight: Math.min(
+        14,
+        Math.max(6, 7 + openMaintenanceRatio * 10)
+      )
+    };
+
+    const result = await query(
+      `
+        WITH latest_biomass AS (
+          SELECT DISTINCT ON (b.pond_id, COALESCE(NULLIF(b.lot_code, ''), 'SIN-LOTE'))
+            b.pond_id,
+            COALESCE(NULLIF(b.lot_code, ''), 'SIN-LOTE') AS lot_code,
+            b.fish_count,
+            b.avg_weight_g,
+            b.mortality_pct,
+            b.fcr,
+            b.captured_at
+          FROM biomass_entries b
+          WHERE b.tenant_id = $1
+          ORDER BY
+            b.pond_id,
+            COALESCE(NULLIF(b.lot_code, ''), 'SIN-LOTE'),
+            b.captured_at DESC
+        ),
+        alert_risk AS (
+          SELECT
+            a.pond_id,
+            COUNT(*) FILTER (WHERE a.status = 'open')::int AS open_alerts,
+            COUNT(*) FILTER (
+              WHERE a.status = 'open'
+                AND a.severity IN ('high', 'critical')
+            )::int AS severe_open_alerts
+          FROM alerts a
+          WHERE a.tenant_id = $1
+          GROUP BY a.pond_id
+        ),
+        plan_hint AS (
+          SELECT DISTINCT ON (hp.pond_id, hp.lot_code)
+            hp.pond_id,
+            hp.lot_code,
+            hp.target_weight_g,
+            hp.planned_biomass_kg,
+            hp.window_start,
+            hp.window_end,
+            hp.status
+          FROM harvest_plans hp
+          WHERE hp.tenant_id = $1
+          ORDER BY hp.pond_id, hp.lot_code, hp.window_start DESC
+        )
+        SELECT
+          p.id AS pond_id,
+          p.name AS pond_name,
+          lb.lot_code,
+          lb.fish_count,
+          lb.avg_weight_g,
+          lb.mortality_pct,
+          lb.fcr,
+          lb.captured_at,
+          COALESCE(ar.open_alerts, 0) AS open_alerts,
+          COALESCE(ar.severe_open_alerts, 0) AS severe_open_alerts,
+          ph.target_weight_g,
+          ph.planned_biomass_kg,
+          ph.window_start,
+          ph.window_end,
+          ph.status AS plan_status
+        FROM latest_biomass lb
+        JOIN ponds p ON p.id = lb.pond_id
+        LEFT JOIN alert_risk ar ON ar.pond_id = lb.pond_id
+        LEFT JOIN plan_hint ph
+          ON ph.pond_id = lb.pond_id
+          AND ph.lot_code = lb.lot_code
+        WHERE p.tenant_id = $1
+          AND ($2::bigint IS NULL OR p.id = $2)
+          AND ($3::text IS NULL OR lb.lot_code = $3)
+        ORDER BY p.name ASC, lb.lot_code ASC
+        LIMIT 220
+      `,
+      [req.user.tenantId, pondId, lotCode || null]
+    );
+
+    const scenarios = result.rows.map((row) => {
+      const fishCount = numberOrNull(row.fish_count) ?? 0;
+      const avgWeightG = numberOrNull(row.avg_weight_g) ?? 0;
+      const mortalityPct = Math.max(numberOrNull(row.mortality_pct) ?? 1, 0);
+      const fcr = Math.max(numberOrNull(row.fcr) ?? 1.3, 0.5);
+      const openAlerts = Number(row.open_alerts) || 0;
+      const severeOpenAlerts = Number(row.severe_open_alerts) || 0;
+
+      const biomassNowKg = (fishCount * avgWeightG) / 1000;
+      const targetWeightG = Math.max(numberOrNull(row.target_weight_g) ?? avgWeightG * 1.15, avgWeightG);
+      const growthPotentialPct = avgWeightG > 0
+        ? Math.max(0.04, Math.min((targetWeightG - avgWeightG) / avgWeightG, 0.35))
+        : 0.08;
+
+      const baselineGainKg = biomassNowKg * growthPotentialPct;
+      const alertStressFactor =
+        severeOpenAlerts * dynamicWeights.severeAlertLossWeight
+        + openAlerts * dynamicWeights.openAlertLossWeight;
+      const projectedLossPct = Math.min(
+        0.38,
+        (mortalityPct / 100)
+          * (windowDays / 30)
+          * mortalityStressFactor
+          * dynamicWeights.mortalityAmplifier
+          + alertStressFactor
+      );
+
+      const projectedBiomassKg = Math.max(0, biomassNowKg + baselineGainKg - biomassNowKg * projectedLossPct);
+      const biomassGainKg = Math.max(0, projectedBiomassKg - biomassNowKg);
+      const requiredFeedKg = biomassGainKg * fcr;
+
+      const projectedRevenueEur = projectedBiomassKg * salePricePerKg;
+      const feedCostEur = requiredFeedKg * feedCostPerKg;
+      const logisticsCostEur = projectedBiomassKg * logisticsCostPerKg;
+      const riskPenaltyFactor = Math.min(
+        1,
+        projectedLossPct * 2.1
+        + severeOpenAlerts * 0.1
+        + openAlerts * 0.03
+        + delayedShipmentRatio90d * 0.35
+      );
+      const riskPenaltyEur = projectedRevenueEur * (riskPenaltyPct / 100) * riskPenaltyFactor;
+      const projectedCostEur = feedCostEur + logisticsCostEur + riskPenaltyEur;
+      const marginEur = projectedRevenueEur - projectedCostEur;
+
+      const riskScore = Math.min(
+        100,
+        severeOpenAlerts * dynamicWeights.riskScoreSevereWeight
+        + openAlerts * dynamicWeights.riskScoreOpenWeight
+        + projectedLossPct * dynamicWeights.riskScoreLossWeight
+        + delayedShipmentRatio90d * 26
+      );
+      const riskLevel = riskScore >= 75
+        ? "critical"
+        : riskScore >= 55
+          ? "high"
+          : riskScore >= 30
+            ? "medium"
+            : "low";
+
+      const readinessBase = 100 - riskScore + (row.plan_status === "ready" ? 8 : row.plan_status ? 3 : 0);
+      const readinessScore = Math.max(0, Math.min(100, readinessBase));
+
+      const suggestedWindowStart = row.window_start
+        ? new Date(row.window_start)
+        : new Date(Date.now() + 2 * 24 * 3600 * 1000);
+      const suggestedWindowEnd = row.window_end
+        ? new Date(row.window_end)
+        : new Date(suggestedWindowStart.getTime() + windowDays * 24 * 3600 * 1000);
+
+      return {
+        pondId: row.pond_id,
+        pondName: row.pond_name,
+        lotCode: row.lot_code,
+        planStatus: row.plan_status || "no_plan",
+        currentBiomassKg: round(biomassNowKg, 2) ?? 0,
+        projectedBiomassKg: round(projectedBiomassKg, 2) ?? 0,
+        projectedGainKg: round(biomassGainKg, 2) ?? 0,
+        requiredFeedKg: round(requiredFeedKg, 2) ?? 0,
+        projectedRevenueEur: round(projectedRevenueEur, 2) ?? 0,
+        projectedCostEur: round(projectedCostEur, 2) ?? 0,
+        marginEur: round(marginEur, 2) ?? 0,
+        marginPct: projectedRevenueEur > 0
+          ? round((marginEur / projectedRevenueEur) * 100, 2)
+          : null,
+        riskScore: round(riskScore, 1) ?? 0,
+        riskLevel,
+        projectedLossPct: round(projectedLossPct * 100, 2) ?? 0,
+        openAlerts,
+        severeOpenAlerts,
+        readinessScore: round(readinessScore, 1) ?? 0,
+        suggestedWindowStart: suggestedWindowStart.toISOString(),
+        suggestedWindowEnd: suggestedWindowEnd.toISOString(),
+        sampledAt: row.captured_at
+      };
+    });
+
+    const rankedScenarios = [...scenarios].sort(
+      (left, right) =>
+        (right.readinessScore || 0) - (left.readinessScore || 0)
+        || (right.marginEur || 0) - (left.marginEur || 0)
+    );
+
+    const summary = rankedScenarios.reduce(
+      (acc, item) => {
+        acc.totalCurrentBiomassKg += item.currentBiomassKg;
+        acc.totalProjectedBiomassKg += item.projectedBiomassKg;
+        acc.totalProjectedRevenueEur += item.projectedRevenueEur;
+        acc.totalProjectedCostEur += item.projectedCostEur;
+        acc.totalMarginEur += item.marginEur;
+        return acc;
+      },
+      {
+        totalCurrentBiomassKg: 0,
+        totalProjectedBiomassKg: 0,
+        totalProjectedRevenueEur: 0,
+        totalProjectedCostEur: 0,
+        totalMarginEur: 0
+      }
+    );
+
+    res.json({
+      assumptions: {
+        windowDays,
+        feedCostPerKg,
+        salePricePerKg,
+        logisticsCostPerKg,
+        riskPenaltyPct,
+        mortalityStressFactor,
+        historicalSignals: {
+          avgMortalityPct60d: round(avgMortalityPct60d, 3) ?? 0,
+          severeAlertRate30d: round(severeAlertRate30d, 4) ?? 0,
+          delayedShipmentRatio90d: round(delayedShipmentRatio90d, 4) ?? 0,
+          openMaintenanceRatio: round(openMaintenanceRatio, 4) ?? 0
+        },
+        dynamicWeights: {
+          severeAlertLossWeight: round(dynamicWeights.severeAlertLossWeight, 5),
+          openAlertLossWeight: round(dynamicWeights.openAlertLossWeight, 5),
+          mortalityAmplifier: round(dynamicWeights.mortalityAmplifier, 4),
+          riskScoreLossWeight: round(dynamicWeights.riskScoreLossWeight, 3),
+          riskScoreSevereWeight: round(dynamicWeights.riskScoreSevereWeight, 3),
+          riskScoreOpenWeight: round(dynamicWeights.riskScoreOpenWeight, 3)
+        }
+      },
+      summary: {
+        totalCurrentBiomassKg: round(summary.totalCurrentBiomassKg, 2) ?? 0,
+        totalProjectedBiomassKg: round(summary.totalProjectedBiomassKg, 2) ?? 0,
+        totalProjectedRevenueEur: round(summary.totalProjectedRevenueEur, 2) ?? 0,
+        totalProjectedCostEur: round(summary.totalProjectedCostEur, 2) ?? 0,
+        totalMarginEur: round(summary.totalMarginEur, 2) ?? 0,
+        globalMarginPct: summary.totalProjectedRevenueEur > 0
+          ? round((summary.totalMarginEur / summary.totalProjectedRevenueEur) * 100, 2)
+          : null
+      },
+      scenarios: rankedScenarios
+    });
+  })
+);
+
+planningRoutes.get(
+  "/reports/executive",
+  asyncHandler(async (req, res) => {
+    const { from, to } = parseDateRange(req, 14);
+    const cadenceFrequency = String(req.query.frequency || "daily").toLowerCase() === "weekly"
+      ? "weekly"
+      : "daily";
+
+    const feedCostPerKg = parseNonNegativeQueryNumber(req.query.feedCostPerKg, 1.28, "feedCostPerKg");
+    const treatmentCostPerUnit = parseNonNegativeQueryNumber(
+      req.query.treatmentCostPerUnit,
+      6.2,
+      "treatmentCostPerUnit"
+    );
+    const maintenanceCostPerUnit = parseNonNegativeQueryNumber(
+      req.query.maintenanceCostPerUnit,
+      35,
+      "maintenanceCostPerUnit"
+    );
+    const salePricePerKg = parseNonNegativeQueryNumber(req.query.salePricePerKg, 6.7, "salePricePerKg");
+
+    const report = await buildExecutiveReportForTenant({
+      tenantId: req.user.tenantId,
+      from,
+      to,
+      assumptions: {
+        feedCostPerKg,
+        treatmentCostPerUnit,
+        maintenanceCostPerUnit,
+        salePricePerKg
+      },
+      cadenceFrequency
+    });
+
+    res.json(report);
   })
 );

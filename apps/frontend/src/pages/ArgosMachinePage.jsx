@@ -155,8 +155,8 @@ function buildFishFrameDataUri(machineKey, frameIndex, fishCount, biomassKg) {
       <rect x="18" y="18" width="1244" height="384" rx="18" fill="rgba(8,20,35,0.22)" stroke="rgba(190,222,255,0.3)" stroke-width="2" />
       ${lanes}
       ${fishShapes}
-      <text x="34" y="44" fill="#d9edff" font-size="23" font-family="Segoe UI, Arial" font-weight="700">Secuencia de paso de peces - Frame ${frameIndex + 1}</text>
-      <text x="34" y="396" fill="#c8e4ff" font-size="20" font-family="Segoe UI, Arial">Conteo detectado: ${fishCount} peces | Biomasa estimada: ${biomassKg.toFixed(2)} kg</text>
+      <text x="34" y="44" fill="#d9edff" font-size="23" font-family="Open Sans, sans-serif" font-weight="700">Secuencia de paso de peces - Frame ${frameIndex + 1}</text>
+      <text x="34" y="396" fill="#c8e4ff" font-size="20" font-family="Open Sans, sans-serif">Conteo detectado: ${fishCount} peces | Biomasa estimada: ${biomassKg.toFixed(2)} kg</text>
     </svg>
   `;
 

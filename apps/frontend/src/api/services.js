@@ -305,6 +305,30 @@ export async function planningCostMarginRequest(token, params) {
   return data;
 }
 
+export async function planningAutoCostAssumptionsRequest(token, params) {
+  const { data } = await apiClient.get("/planning/cost-assumptions/auto", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function harvestSimulatorRequest(token, params) {
+  const { data } = await apiClient.get("/planning/harvest-simulator", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function planningExecutiveReportRequest(token, params) {
+  const { data } = await apiClient.get("/planning/reports/executive", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
 export async function weeklySheetRequest(token, params) {
   const { data } = await apiClient.get("/planning/weekly-sheet", {
     ...authConfig(token),

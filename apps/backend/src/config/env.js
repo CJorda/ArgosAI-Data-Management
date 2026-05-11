@@ -9,6 +9,11 @@ const clientOrigins = rawClientOrigins
   .map((item) => item.trim())
   .filter(Boolean);
 
+const schedulerFrequencyRaw = String(
+  process.env.EXECUTIVE_REPORT_SCHEDULER_FREQUENCY || "daily"
+).toLowerCase();
+const schedulerFrequency = schedulerFrequencyRaw === "weekly" ? "weekly" : "daily";
+
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number(process.env.PORT || 3001),
@@ -20,5 +25,14 @@ export const env = {
   jwtRefreshTtl: process.env.JWT_REFRESH_TTL || "7d",
   simulatorEnabled: String(process.env.SIMULATOR_ENABLED || "true") === "true",
   simulatorIntervalMs: Number(process.env.SIMULATOR_INTERVAL_MS || 5000),
-  cameraDefaultProtocol: process.env.CAMERA_DEFAULT_PROTOCOL || "webrtc"
+  cameraDefaultProtocol: process.env.CAMERA_DEFAULT_PROTOCOL || "webrtc",
+  executiveReportSchedulerEnabled:
+    String(process.env.EXECUTIVE_REPORT_SCHEDULER_ENABLED || "true") === "true",
+  executiveReportSchedulerFrequency: schedulerFrequency,
+  executiveReportSchedulerHourUtc: Number(process.env.EXECUTIVE_REPORT_SCHEDULER_HOUR_UTC || 6),
+  executiveReportSchedulerMinuteUtc: Number(process.env.EXECUTIVE_REPORT_SCHEDULER_MINUTE_UTC || 0),
+  executiveReportSchedulerPollMs: Number(process.env.EXECUTIVE_REPORT_SCHEDULER_POLL_MS || 300000),
+  executiveReportSchedulerLookbackDays: Number(
+    process.env.EXECUTIVE_REPORT_SCHEDULER_LOOKBACK_DAYS || 14
+  )
 };

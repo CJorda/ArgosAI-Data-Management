@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createHarvestPlanRequest,
   createHarvestShipmentRequest,
+  harvestSimulatorRequest,
   harvestPlansRequest,
   harvestShipmentsRequest,
   pondsRequest,
@@ -33,6 +34,22 @@ function statusClass(status) {
   return `module-pill module-pill-status-${status || "planned"}`;
 }
 
+function riskClass(riskLevel) {
+  if (riskLevel === "critical") {
+    return "module-pill module-pill-priority-critical";
+  }
+
+  if (riskLevel === "high") {
+    return "module-pill module-pill-priority-high";
+  }
+
+  if (riskLevel === "medium") {
+    return "module-pill module-pill-priority-medium";
+  }
+
+  return "module-pill module-pill-priority-low";
+}
+
 export function HarvestLogisticsPage() {
   const { accessToken } = useAuth();
   const queryClient = useQueryClient();
@@ -59,6 +76,17 @@ export function HarvestLogisticsPage() {
     status: "scheduled"
   });
 
+  const [simulatorForm, setSimulatorForm] = useState({
+    pondId: "",
+    lotCode: "",
+    windowDays: "21",
+    feedCostPerKg: "1.28",
+    salePricePerKg: "6.7",
+    logisticsCostPerKg: "0.55",
+    riskPenaltyPct: "4.5",
+    mortalityStressFactor: "1"
+  });
+
   const pondsQuery = useQuery({
     queryKey: ["ponds", "harvest"],
     queryFn: () => pondsRequest(accessToken)
@@ -72,6 +100,32 @@ export function HarvestLogisticsPage() {
   const shipmentsQuery = useQuery({
     queryKey: ["operations", "harvest", "shipments"],
     queryFn: () => harvestShipmentsRequest(accessToken, { limit: 220 })
+  });
+
+  const simulatorParams = useMemo(() => {
+    const params = {
+      windowDays: Number(simulatorForm.windowDays) || 21,
+      feedCostPerKg: Number(simulatorForm.feedCostPerKg) || 1.28,
+      salePricePerKg: Number(simulatorForm.salePricePerKg) || 6.7,
+      logisticsCostPerKg: Number(simulatorForm.logisticsCostPerKg) || 0.55,
+      riskPenaltyPct: Number(simulatorForm.riskPenaltyPct) || 4.5,
+      mortalityStressFactor: Number(simulatorForm.mortalityStressFactor) || 1
+    };
+
+    if (simulatorForm.pondId) {
+      params.pondId = Number(simulatorForm.pondId);
+    }
+
+    if (simulatorForm.lotCode.trim()) {
+      params.lotCode = simulatorForm.lotCode.trim().toUpperCase();
+    }
+
+    return params;
+  }, [simulatorForm]);
+
+  const harvestSimulatorQuery = useQuery({
+    queryKey: ["planning", "harvest-simulator", simulatorParams],
+    queryFn: () => harvestSimulatorRequest(accessToken, simulatorParams)
   });
 
   const createPlanMutation = useMutation({
@@ -113,6 +167,15 @@ export function HarvestLogisticsPage() {
 
   const plans = plansQuery.data || [];
   const shipments = shipmentsQuery.data || [];
+  const simulatorRows = harvestSimulatorQuery.data?.scenarios || [];
+  const simulatorSummary = harvestSimulatorQuery.data?.summary || {
+    totalCurrentBiomassKg: 0,
+    totalProjectedBiomassKg: 0,
+    totalProjectedRevenueEur: 0,
+    totalProjectedCostEur: 0,
+    totalMarginEur: 0,
+    globalMarginPct: null
+  };
 
   const activePlanCount = useMemo(
     () => plans.filter((plan) => ["planned", "ready", "in_transit"].includes(plan.status)).length,
@@ -174,6 +237,212 @@ export function HarvestLogisticsPage() {
         <p className="module-inline-note">
           Planes activos: {activePlanCount} | Despachos registrados: {shipments.length}
         </p>
+      </article>
+
+      <article className="panel">
+        <h3>Simulador de cosecha y despacho</h3>
+        <p className="module-intro">
+          Simula margen y riesgo por piscina/lote combinando biomasa actual, alertas activas y
+          supuestos de coste logístico para priorizar ventanas de cosecha.
+        </p>
+
+        <div className="filters-inline">
+          <div>
+            <label htmlFor="simPond">Piscina</label>
+            <select
+              id="simPond"
+              value={simulatorForm.pondId}
+              onChange={(event) =>
+                setSimulatorForm((current) => ({ ...current, pondId: event.target.value }))
+              }
+            >
+              <option value="">Todas</option>
+              {(pondsQuery.data || []).map((pond) => (
+                <option key={pond.id} value={pond.id}>
+                  {pond.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="simLotCode">Lote</label>
+            <input
+              id="simLotCode"
+              type="text"
+              value={simulatorForm.lotCode}
+              onChange={(event) =>
+                setSimulatorForm((current) => ({ ...current, lotCode: event.target.value }))
+              }
+              placeholder="LOT-..."
+            />
+          </div>
+
+          <div>
+            <label htmlFor="simWindowDays">Ventana (días)</label>
+            <input
+              id="simWindowDays"
+              type="number"
+              min="3"
+              max="90"
+              step="1"
+              value={simulatorForm.windowDays}
+              onChange={(event) =>
+                setSimulatorForm((current) => ({ ...current, windowDays: event.target.value }))
+              }
+            />
+          </div>
+
+          <div>
+            <label htmlFor="simFeedCost">Feed €/kg</label>
+            <input
+              id="simFeedCost"
+              type="number"
+              min="0"
+              step="0.0001"
+              value={simulatorForm.feedCostPerKg}
+              onChange={(event) =>
+                setSimulatorForm((current) => ({ ...current, feedCostPerKg: event.target.value }))
+              }
+            />
+          </div>
+
+          <div>
+            <label htmlFor="simSalePrice">Venta €/kg</label>
+            <input
+              id="simSalePrice"
+              type="number"
+              min="0"
+              step="0.0001"
+              value={simulatorForm.salePricePerKg}
+              onChange={(event) =>
+                setSimulatorForm((current) => ({ ...current, salePricePerKg: event.target.value }))
+              }
+            />
+          </div>
+
+          <div>
+            <label htmlFor="simLogisticsCost">Logística €/kg</label>
+            <input
+              id="simLogisticsCost"
+              type="number"
+              min="0"
+              step="0.0001"
+              value={simulatorForm.logisticsCostPerKg}
+              onChange={(event) =>
+                setSimulatorForm((current) => ({ ...current, logisticsCostPerKg: event.target.value }))
+              }
+            />
+          </div>
+
+          <div>
+            <label htmlFor="simRiskPenalty">Penalización riesgo %</label>
+            <input
+              id="simRiskPenalty"
+              type="number"
+              min="0"
+              step="0.1"
+              value={simulatorForm.riskPenaltyPct}
+              onChange={(event) =>
+                setSimulatorForm((current) => ({ ...current, riskPenaltyPct: event.target.value }))
+              }
+            />
+          </div>
+
+          <div>
+            <label htmlFor="simMortalityStress">Factor mortalidad</label>
+            <input
+              id="simMortalityStress"
+              type="number"
+              min="0"
+              step="0.01"
+              value={simulatorForm.mortalityStressFactor}
+              onChange={(event) =>
+                setSimulatorForm((current) => ({ ...current, mortalityStressFactor: event.target.value }))
+              }
+            />
+          </div>
+        </div>
+
+        <div className="module-kpi-grid">
+          <article className="module-kpi-card">
+            <span>Biomasa actual</span>
+            <strong>{simulatorSummary.totalCurrentBiomassKg.toLocaleString("es-ES")} kg</strong>
+          </article>
+          <article className="module-kpi-card">
+            <span>Biomasa proyectada</span>
+            <strong>{simulatorSummary.totalProjectedBiomassKg.toLocaleString("es-ES")} kg</strong>
+          </article>
+          <article className="module-kpi-card">
+            <span>Margen proyectado</span>
+            <strong>{simulatorSummary.totalMarginEur.toLocaleString("es-ES")} EUR</strong>
+          </article>
+          <article className="module-kpi-card">
+            <span>Margen global</span>
+            <strong>
+              {simulatorSummary.globalMarginPct !== null
+                ? `${simulatorSummary.globalMarginPct.toLocaleString("es-ES")}%`
+                : "-"}
+            </strong>
+          </article>
+        </div>
+
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Piscina</th>
+                <th>Lote</th>
+                <th>Estado plan</th>
+                <th>Riesgo</th>
+                <th>Readiness</th>
+                <th>Biomasa actual</th>
+                <th>Biomasa proyectada</th>
+                <th>Coste proyectado</th>
+                <th>Margen proyectado</th>
+                <th>Ventana sugerida</th>
+              </tr>
+            </thead>
+            <tbody>
+              {simulatorRows.length > 0 ? (
+                simulatorRows.map((row) => (
+                  <tr key={`${row.pondId}-${row.lotCode}`}>
+                    <td>{row.pondName}</td>
+                    <td>{row.lotCode}</td>
+                    <td>
+                      <span className={statusClass(row.planStatus)}>{row.planStatus}</span>
+                    </td>
+                    <td>
+                      <span className={riskClass(row.riskLevel)}>
+                        {row.riskLevel} ({row.riskScore})
+                      </span>
+                    </td>
+                    <td>{row.readinessScore}</td>
+                    <td>{row.currentBiomassKg} kg</td>
+                    <td>{row.projectedBiomassKg} kg</td>
+                    <td>{row.projectedCostEur.toLocaleString("es-ES")} EUR</td>
+                    <td>
+                      {row.marginEur.toLocaleString("es-ES")} EUR
+                      {row.marginPct !== null ? ` (${row.marginPct}%)` : ""}
+                    </td>
+                    <td>
+                      {new Date(row.suggestedWindowStart).toLocaleDateString()} - {" "}
+                      {new Date(row.suggestedWindowEnd).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={10} className="empty-text">
+                    {harvestSimulatorQuery.isFetching
+                      ? "Calculando escenarios..."
+                      : "No hay escenarios para los filtros seleccionados."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </article>
 
       <div className="module-grid">
