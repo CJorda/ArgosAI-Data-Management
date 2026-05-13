@@ -263,6 +263,528 @@ const demoAlerts = [
 let ruleIdSequence = 100;
 const demoRules = [];
 
+const flowMonthLabels = [
+  "Ene",
+  "Feb",
+  "Mar",
+  "Abr",
+  "May",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dic"
+];
+
+const flowHourWindows = [24, 48, 72, 168];
+
+let demoWaterFlowConfig = {
+  calibrationK: 1,
+  annualConcessionM3: 8_500_000,
+  deviationWarningPct: 8,
+  deviationCriticalPct: 14,
+  concessionWarningPct: 85,
+  concessionCriticalPct: 100,
+  updatedAt: new Date().toISOString()
+};
+
+const demoWaterFlowMeters = [
+  {
+    id: 1,
+    meterCode: "WF-IN-01",
+    meterName: "Caudalimetro entrante",
+    channelKey: "incoming",
+    calibrationK: 1,
+    enabled: true,
+    installedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 2,
+    meterCode: "WF-OUT-01",
+    meterName: "Caudalimetro saliente",
+    channelKey: "outgoing",
+    calibrationK: 1,
+    enabled: true,
+    installedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 3,
+    meterCode: "WF-REC-01",
+    meterName: "Caudalimetro recirculacion",
+    channelKey: "recirculated",
+    calibrationK: 1,
+    enabled: true,
+    installedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+];
+
+let demoWaterFlowReadingIdSequence = 30_000;
+let demoWaterFlowAlertIdSequence = 4_000;
+
+function getDemoMetersSnapshot() {
+  return demoWaterFlowMeters.map((meter) => ({ ...meter }));
+}
+
+function syncDemoLegacyCalibrationK() {
+  const incomingMeter = demoWaterFlowMeters.find((meter) => meter.channelKey === "incoming");
+  demoWaterFlowConfig.calibrationK = Math.max(0, toFiniteNumber(incomingMeter?.calibrationK, 1));
+}
+
+function applyDemoMeterPatches(meters = []) {
+  const nowIso = new Date().toISOString();
+
+  for (const patch of meters) {
+    const meter = demoWaterFlowMeters.find((item) => item.id === Number(patch.id));
+
+    if (!meter) {
+      continue;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(patch, "calibrationK")) {
+      meter.calibrationK = Math.max(0, toFiniteNumber(patch.calibrationK, meter.calibrationK));
+    }
+
+    if (Object.prototype.hasOwnProperty.call(patch, "enabled")) {
+      meter.enabled = Boolean(patch.enabled);
+    }
+
+    meter.updatedAt = nowIso;
+  }
+
+  syncDemoLegacyCalibrationK();
+}
+
+function getDemoFlowKByChannel(config = demoWaterFlowConfig) {
+  const fallbackK = Math.max(0, toFiniteNumber(config?.calibrationK, 1));
+  const kByChannel = {
+    incoming: fallbackK,
+    outgoing: fallbackK,
+    recirculated: fallbackK
+  };
+
+  for (const meter of demoWaterFlowMeters) {
+    if (!meter.enabled) {
+      continue;
+    }
+
+    if (!["incoming", "outgoing", "recirculated"].includes(meter.channelKey)) {
+      continue;
+    }
+
+    kByChannel[meter.channelKey] = Math.max(0, toFiniteNumber(meter.calibrationK, fallbackK));
+  }
+
+  return kByChannel;
+}
+
+function pseudoNoise(seed, index) {
+  const value = Math.sin(seed * 13.173 + index * 79.217) * 43758.5453123;
+  return value - Math.floor(value);
+}
+
+function toFiniteNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function normalizeFlowConfigDraft(config) {
+  const draft = {
+    calibrationK: Math.max(0, toFiniteNumber(config.calibrationK, 1)),
+    annualConcessionM3: clamp(toFiniteNumber(config.annualConcessionM3, 8_500_000), 10_000, 2_000_000_000),
+    deviationWarningPct: clamp(toFiniteNumber(config.deviationWarningPct, 8), 1, 99),
+    deviationCriticalPct: clamp(toFiniteNumber(config.deviationCriticalPct, 14), 1, 150),
+    concessionWarningPct: clamp(toFiniteNumber(config.concessionWarningPct, 85), 1, 150),
+    concessionCriticalPct: clamp(toFiniteNumber(config.concessionCriticalPct, 100), 1, 200),
+    updatedAt: config.updatedAt || new Date().toISOString()
+  };
+
+  if (draft.deviationCriticalPct < draft.deviationWarningPct) {
+    draft.deviationCriticalPct = draft.deviationWarningPct;
+  }
+
+  if (draft.concessionCriticalPct < draft.concessionWarningPct) {
+    draft.concessionCriticalPct = draft.concessionWarningPct;
+  }
+
+  return draft;
+}
+
+function buildSyntheticFlowPoint(index, totalHours, kByChannel, endingAtMs) {
+  const timestamp = new Date(endingAtMs - (totalHours - 1 - index) * 3600 * 1000);
+  const month = timestamp.getMonth();
+  const hour = timestamp.getHours() + timestamp.getMinutes() / 60;
+
+  const incomingK = toFiniteNumber(kByChannel?.incoming, 1);
+  const outgoingK = toFiniteNumber(kByChannel?.outgoing, incomingK);
+  const recirculatedK = toFiniteNumber(kByChannel?.recirculated, incomingK);
+
+  const diurnal = Math.sin((hour / 24) * Math.PI * 2 - Math.PI / 2);
+  const weekly = Math.sin((index / 168) * Math.PI * 2 + 0.6);
+  const seasonal = 1 + Math.sin((month / 12) * Math.PI * 2 - 0.75) * 0.09;
+
+  const incomingMeasured = clamp(
+    (640 + diurnal * 118 + weekly * 42 + (pseudoNoise(7.3, index) - 0.5) * 44) * seasonal,
+    420,
+    980
+  );
+
+  const outgoingMeasured = clamp(
+    incomingMeasured * (0.868 + Math.sin(index * 0.13) * 0.025) + (pseudoNoise(11.2, index) - 0.5) * 18,
+    350,
+    incomingMeasured * 0.985
+  );
+
+  const recirculatedMeasured = incomingMeasured * clamp(0.24 + Math.sin(index * 0.07) * 0.05, 0.14, 0.38);
+  const dischargeQualityPct = clamp(
+    91 + Math.sin(index * 0.1 + 1.3) * 4 + (pseudoNoise(19.1, index) - 0.5) * 6,
+    74,
+    99
+  );
+
+  const incomingCalibrated = incomingMeasured * incomingK;
+  const outgoingCalibrated = outgoingMeasured * outgoingK;
+
+  return {
+    id: ++demoWaterFlowReadingIdSequence,
+    recorded_at: timestamp.toISOString(),
+    incoming_measured_m3h: round(incomingMeasured, 3),
+    outgoing_measured_m3h: round(outgoingMeasured, 3),
+    recirculated_m3h: round(recirculatedMeasured, 3),
+    discharge_quality_pct: round(dischargeQualityPct, 3),
+    incomingCalibrated: round(incomingCalibrated, 3),
+    outgoingCalibrated: round(outgoingCalibrated, 3),
+    netPlantBalance: round(incomingCalibrated - outgoingCalibrated, 3),
+    recirculated: round(recirculatedMeasured * recirculatedK, 3),
+    dischargeQualityIndex: round(dischargeQualityPct, 3)
+  };
+}
+
+function seedDemoWaterFlowReadings(hours = 360) {
+  const safeHours = Math.max(24, Math.min(720, Math.trunc(hours)));
+  const endingAtMs = Date.now();
+
+  return Array.from({ length: safeHours }, (_item, index) => {
+    const point = buildSyntheticFlowPoint(index, safeHours, { incoming: 1, outgoing: 1, recirculated: 1 }, endingAtMs);
+    return {
+      id: point.id,
+      recorded_at: point.recorded_at,
+      incoming_measured_m3h: point.incoming_measured_m3h,
+      outgoing_measured_m3h: point.outgoing_measured_m3h,
+      recirculated_m3h: point.recirculated_m3h,
+      discharge_quality_pct: point.discharge_quality_pct,
+      notes: null,
+      created_at: point.recorded_at
+    };
+  });
+}
+
+const demoWaterFlowReadings = seedDemoWaterFlowReadings();
+const demoWaterFlowAlerts = [];
+
+function mapReadingToFlowPoint(reading, kByChannel) {
+  const incomingMeasured = toFiniteNumber(reading.incoming_measured_m3h, 0);
+  const outgoingMeasured = toFiniteNumber(reading.outgoing_measured_m3h, 0);
+  const recirculatedMeasured = toFiniteNumber(
+    reading.recirculated_m3h,
+    incomingMeasured * clamp(0.24 + Math.sin(incomingMeasured * 0.01) * 0.06, 0.14, 0.4)
+  );
+  const qualityPct = clamp(toFiniteNumber(reading.discharge_quality_pct, 91), 0, 100);
+  const incomingK = toFiniteNumber(kByChannel?.incoming, 1);
+  const outgoingK = toFiniteNumber(kByChannel?.outgoing, incomingK);
+  const recirculatedK = toFiniteNumber(kByChannel?.recirculated, incomingK);
+  const incomingCalibrated = incomingMeasured * incomingK;
+  const outgoingCalibrated = outgoingMeasured * outgoingK;
+
+  return {
+    timestamp: reading.recorded_at,
+    incomingMeasured: round(incomingMeasured, 3),
+    outgoingMeasured: round(outgoingMeasured, 3),
+    incomingCalibrated: round(incomingCalibrated, 3),
+    outgoingCalibrated: round(outgoingCalibrated, 3),
+    netPlantBalance: round(incomingCalibrated - outgoingCalibrated, 3),
+    recirculated: round(recirculatedMeasured * recirculatedK, 3),
+    dischargeQualityIndex: round(qualityPct, 3)
+  };
+}
+
+function buildSyntheticYearlyRows(year, kByChannel, annualConcessionM3) {
+  const safeYear = Number(year) || new Date().getFullYear();
+  const incomingK = Math.max(0, toFiniteNumber(kByChannel?.incoming, 1));
+  const outgoingK = Math.max(0, toFiniteNumber(kByChannel?.outgoing, incomingK));
+  const recirculatedK = Math.max(0, toFiniteNumber(kByChannel?.recirculated, incomingK));
+  const safeConcession = Math.max(1, toFiniteNumber(annualConcessionM3, 8_500_000));
+  let cumulativeIncoming = 0;
+
+  return flowMonthLabels.map((monthLabel, monthIndex) => {
+    const daysInMonth = new Date(safeYear, monthIndex + 1, 0).getDate();
+    const seasonal = 1 + Math.sin(((monthIndex + 1) / 12) * Math.PI * 2 - 0.8) * 0.11;
+    const baselineHourlyIncoming = 655 + Math.sin(monthIndex * 0.9) * 52;
+
+    const baseIncomingM3 = Math.max(
+      1,
+      baselineHourlyIncoming * 24 * daysInMonth * seasonal
+        + (pseudoNoise(safeYear * 0.03, monthIndex) - 0.5) * 12000
+    );
+
+    const incomingM3 = baseIncomingM3 * incomingK;
+    const outgoingM3 = baseIncomingM3
+      * clamp(0.868 + Math.sin(monthIndex * 0.65) * 0.03, 0.81, 0.94)
+      * outgoingK;
+    const recirculatedM3 = baseIncomingM3
+      * clamp(0.23 + Math.cos(monthIndex * 0.37) * 0.045, 0.15, 0.35)
+      * recirculatedK;
+    cumulativeIncoming += incomingM3;
+    const concessionUsedPct = (cumulativeIncoming / safeConcession) * 100;
+
+    return {
+      monthLabel,
+      monthIndex,
+      incomingM3: round(incomingM3, 3),
+      outgoingM3: round(outgoingM3, 3),
+      recirculatedM3: round(recirculatedM3, 3),
+      cumulativeIncoming: round(cumulativeIncoming, 3),
+      concessionUsedPct: round(concessionUsedPct, 3),
+      concessionRemainingM3: round(safeConcession - cumulativeIncoming, 3),
+      estimated: true
+    };
+  });
+}
+
+function buildMeasuredYearlyRows(year, kByChannel, annualConcessionM3) {
+  const safeYear = Number(year) || new Date().getFullYear();
+  const safeConcession = Math.max(1, toFiniteNumber(annualConcessionM3, 8_500_000));
+  const incomingK = Math.max(0, toFiniteNumber(kByChannel?.incoming, 1));
+  const outgoingK = Math.max(0, toFiniteNumber(kByChannel?.outgoing, incomingK));
+  const recirculatedK = Math.max(0, toFiniteNumber(kByChannel?.recirculated, incomingK));
+  const monthTotals = Array.from({ length: 12 }, () => ({
+    incomingM3: 0,
+    outgoingM3: 0,
+    recirculatedM3: 0
+  }));
+
+  for (const reading of demoWaterFlowReadings) {
+    const recordedAt = new Date(reading.recorded_at);
+
+    if (recordedAt.getFullYear() !== safeYear) {
+      continue;
+    }
+
+    const monthIndex = recordedAt.getMonth();
+    monthTotals[monthIndex].incomingM3 += toFiniteNumber(reading.incoming_measured_m3h, 0) * incomingK;
+    monthTotals[monthIndex].outgoingM3 += toFiniteNumber(reading.outgoing_measured_m3h, 0) * outgoingK;
+    monthTotals[monthIndex].recirculatedM3 += toFiniteNumber(reading.recirculated_m3h, 0) * recirculatedK;
+  }
+
+  const totalIncoming = monthTotals.reduce((acc, row) => acc + row.incomingM3, 0);
+
+  if (totalIncoming <= 0) {
+    return buildSyntheticYearlyRows(safeYear, kByChannel, safeConcession);
+  }
+
+  let cumulativeIncoming = 0;
+
+  return monthTotals.map((row, monthIndex) => {
+    cumulativeIncoming += row.incomingM3;
+
+    return {
+      monthLabel: flowMonthLabels[monthIndex],
+      monthIndex,
+      incomingM3: round(row.incomingM3, 3),
+      outgoingM3: round(row.outgoingM3, 3),
+      recirculatedM3: round(row.recirculatedM3, 3),
+      cumulativeIncoming: round(cumulativeIncoming, 3),
+      concessionUsedPct: round((cumulativeIncoming / safeConcession) * 100, 3),
+      concessionRemainingM3: round(safeConcession - cumulativeIncoming, 3),
+      estimated: false
+    };
+  });
+}
+
+function listCurrentDemoFlowAlerts() {
+  return demoWaterFlowAlerts
+    .filter((item) => item.status === "open")
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
+}
+
+function upsertDemoFlowAlert({
+  alertType,
+  severity,
+  title,
+  description,
+  metricValue,
+  thresholdValue,
+  metadata,
+  active
+}) {
+  const nowIso = new Date().toISOString();
+  const existing = demoWaterFlowAlerts.find(
+    (item) => item.alert_type === alertType && item.status === "open"
+  );
+
+  if (!active) {
+    if (existing) {
+      existing.status = "resolved";
+      existing.updated_at = nowIso;
+      existing.resolved_at = nowIso;
+    }
+    return;
+  }
+
+  if (existing) {
+    existing.severity = severity;
+    existing.title = title;
+    existing.description = description;
+    existing.metric_value = metricValue;
+    existing.threshold_value = thresholdValue;
+    existing.metadata = metadata;
+    existing.updated_at = nowIso;
+    return;
+  }
+
+  demoWaterFlowAlerts.unshift({
+    id: ++demoWaterFlowAlertIdSequence,
+    alert_type: alertType,
+    severity,
+    status: "open",
+    title,
+    description,
+    metric_value: metricValue,
+    threshold_value: thresholdValue,
+    metadata,
+    created_at: nowIso,
+    updated_at: nowIso,
+    resolved_at: null
+  });
+}
+
+function evaluateDemoWaterFlowAlerts(config, series, kByChannel) {
+  const latest = series[series.length - 1] || null;
+  const now = new Date();
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+  const incomingK = Math.max(0, toFiniteNumber(kByChannel?.incoming, config.calibrationK));
+  const outgoingK = Math.max(0, toFiniteNumber(kByChannel?.outgoing, incomingK));
+
+  const incomingYtdM3 = demoWaterFlowReadings.reduce((acc, reading) => {
+    const recordedAt = new Date(reading.recorded_at);
+
+    if (recordedAt < yearStart || recordedAt > now) {
+      return acc;
+    }
+
+    return acc + toFiniteNumber(reading.incoming_measured_m3h, 0) * incomingK;
+  }, 0);
+
+  const concessionUsedPct = config.annualConcessionM3 > 0
+    ? (incomingYtdM3 / config.annualConcessionM3) * 100
+    : 0;
+
+  const deviationPct = latest && latest.incomingCalibrated > 0
+    ? (Math.abs(latest.incomingCalibrated - latest.outgoingCalibrated) / latest.incomingCalibrated) * 100
+    : 0;
+
+  const deviationSeverity = deviationPct >= config.deviationCriticalPct
+    ? "critical"
+    : deviationPct >= config.deviationWarningPct
+      ? "warning"
+      : null;
+
+  upsertDemoFlowAlert({
+    alertType: "flow_deviation",
+    severity: deviationSeverity || "warning",
+    title: "Desviacion de caudal entrante/saliente",
+    description: `Desviacion actual ${round(deviationPct, 2)}% con K entrante=${round(incomingK, 3)} y K saliente=${round(outgoingK, 3)}.`,
+    metricValue: round(deviationPct, 3),
+    thresholdValue: round(
+      deviationSeverity === "critical" ? config.deviationCriticalPct : config.deviationWarningPct,
+      3
+    ),
+    metadata: {
+      incomingCalibrated: latest ? round(latest.incomingCalibrated, 3) : null,
+      outgoingCalibrated: latest ? round(latest.outgoingCalibrated, 3) : null
+    },
+    active: Boolean(deviationSeverity)
+  });
+
+  const concessionSeverity = concessionUsedPct >= config.concessionCriticalPct
+    ? "critical"
+    : concessionUsedPct >= config.concessionWarningPct
+      ? "warning"
+      : null;
+
+  upsertDemoFlowAlert({
+    alertType: "concession_overuse",
+    severity: concessionSeverity || "warning",
+    title: "Sobreconsumo de concesion anual",
+    description: `Uso acumulado ${round(concessionUsedPct, 2)}% sobre ${round(config.annualConcessionM3, 0)} m3.`,
+    metricValue: round(concessionUsedPct, 3),
+    thresholdValue: round(
+      concessionSeverity === "critical"
+        ? config.concessionCriticalPct
+        : config.concessionWarningPct,
+      3
+    ),
+    metadata: {
+      incomingYtdM3: round(incomingYtdM3, 3),
+      annualConcessionM3: round(config.annualConcessionM3, 3)
+    },
+    active: Boolean(concessionSeverity)
+  });
+}
+
+function getDemoWaterFlowOverviewInternal({ hours = 72, year = new Date().getFullYear() } = {}) {
+  const allowedWindow = flowHourWindows.includes(Number(hours)) ? Number(hours) : 72;
+  const kByChannel = getDemoFlowKByChannel(demoWaterFlowConfig);
+  const nowMs = Date.now();
+  const fromMs = nowMs - (allowedWindow - 1) * 3600 * 1000;
+  const readings = demoWaterFlowReadings
+    .filter((item) => new Date(item.recorded_at).getTime() >= fromMs)
+    .sort((left, right) => new Date(left.recorded_at).getTime() - new Date(right.recorded_at).getTime());
+
+  const syntheticData = readings.length === 0;
+
+  const hourlySeries = syntheticData
+    ? Array.from({ length: allowedWindow }, (_item, index) =>
+        buildSyntheticFlowPoint(index, allowedWindow, kByChannel, nowMs)
+      ).map((point) => ({
+        timestamp: point.recorded_at,
+        incomingMeasured: point.incoming_measured_m3h,
+        outgoingMeasured: point.outgoing_measured_m3h,
+        incomingCalibrated: point.incomingCalibrated,
+        outgoingCalibrated: point.outgoingCalibrated,
+        netPlantBalance: point.netPlantBalance,
+        recirculated: point.recirculated,
+        dischargeQualityIndex: point.dischargeQualityIndex
+      }))
+    : readings.map((reading) => mapReadingToFlowPoint(reading, kByChannel));
+
+  evaluateDemoWaterFlowAlerts(demoWaterFlowConfig, hourlySeries, kByChannel);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    year: Number(year) || new Date().getFullYear(),
+    windowHours: allowedWindow,
+    config: {
+      ...demoWaterFlowConfig,
+      meters: getDemoMetersSnapshot()
+    },
+    flags: {
+      syntheticData
+    },
+    hourlySeries,
+    yearlyRows: buildMeasuredYearlyRows(
+      Number(year) || new Date().getFullYear(),
+      kByChannel,
+      demoWaterFlowConfig.annualConcessionM3
+    ),
+    alerts: listCurrentDemoFlowAlerts()
+  };
+}
+
 function scoreToLevel(score) {
   if (score >= 78) {
     return "critical";
@@ -590,4 +1112,133 @@ export function createDemoRule(payload) {
 
   demoRules.unshift(nextRule);
   return clone(nextRule);
+}
+
+export function getDemoWaterFlowConfig() {
+  return clone({
+    ...demoWaterFlowConfig,
+    meters: getDemoMetersSnapshot()
+  });
+}
+
+export function updateDemoWaterFlowConfig(payload) {
+  if (Array.isArray(payload.meters)) {
+    applyDemoMeterPatches(payload.meters);
+  } else if (Object.prototype.hasOwnProperty.call(payload, "calibrationK")) {
+    applyDemoMeterPatches(
+      demoWaterFlowMeters.map((meter) => ({
+        id: meter.id,
+        calibrationK: payload.calibrationK
+      }))
+    );
+  }
+
+  demoWaterFlowConfig = normalizeFlowConfigDraft({
+    ...demoWaterFlowConfig,
+    ...payload,
+    updatedAt: new Date().toISOString()
+  });
+
+  syncDemoLegacyCalibrationK();
+
+  const overview = getDemoWaterFlowOverviewInternal({
+    hours: 72,
+    year: new Date().getFullYear()
+  });
+
+  return {
+    config: clone({
+      ...demoWaterFlowConfig,
+      meters: getDemoMetersSnapshot()
+    }),
+    alerts: clone(overview.alerts)
+  };
+}
+
+export function getDemoWaterFlowOverview(params = {}) {
+  return clone(getDemoWaterFlowOverviewInternal(params));
+}
+
+export function createDemoWaterFlowReading(payload) {
+  const kByChannel = getDemoFlowKByChannel(demoWaterFlowConfig);
+  const incomingMeasuredM3h = Math.max(0, toFiniteNumber(payload.incomingMeasuredM3h, 0));
+  const outgoingMeasuredM3h = Math.max(0, toFiniteNumber(payload.outgoingMeasuredM3h, 0));
+  const recirculatedM3h = Math.max(0, toFiniteNumber(payload.recirculatedM3h, incomingMeasuredM3h * 0.23));
+  const dischargeQualityPct = clamp(toFiniteNumber(payload.dischargeQualityPct, 91), 0, 100);
+  const recordedAt = payload.recordedAt ? new Date(payload.recordedAt) : new Date();
+  const safeRecordedAt = Number.isNaN(recordedAt.getTime()) ? new Date() : recordedAt;
+
+  const row = {
+    id: ++demoWaterFlowReadingIdSequence,
+    recorded_at: safeRecordedAt.toISOString(),
+    incoming_measured_m3h: round(incomingMeasuredM3h, 3),
+    outgoing_measured_m3h: round(outgoingMeasuredM3h, 3),
+    recirculated_m3h: round(recirculatedM3h, 3),
+    discharge_quality_pct: round(dischargeQualityPct, 3),
+    notes: payload.notes || null,
+    created_at: new Date().toISOString()
+  };
+
+  demoWaterFlowReadings.push(row);
+  demoWaterFlowReadings.sort(
+    (left, right) => new Date(left.recorded_at).getTime() - new Date(right.recorded_at).getTime()
+  );
+
+  if (demoWaterFlowReadings.length > 6_000) {
+    demoWaterFlowReadings.splice(0, demoWaterFlowReadings.length - 6_000);
+  }
+
+  const overview = getDemoWaterFlowOverviewInternal({
+    hours: 72,
+    year: safeRecordedAt.getFullYear()
+  });
+
+  return {
+    reading: {
+      ...mapReadingToFlowPoint(row, kByChannel),
+      id: row.id,
+      recorded_at: row.recorded_at,
+      incoming_measured_m3h: row.incoming_measured_m3h,
+      outgoing_measured_m3h: row.outgoing_measured_m3h,
+      recirculated_m3h: row.recirculated_m3h,
+      discharge_quality_pct: row.discharge_quality_pct,
+      notes: row.notes,
+      created_at: row.created_at
+    },
+    alerts: clone(overview.alerts)
+  };
+}
+
+export function listDemoWaterFlowAlerts(status = "open") {
+  const normalized = String(status || "open").toLowerCase();
+
+  if (normalized === "all") {
+    return clone(
+      [...demoWaterFlowAlerts].sort(
+        (left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
+      )
+    );
+  }
+
+  return clone(
+    demoWaterFlowAlerts
+      .filter((item) => item.status === normalized)
+      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+  );
+}
+
+export function resolveDemoWaterFlowAlert(alertId) {
+  const numericId = Number(alertId);
+  const alert = demoWaterFlowAlerts.find((item) => item.id === numericId && item.status === "open");
+
+  if (!alert) {
+    return null;
+  }
+
+  const nowIso = new Date().toISOString();
+  alert.status = "resolved";
+  alert.updated_at = nowIso;
+  alert.resolved_at = nowIso;
+
+  return clone(alert);
 }

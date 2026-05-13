@@ -38,6 +38,11 @@ const navItems = [
         group: "Supervisión en tiempo real"
       },
       {
+        to: "/planta/caudal",
+        label: "Caudal entrante/saliente",
+        group: "Supervisión en tiempo real"
+      },
+      {
         to: "/oxigeno/electrovalvulas",
         label: "Electroválvulas",
         group: "Supervisión en tiempo real"
@@ -268,6 +273,7 @@ const featureByPath = {
   "/proyecto/argosai": FEATURE_KEYS.MACHINE_VIEW,
   "/proyecto/boyas": FEATURE_KEYS.BUOYS_VIEW,
   "/planta": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/caudal": FEATURE_KEYS.PLANT_VIEW,
   "/oxigeno": FEATURE_KEYS.OXYGEN_VIEW,
   "/oxigeno/electrovalvulas": FEATURE_KEYS.OXYGEN_VIEW,
   "/oxigeno/economia": FEATURE_KEYS.OXYGEN_VIEW,

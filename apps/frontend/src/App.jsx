@@ -27,6 +27,7 @@ import { PhoneAlertSetpointsPage } from "./pages/PhoneAlertSetpointsPage";
 import { PlantMapPage } from "./pages/PlantMapPage";
 import { PlanningPage } from "./pages/PlanningPage";
 import { PreventiveMaintenancePage } from "./pages/PreventiveMaintenancePage";
+import { PlantWaterFlowPage } from "./pages/PlantWaterFlowPage";
 import { SmsAlertSetpointsPage } from "./pages/SmsAlertSetpointsPage";
 import { StrategicForecastPage } from "./pages/StrategicForecastPage";
 import { TemperatureColorSetpointsPage } from "./pages/TemperatureColorSetpointsPage";
@@ -99,6 +100,10 @@ export default function App() {
           <Route
             path="/oxigeno/electrovalvulas"
             element={withFeature(FEATURE_KEYS.OXYGEN_VIEW, <OxygenPage mode="electrovalvulas" />)}
+          />
+          <Route
+            path="/planta/caudal"
+            element={withFeature(FEATURE_KEYS.PLANT_VIEW, <PlantWaterFlowPage />)}
           />
           <Route
             path="/oxigeno/economia"

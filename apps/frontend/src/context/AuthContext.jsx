@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { apiClient } from "../api/client";
 import { loginRequest, logoutRequest, meRequest, refreshRequest } from "../api/services";
 
 const STORAGE_KEY = "argosai_auth";
@@ -10,6 +11,7 @@ export function AuthProvider({ children }) {
   const [accessToken, setAccessToken] = useState(null);
   const [refreshToken, setRefreshToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const refreshPromiseRef = useRef(null);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -57,6 +59,87 @@ export function AuthProvider({ children }) {
 
     bootstrap();
   }, []);
+
+  useEffect(() => {
+    const interceptorId = apiClient.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const statusCode = error?.response?.status;
+        const originalRequest = error?.config;
+
+        if (statusCode !== 401 || !originalRequest || originalRequest._retry) {
+          return Promise.reject(error);
+        }
+
+        const requestUrl = String(originalRequest.url || "");
+        if (requestUrl.includes("/auth/login") || requestUrl.includes("/auth/refresh")) {
+          return Promise.reject(error);
+        }
+
+        const activeRefreshToken = refreshToken || (() => {
+          try {
+            const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+            return stored?.refreshToken || null;
+          } catch {
+            return null;
+          }
+        })();
+
+        if (!activeRefreshToken) {
+          setUser(null);
+          setAccessToken(null);
+          setRefreshToken(null);
+          localStorage.removeItem(STORAGE_KEY);
+          return Promise.reject(error);
+        }
+
+        if (!refreshPromiseRef.current) {
+          refreshPromiseRef.current = refreshRequest(activeRefreshToken)
+            .then((refreshed) => {
+              const nextRefreshToken = refreshed.refreshToken || activeRefreshToken;
+
+              setAccessToken(refreshed.accessToken);
+              setRefreshToken(nextRefreshToken);
+              localStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify({
+                  accessToken: refreshed.accessToken,
+                  refreshToken: nextRefreshToken
+                })
+              );
+
+              return {
+                accessToken: refreshed.accessToken,
+                refreshToken: nextRefreshToken
+              };
+            })
+            .catch((refreshError) => {
+              setUser(null);
+              setAccessToken(null);
+              setRefreshToken(null);
+              localStorage.removeItem(STORAGE_KEY);
+              throw refreshError;
+            })
+            .finally(() => {
+              refreshPromiseRef.current = null;
+            });
+        }
+
+        const refreshed = await refreshPromiseRef.current;
+        originalRequest._retry = true;
+        originalRequest.headers = {
+          ...(originalRequest.headers || {}),
+          Authorization: `Bearer ${refreshed.accessToken}`
+        };
+
+        return apiClient.request(originalRequest);
+      }
+    );
+
+    return () => {
+      apiClient.interceptors.response.eject(interceptorId);
+    };
+  }, [refreshToken]);
 
   const login = async ({ tenantCode, email, password }) => {
     const response = await loginRequest({ tenantCode, email, password });

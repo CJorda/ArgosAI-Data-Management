@@ -74,7 +74,7 @@ export function AppLayout() {
       auth: {
         token: accessToken
       },
-      transports: ["websocket"]
+      path: "/socket.io"
     });
 
     socket.on("reading:new", (payload) => {

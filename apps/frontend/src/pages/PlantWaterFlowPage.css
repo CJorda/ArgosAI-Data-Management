@@ -1,0 +1,223 @@
+@reference "tailwindcss";
+
+.flow-page {
+  @apply grid gap-4;
+}
+
+.flow-intro {
+  @apply mt-1 mb-0 text-[#4e6485];
+}
+
+.flow-warning {
+  @apply mt-2 mb-0 rounded-[10px] border border-[#f0cd7d] bg-[#fff8e8] px-3 py-2 text-[0.86rem] text-[#74511a];
+}
+
+.flow-error {
+  @apply mt-2 mb-0 rounded-[10px] border border-[#f0b7b7] bg-[#fff1f1] px-3 py-2 text-[0.86rem] text-[#8c2e2e];
+}
+
+.flow-filters {
+  @apply mt-4 items-start;
+}
+
+.flow-filters > div {
+  @apply min-w-[12rem];
+}
+
+.flow-config-actions {
+  @apply flex min-w-[14rem] flex-col justify-end gap-2;
+}
+
+.flow-config-actions .btn-primary {
+  @apply w-full;
+}
+
+.flow-meter-editor {
+  @apply min-w-0 w-full;
+  flex: 1 1 100%;
+}
+
+.flow-meter-grid {
+  @apply mt-2 flex flex-wrap gap-2;
+}
+
+.flow-meter-row {
+  @apply flex items-center justify-between gap-2 rounded-[9px] border border-[#d8e2ee] bg-[#f8fbff] px-2 py-2;
+  min-width: 11rem;
+  flex: 1 1 11rem;
+  max-width: 14rem;
+}
+
+.flow-meter-row span {
+  @apply text-[0.8rem] text-[#42617f];
+  flex: 1 1 auto;
+}
+
+.flow-meter-row input {
+  @apply w-[5.5rem] px-2 py-1;
+}
+
+.flow-meter-row input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.flow-meter-row input[type="number"]::-webkit-outer-spin-button,
+.flow-meter-row input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.flow-filters input[type="range"] {
+  @apply w-full accent-[#1f70bc];
+}
+
+.flow-kpi-grid {
+  @apply mt-4 grid gap-3;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.flow-kpi-grid-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.flow-kpi {
+  @apply rounded-[11px] border border-[#d3dde8] bg-[#f7fbff] px-3 py-2;
+}
+
+.flow-kpi span {
+  @apply block text-[0.76rem] font-semibold uppercase tracking-[0.04em] text-[#607793];
+}
+
+.flow-kpi strong {
+  @apply mt-1 block text-[1rem] font-semibold text-[#1f436b];
+}
+
+.flow-alerts-panel {
+  @apply border border-[#d5e1ee] bg-[#fbfdff];
+}
+
+.flow-alert-empty {
+  @apply mt-3 rounded-[10px] border border-[#d8e3ef] bg-[#f6faff] px-3 py-2 text-[0.88rem] text-[#557094];
+}
+
+.flow-alert-list {
+  @apply mt-3 grid gap-3;
+}
+
+.flow-alert-item {
+  @apply rounded-[12px] border px-3 py-3;
+}
+
+.flow-alert-critical {
+  @apply border-[#f4bbbb] bg-[#fff4f4];
+}
+
+.flow-alert-warning {
+  @apply border-[#eed8a7] bg-[#fff9ea];
+}
+
+.flow-alert-row {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.flow-alert-row strong {
+  @apply text-[0.98rem] text-[#1f436b];
+}
+
+.flow-alert-row .btn-primary {
+  @apply ml-auto px-3 py-1 text-[0.8rem];
+}
+
+.flow-alert-chip {
+  @apply rounded-full px-2 py-[0.18rem] text-[0.68rem] font-semibold uppercase tracking-[0.03em];
+}
+
+.flow-alert-chip-critical {
+  @apply bg-[#ffd8d8] text-[#9b1f1f];
+}
+
+.flow-alert-chip-warning {
+  @apply bg-[#ffe9b9] text-[#7d5a16];
+}
+
+.flow-alert-item p {
+  @apply mt-2 mb-0 text-[0.87rem] text-[#4e6485];
+}
+
+.flow-alert-meta {
+  @apply mt-2 text-[0.78rem] text-[#607793];
+}
+
+.flow-calibration-panel p {
+  @apply mt-1 mb-0 text-[#4e6485];
+}
+
+.flow-calibration-footer {
+  @apply mt-3 flex flex-wrap items-end justify-between gap-3 rounded-[12px] border border-[#ccd8e6] bg-[#f4f8ff] px-3 py-3;
+}
+
+.flow-calibration-footer span {
+  @apply block text-[0.77rem] font-semibold uppercase tracking-[0.04em] text-[#607793];
+}
+
+.flow-calibration-footer strong {
+  @apply mt-1 block text-[1.1rem] font-semibold text-[#1f436b];
+}
+
+.flow-charts-grid {
+  @apply grid gap-4;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.flow-chart-caption {
+  @apply mt-1 mb-0 text-[0.86rem] text-[#567092];
+}
+
+.flow-table-wrap {
+  @apply mt-4 overflow-x-auto rounded-[12px] border border-[#d7e1ec];
+}
+
+.flow-table-wrap table {
+  @apply min-w-[48rem] bg-white;
+}
+
+.flow-table-wrap thead th {
+  @apply bg-[#f4f8ff] text-[#3f5f86];
+}
+
+@media (max-width: 1200px) {
+  .flow-kpi-grid,
+  .flow-kpi-grid-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .flow-charts-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .flow-filters > div {
+    @apply min-w-0;
+  }
+
+  .flow-meter-editor {
+    @apply min-w-0 max-w-none;
+  }
+
+  .flow-meter-row {
+    @apply max-w-none;
+  }
+
+  .flow-config-actions {
+    @apply min-w-0;
+  }
+}
+
+@media (max-width: 620px) {
+  .flow-kpi-grid,
+  .flow-kpi-grid-summary {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+}

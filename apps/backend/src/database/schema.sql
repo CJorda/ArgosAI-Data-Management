@@ -528,6 +528,140 @@ CREATE TABLE IF NOT EXISTS live_transport_tank_readings (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS water_flow_config (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,
+  calibration_k DOUBLE PRECISION NOT NULL DEFAULT 1,
+  annual_concession_m3 DOUBLE PRECISION NOT NULL DEFAULT 8500000,
+  deviation_warning_pct DOUBLE PRECISION NOT NULL DEFAULT 8,
+  deviation_critical_pct DOUBLE PRECISION NOT NULL DEFAULT 14,
+  concession_warning_pct DOUBLE PRECISION NOT NULL DEFAULT 85,
+  concession_critical_pct DOUBLE PRECISION NOT NULL DEFAULT 100,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (calibration_k >= 0),
+  CHECK (annual_concession_m3 > 0),
+  CHECK (deviation_warning_pct > 0 AND deviation_critical_pct >= deviation_warning_pct),
+  CHECK (concession_warning_pct > 0 AND concession_critical_pct >= concession_warning_pct)
+);
+
+CREATE TABLE IF NOT EXISTS water_flow_meters (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  meter_code TEXT NOT NULL,
+  meter_name TEXT NOT NULL,
+  channel_key TEXT NOT NULL,
+  calibration_k DOUBLE PRECISION NOT NULL DEFAULT 1,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  installed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (calibration_k >= 0),
+  UNIQUE (tenant_id, meter_code),
+  UNIQUE (tenant_id, channel_key)
+);
+
+DO $$
+DECLARE
+  cfg_constraint RECORD;
+  meter_constraint RECORD;
+BEGIN
+  FOR cfg_constraint IN
+    SELECT c.conname
+    FROM pg_constraint c
+    JOIN pg_class t
+      ON t.oid = c.conrelid
+    JOIN pg_namespace n
+      ON n.oid = t.relnamespace
+    WHERE n.nspname = 'public'
+      AND t.relname = 'water_flow_config'
+      AND c.contype = 'c'
+      AND pg_get_constraintdef(c.oid) ILIKE '%calibration_k%'
+  LOOP
+    EXECUTE format('ALTER TABLE public.water_flow_config DROP CONSTRAINT %I', cfg_constraint.conname);
+  END LOOP;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    JOIN pg_class t
+      ON t.oid = c.conrelid
+    JOIN pg_namespace n
+      ON n.oid = t.relnamespace
+    WHERE n.nspname = 'public'
+      AND t.relname = 'water_flow_config'
+      AND c.conname = 'water_flow_config_calibration_k_nonnegative'
+  ) THEN
+    ALTER TABLE public.water_flow_config
+    ADD CONSTRAINT water_flow_config_calibration_k_nonnegative
+    CHECK (calibration_k >= 0);
+  END IF;
+
+  FOR meter_constraint IN
+    SELECT c.conname
+    FROM pg_constraint c
+    JOIN pg_class t
+      ON t.oid = c.conrelid
+    JOIN pg_namespace n
+      ON n.oid = t.relnamespace
+    WHERE n.nspname = 'public'
+      AND t.relname = 'water_flow_meters'
+      AND c.contype = 'c'
+      AND pg_get_constraintdef(c.oid) ILIKE '%calibration_k%'
+  LOOP
+    EXECUTE format('ALTER TABLE public.water_flow_meters DROP CONSTRAINT %I', meter_constraint.conname);
+  END LOOP;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    JOIN pg_class t
+      ON t.oid = c.conrelid
+    JOIN pg_namespace n
+      ON n.oid = t.relnamespace
+    WHERE n.nspname = 'public'
+      AND t.relname = 'water_flow_meters'
+      AND c.conname = 'water_flow_meters_calibration_k_nonnegative'
+  ) THEN
+    ALTER TABLE public.water_flow_meters
+    ADD CONSTRAINT water_flow_meters_calibration_k_nonnegative
+    CHECK (calibration_k >= 0);
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS water_flow_readings (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  incoming_measured_m3h DOUBLE PRECISION NOT NULL,
+  outgoing_measured_m3h DOUBLE PRECISION NOT NULL,
+  recirculated_m3h DOUBLE PRECISION,
+  discharge_quality_pct DOUBLE PRECISION,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (incoming_measured_m3h >= 0),
+  CHECK (outgoing_measured_m3h >= 0),
+  CHECK (recirculated_m3h IS NULL OR recirculated_m3h >= 0),
+  CHECK (discharge_quality_pct IS NULL OR (discharge_quality_pct >= 0 AND discharge_quality_pct <= 100))
+);
+
+CREATE TABLE IF NOT EXISTS water_flow_alerts (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  alert_type TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  metric_value DOUBLE PRECISION,
+  threshold_value DOUBLE PRECISION,
+  metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ,
+  CHECK (severity IN ('warning', 'critical')),
+  CHECK (status IN ('open', 'resolved'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_measurements_tenant_sensor_time
   ON measurements (tenant_id, sensor_id, recorded_at DESC);
 
@@ -626,6 +760,19 @@ CREATE INDEX IF NOT EXISTS idx_live_transport_readings_tenant_trip_measured
 
 CREATE INDEX IF NOT EXISTS idx_live_transport_readings_tenant_risk_measured
   ON live_transport_tank_readings (tenant_id, risk_level, measured_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_water_flow_readings_tenant_recorded
+  ON water_flow_readings (tenant_id, recorded_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_water_flow_meters_tenant_enabled
+  ON water_flow_meters (tenant_id, enabled, channel_key);
+
+CREATE INDEX IF NOT EXISTS idx_water_flow_alerts_tenant_status_created
+  ON water_flow_alerts (tenant_id, status, created_at DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_water_flow_alerts_open_unique
+  ON water_flow_alerts (tenant_id, alert_type)
+  WHERE status = 'open';
 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_created
   ON audit_logs (tenant_id, created_at DESC);

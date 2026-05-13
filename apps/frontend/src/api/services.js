@@ -84,6 +84,46 @@ export async function historyReadingsRequest(token, params) {
   return data;
 }
 
+export async function waterFlowConfigRequest(token) {
+  const { data } = await apiClient.get("/data/water-flow/config", authConfig(token));
+  return data;
+}
+
+export async function updateWaterFlowConfigRequest(token, payload) {
+  const { data } = await apiClient.put("/data/water-flow/config", payload, authConfig(token));
+  return data;
+}
+
+export async function waterFlowOverviewRequest(token, params) {
+  const { data } = await apiClient.get("/data/water-flow/overview", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function createWaterFlowReadingRequest(token, payload) {
+  const { data } = await apiClient.post("/data/water-flow/readings", payload, authConfig(token));
+  return data;
+}
+
+export async function waterFlowAlertsRequest(token, status = "open") {
+  const { data } = await apiClient.get("/data/water-flow/alerts", {
+    ...authConfig(token),
+    params: { status }
+  });
+  return data;
+}
+
+export async function resolveWaterFlowAlertRequest(token, alertId) {
+  const { data } = await apiClient.patch(
+    `/data/water-flow/alerts/${alertId}/resolve`,
+    {},
+    authConfig(token)
+  );
+  return data;
+}
+
 export async function alertsRequest(token, status = "open") {
   const { data } = await apiClient.get("/alerts", {
     ...authConfig(token),
