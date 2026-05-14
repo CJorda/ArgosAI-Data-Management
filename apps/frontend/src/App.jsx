@@ -26,6 +26,7 @@ import { OperationsPage } from "./pages/OperationsPage";
 import { PhoneAlertSetpointsPage } from "./pages/PhoneAlertSetpointsPage";
 import { PlantMapPage } from "./pages/PlantMapPage";
 import { PlanningPage } from "./pages/PlanningPage";
+import { PlantAutomationEquipmentPage } from "./pages/PlantAutomationEquipmentPage";
 import { PreventiveMaintenancePage } from "./pages/PreventiveMaintenancePage";
 import { PlantWaterFlowPage } from "./pages/PlantWaterFlowPage";
 import { SmsAlertSetpointsPage } from "./pages/SmsAlertSetpointsPage";
@@ -104,6 +105,34 @@ export default function App() {
           <Route
             path="/planta/caudal"
             element={withFeature(FEATURE_KEYS.PLANT_VIEW, <PlantWaterFlowPage />)}
+          />
+          <Route
+            path="/planta/compuertas"
+            element={withFeature(
+              FEATURE_KEYS.PLANT_VIEW,
+              <PlantAutomationEquipmentPage mode="compuertas" />
+            )}
+          />
+          <Route
+            path="/planta/grupo-electrogeno"
+            element={withFeature(
+              FEATURE_KEYS.PLANT_VIEW,
+              <PlantAutomationEquipmentPage mode="grupoElectrogeno" />
+            )}
+          />
+          <Route
+            path="/planta/bombas"
+            element={withFeature(
+              FEATURE_KEYS.PLANT_VIEW,
+              <PlantAutomationEquipmentPage mode="bombas" />
+            )}
+          />
+          <Route
+            path="/planta/quitahojas"
+            element={withFeature(
+              FEATURE_KEYS.PLANT_VIEW,
+              <PlantAutomationEquipmentPage mode="quitahojas" />
+            )}
           />
           <Route
             path="/oxigeno/economia"

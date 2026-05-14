@@ -4,10 +4,165 @@ import { useAuth } from "../context/AuthContext";
 import { FEATURE_KEYS } from "../features/featureCatalog";
 import "./Sidebar.css";
 
+const SIDEBAR_AVATAR_STORAGE_PREFIX = "argosai_sidebar_avatar_v1";
+const MAX_AVATAR_FILE_SIZE_BYTES = 4 * 1024 * 1024;
+
+function slugToken(rawValue, fallback = "na") {
+  const value = String(rawValue || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return value || fallback;
+}
+
+function buildAvatarStorageKey(user) {
+  const tenantToken = slugToken(user?.tenant?.code || user?.tenantCode || user?.tenant?.name, "tenant");
+  const userToken = slugToken(user?.email || user?.fullName || user?.id, "user");
+
+  return `${SIDEBAR_AVATAR_STORAGE_PREFIX}:${tenantToken}:${userToken}`;
+}
+
+function clientNameLabel(user) {
+  const tenantName = String(user?.tenant?.name || "").trim();
+
+  if (tenantName) {
+    return tenantName;
+  }
+
+  const tenantCode = String(user?.tenant?.code || user?.tenantCode || "").trim();
+  if (tenantCode) {
+    return tenantCode.toUpperCase();
+  }
+
+  return "";
+}
+
 function SidebarIcon({ children }) {
   return (
     <svg className="sidebar-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       {children}
+    </svg>
+  );
+}
+
+function SidebarSubIcon({ path }) {
+  const normalizedPath = String(path || "").toLowerCase();
+
+  if (normalizedPath.includes("/compuertas")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M2.5 3.5h11v3.2h-11zM2.5 9.3h11v3.2h-11z" stroke="currentColor" strokeWidth="1.2" />
+        <path d="M4.4 6.7V9.3M11.6 6.7V9.3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (normalizedPath.includes("/grupo-electrogeno")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="2.5" y="3.2" width="11" height="9.6" rx="1.4" stroke="currentColor" strokeWidth="1.2" />
+        <path d="M5.2 8h2.1l-1.2 2.1h2.2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="11.2" cy="8.1" r="1.1" stroke="currentColor" strokeWidth="1.1" />
+      </svg>
+    );
+  }
+
+  if (normalizedPath.includes("/bombas")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="6.4" cy="8" r="2.6" stroke="currentColor" strokeWidth="1.2" />
+        <path d="M9 8h4.5M11.2 5.8V10.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (normalizedPath.includes("/quitahojas")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M8.2 2.8c2.4.8 3.5 2.2 3.4 4.4-.1 2.2-1.5 4.2-4.2 6-1.6-2.1-2.2-3.9-1.8-5.7.4-1.7 1.3-3.3 2.6-4.7Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+        <path d="M6.2 9.1c1.2-.5 2.3-1.1 3.5-1.8" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (normalizedPath.startsWith("/planta") || normalizedPath.includes("/caudal")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M2 10.5c1-.8 2-.8 3 0s2 .8 3 0 2-.8 3 0 2 .8 3 0" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+        <path d="M8 3.3c1.3 1.4 1.3 2.4 0 3.5-1.3-1.1-1.3-2.1 0-3.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (normalizedPath.startsWith("/oxigeno")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="6" cy="8.2" r="2.6" stroke="currentColor" strokeWidth="1.25" />
+        <circle cx="10.8" cy="5.3" r="1.25" stroke="currentColor" strokeWidth="1.2" />
+      </svg>
+    );
+  }
+
+  if (normalizedPath.startsWith("/consignas")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+        <circle cx="6" cy="4" r="1.2" fill="currentColor" />
+        <circle cx="10" cy="8" r="1.2" fill="currentColor" />
+        <circle cx="7.2" cy="12" r="1.2" fill="currentColor" />
+      </svg>
+    );
+  }
+
+  if (normalizedPath.startsWith("/avisos") || normalizedPath.startsWith("/alertas")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M8 3a2.2 2.2 0 0 1 2.2 2.2v1c0 .55.16 1.1.47 1.55l.42.63c.24.35-.01.82-.43.82H5.32c-.42 0-.67-.47-.43-.82l.42-.63c.31-.45.47-1 .47-1.55v-1A2.2 2.2 0 0 1 8 3Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+        <path d="M7 11.2a1 1 0 0 0 2 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (normalizedPath.startsWith("/historico")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M2.8 12.5h10.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        <path d="m3.6 10.2 2.1-2.1 2 1.3 3.2-3.2" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (normalizedPath.startsWith("/planificacion") || normalizedPath.startsWith("/trazabilidad") || normalizedPath.startsWith("/biomasa")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M3 4.5h10v8H3z" stroke="currentColor" strokeWidth="1.2" />
+        <path d="M5 3v2.2M11 3v2.2M3 6.8h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (normalizedPath.startsWith("/operaciones") || normalizedPath.startsWith("/maquina")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M6.4 3.2 4.8 4.8l.9 1.2-1.6 1.6-1.2-.9-1.1 1.1.9 1.2-1.1 1.1 2.2 2.2 1.1-1.1 1.2.9 1.1-1.1-.9-1.2 1.6-1.6 1.2.9 1.6-1.6Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (normalizedPath.startsWith("/boyas")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="5" r="1.7" stroke="currentColor" strokeWidth="1.2" />
+        <path d="M8 6.8v2.1M2.5 11c1-.7 2-.7 3 0s2 .7 3 0 2-.7 3 0 2 .7 3 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="3.5" y="3.5" width="9" height="9" rx="2" stroke="currentColor" strokeWidth="1.2" />
     </svg>
   );
 }
@@ -41,6 +196,26 @@ const navItems = [
         to: "/planta/caudal",
         label: "Caudal entrante/saliente",
         group: "Supervisión en tiempo real"
+      },
+      {
+        to: "/planta/compuertas",
+        label: "Compuertas entrada/salida",
+        group: "Control hidráulico"
+      },
+      {
+        to: "/planta/bombas",
+        label: "Bombas de impulsión",
+        group: "Control hidráulico"
+      },
+      {
+        to: "/planta/grupo-electrogeno",
+        label: "Grupo electrógeno",
+        group: "Soporte energético"
+      },
+      {
+        to: "/planta/quitahojas",
+        label: "Quitahojas",
+        group: "Limpieza y sólidos"
       },
       {
         to: "/oxigeno/electrovalvulas",
@@ -211,19 +386,23 @@ const navItems = [
     children: [
       {
         to: "/maquina/growth-nano",
-        label: "ArgosAI Growth Nano"
+        label: "ArgosAI Growth Nano",
+        group: "Línea Growth"
       },
       {
         to: "/maquina/growth-s",
-        label: "ArgosAI Growth S"
+        label: "ArgosAI Growth S",
+        group: "Línea Growth"
       },
       {
         to: "/maquina/growth-l",
-        label: "ArgosAI Growth L"
+        label: "ArgosAI Growth L",
+        group: "Línea Growth"
       },
       {
         to: "/maquina/grader",
-        label: "ArgosAI Grader"
+        label: "ArgosAI Grader",
+        group: "Clasificación"
       }
     ]
   },
@@ -245,23 +424,28 @@ const navItems = [
     children: [
       {
         to: "/boyas/parametros",
-        label: "Parámetros"
+        label: "Parámetros",
+        group: "Estado y seguimiento"
       },
       {
         to: "/boyas/energia-sistema",
-        label: "Energía y autonomía"
+        label: "Energía y autonomía",
+        group: "Estado y seguimiento"
       },
       {
         to: "/boyas/recorrido-gps",
-        label: "Recorrido GPS"
+        label: "Recorrido GPS",
+        group: "Estado y seguimiento"
       },
       {
         to: "/boyas/corrientes-heatmap",
-        label: "Corrientes (heatmap)"
+        label: "Corrientes (heatmap)",
+        group: "Análisis ambiental"
       },
       {
         to: "/boyas/rosa-vientos",
-        label: "Rosa de los vientos"
+        label: "Rosa de los vientos",
+        group: "Análisis ambiental"
       }
     ]
   }
@@ -274,6 +458,10 @@ const featureByPath = {
   "/proyecto/boyas": FEATURE_KEYS.BUOYS_VIEW,
   "/planta": FEATURE_KEYS.PLANT_VIEW,
   "/planta/caudal": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/compuertas": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/grupo-electrogeno": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/bombas": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/quitahojas": FEATURE_KEYS.PLANT_VIEW,
   "/oxigeno": FEATURE_KEYS.OXYGEN_VIEW,
   "/oxigeno/electrovalvulas": FEATURE_KEYS.OXYGEN_VIEW,
   "/oxigeno/economia": FEATURE_KEYS.OXYGEN_VIEW,
@@ -413,7 +601,16 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
   const location = useLocation();
   const { user, logout, hasFeature } = useAuth();
   const initials = userInitials(user?.fullName);
+  const clientName = clientNameLabel(user);
+  const brandSubtitle = collapsed
+    ? "PF"
+    : clientName
+      ? `Piscifactoría · ${clientName}`
+      : "Piscifactoría";
   const sidebarRef = useRef(null);
+  const avatarInputRef = useRef(null);
+  const avatarStorageKey = useMemo(() => buildAvatarStorageKey(user), [user]);
+  const [avatarDataUrl, setAvatarDataUrl] = useState(null);
   const visibleNavItems = useMemo(() => {
     return navItems.reduce((acc, item) => {
       if (!item.children) {
@@ -441,11 +638,21 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
       return acc;
     }, []);
   }, [hasFeature]);
+
   const [expandedGroups, setExpandedGroups] = useState(() =>
     collapsed
       ? buildSingleExpandedState(visibleNavItems, null)
       : buildExpandedGroups(visibleNavItems, location.pathname)
   );
+
+  useEffect(() => {
+    try {
+      const storedAvatar = localStorage.getItem(avatarStorageKey);
+      setAvatarDataUrl(storedAvatar || null);
+    } catch {
+      setAvatarDataUrl(null);
+    }
+  }, [avatarStorageKey]);
 
   useEffect(() => {
     setExpandedGroups((current) => {
@@ -509,13 +716,59 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
     };
   }, [collapsed, visibleNavItems]);
 
+  function handleAvatarPickerOpen() {
+    avatarInputRef.current?.click();
+  }
+
+  function handleAvatarFileChange(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file || !file.type.startsWith("image/")) {
+      return;
+    }
+
+    if (file.size > MAX_AVATAR_FILE_SIZE_BYTES) {
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const imageData = typeof reader.result === "string" ? reader.result : null;
+
+      if (!imageData) {
+        return;
+      }
+
+      setAvatarDataUrl(imageData);
+
+      try {
+        localStorage.setItem(avatarStorageKey, imageData);
+      } catch {
+        // Ignore storage failures and keep the in-memory preview.
+      }
+    };
+
+    reader.readAsDataURL(file);
+  }
+
   const sidebarClassName = `sidebar ${collapsed ? "sidebar-collapsed" : ""} ${mobileOpen ? "sidebar-mobile-open" : ""}`.trim();
 
   return (
     <aside className={sidebarClassName} ref={sidebarRef}>
       <div className="brand">
-        <h1>{collapsed ? "AI" : "ArgosAI"}</h1>
-        <p>{collapsed ? "PF" : "Piscifactoría"}</p>
+        <h1 className="sidebar-brand-title" aria-label="ArgosAI">
+          {collapsed ? (
+            "AI"
+          ) : (
+            <>
+              <span className="sidebar-brand-mark">Argos</span>
+              <span className="sidebar-brand-accent">AI</span>
+            </>
+          )}
+        </h1>
+        <p className="sidebar-brand-subtitle">{brandSubtitle}</p>
       </div>
 
       <nav className="sidebar-nav">
@@ -586,7 +839,7 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
                             isActive ? "sidebar-sub-link sidebar-sub-link-active" : "sidebar-sub-link"
                           }
                         >
-                          <span className="sidebar-sub-link-dot" aria-hidden="true" />
+                          <SidebarSubIcon path={child.to} />
                           <span className="sidebar-sub-link-text">{child.label}</span>
                         </NavLink>
                       ))}
@@ -641,7 +894,7 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
                           isActive ? "sidebar-sub-link sidebar-sub-link-active" : "sidebar-sub-link"
                         }
                       >
-                        <span className="sidebar-sub-link-dot" aria-hidden="true" />
+                        <SidebarSubIcon path={child.to} />
                         <span className="sidebar-sub-link-text">{child.label}</span>
                       </NavLink>
                     ))}
@@ -656,9 +909,32 @@ export function Sidebar({ collapsed, mobileOpen, onNavigate }) {
       <div className="sidebar-footer">
         <div className="sidebar-session-card" aria-label="Sesión del cliente">
           <div className="sidebar-session-head">
-            <div className="sidebar-session-avatar" aria-hidden="true">
-              {initials}
-            </div>
+            <button
+              type="button"
+              className="sidebar-session-avatar sidebar-session-avatar-button"
+              onClick={handleAvatarPickerOpen}
+              aria-label={avatarDataUrl ? "Cambiar imagen de perfil" : "Subir imagen de perfil"}
+              title="Cambiar imagen"
+            >
+              {avatarDataUrl ? (
+                <img
+                  className="sidebar-session-avatar-image"
+                  src={avatarDataUrl}
+                  alt="Imagen de perfil del cliente"
+                />
+              ) : (
+                initials
+              )}
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarFileChange}
+              className="sidebar-session-avatar-input"
+              tabIndex={-1}
+              aria-hidden="true"
+            />
             <div className="sidebar-session-info">
               <strong className="sidebar-session-name">{user?.fullName || "Cliente"}</strong>
               <button

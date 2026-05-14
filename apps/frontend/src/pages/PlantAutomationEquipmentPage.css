@@ -1,0 +1,132 @@
+@reference "tailwindcss";
+
+.automation-page {
+  @apply grid gap-4;
+}
+
+.automation-panel {
+  @apply border-[#d6dfec] bg-[#fbfdff];
+}
+
+.automation-intro {
+  @apply mt-1 mb-0 text-[#4f6483];
+}
+
+.automation-readonly-note {
+  @apply mt-3 mb-0 rounded-lg border border-[#c9d8ee] bg-[#eff5ff] px-3 py-2 text-[0.84rem] text-[#295280];
+}
+
+.automation-timestamp {
+  @apply mt-2 mb-0 text-[0.79rem] text-[#5d7392];
+}
+
+.automation-section-stack {
+  @apply grid gap-4;
+}
+
+.automation-grid {
+  @apply mt-3 grid gap-3;
+}
+
+.automation-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.automation-item-card {
+  @apply rounded-xl border border-[#cdd9ea] bg-white px-3 py-3;
+}
+
+.automation-item-head {
+  @apply grid gap-0.5;
+}
+
+.automation-item-head strong {
+  @apply text-[1rem] text-[#183355];
+}
+
+.automation-item-head span {
+  @apply text-[0.8rem] text-[#5a6f8f];
+}
+
+.automation-item-kpi {
+  @apply mt-2 mb-2 flex items-end justify-between gap-2;
+}
+
+.automation-item-kpi span {
+  @apply text-[0.8rem] text-[#567093];
+}
+
+.automation-item-kpi strong {
+  @apply text-[1.34rem] leading-none text-[#134172];
+}
+
+.automation-meter-track {
+  @apply h-2.5 w-full overflow-hidden rounded-full bg-[#dce6f3];
+}
+
+.automation-meter-fill {
+  @apply h-full rounded-full transition-[width] duration-300;
+}
+
+.automation-meter-low {
+  @apply bg-[#6fa4d8];
+}
+
+.automation-meter-medium {
+  @apply bg-[#46b889];
+}
+
+.automation-meter-high {
+  @apply bg-[#e1a23f];
+}
+
+.automation-item-note {
+  @apply mt-2 mb-0 text-[0.78rem] text-[#5c7090];
+}
+
+.automation-item-grid {
+  @apply mt-2 grid gap-1;
+}
+
+.automation-item-grid p {
+  @apply m-0 flex items-center justify-between gap-2 text-[0.82rem] text-[#536a8a];
+}
+
+.automation-item-grid strong {
+  @apply text-[#16385f];
+}
+
+.automation-kpi-grid {
+  @apply mt-3 grid gap-3;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.automation-kpi-card {
+  @apply rounded-xl border border-[#cedaeb] bg-white px-3 py-3;
+}
+
+.automation-kpi-card span {
+  @apply block text-[0.76rem] uppercase tracking-[0.04em] text-[#5a6f8e];
+}
+
+.automation-kpi-card strong {
+  @apply mt-1 block text-[1.1rem] text-[#14365c];
+}
+
+.automation-kpi-card small {
+  @apply mt-1 block text-[0.76rem] text-[#5f7493];
+}
+
+@media (max-width: 1050px) {
+  .automation-grid-2,
+  .automation-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .automation-grid-2,
+  .automation-kpi-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+}

@@ -1,7 +1,7 @@
 @reference "tailwindcss";
 
 .app-shell {
-  @apply relative grid min-h-screen grid-cols-[240px_minmax(0,1fr)];
+  @apply relative grid min-h-screen grid-cols-[260px_minmax(0,1fr)];
 }
 
 .app-shell-sidebar-collapsed {
@@ -27,7 +27,7 @@
 
 @media (max-width: 1280px) {
   .app-shell {
-    @apply grid-cols-[220px_minmax(0,1fr)];
+    @apply grid-cols-[260px_minmax(0,1fr)];
   }
 
   .app-shell-sidebar-collapsed {

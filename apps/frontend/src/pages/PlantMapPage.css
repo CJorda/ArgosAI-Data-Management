@@ -41,12 +41,15 @@
 }
 
 .scada-panel {
-  @apply overflow-hidden border-[#23344a] p-0;
+  @apply overflow-x-auto overflow-y-hidden border-[#23344a] p-0;
   background: linear-gradient(180deg, #161f2a 0%, #111824 100%);
-  --scada-gap: 6px;
-  --horizontal-tile-height: 146px;
-  --vertical-tile-height: 194px;
-  --compact-tile-height: 186px;
+  --scada-gap: 4px;
+  --pond-tile-width: 140px;
+  --pond-tile-height: 140px;
+  --horizontal-tile-height: var(--pond-tile-height);
+  --vertical-tile-height: var(--pond-tile-height);
+  --compact-tile-height: var(--pond-tile-height);
+  --zone-f-tile-height: var(--pond-tile-height);
 }
 
 .scada-header {
@@ -97,30 +100,33 @@
   @apply grid gap-4 p-4;
   grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.24fr) minmax(0, 1.9fr);
   align-items: start;
-  width: 100%;
-  gap: 12px;
+  width: max-content;
+  min-width: 100%;
+  gap: 10px;
 }
 
 .geom-block {
-  @apply grid gap-2;
+  @apply grid gap-1.5;
   width: auto;
 }
 
 .ed-frame {
-  @apply rounded-xl border-[6px] border-[#2c6ea5] bg-[#173048] p-3;
+  @apply rounded-xl border-[6px] border-[#2c6ea5] bg-[#173048] p-2;
 }
 
 .scada-column-frame {
-  @apply rounded-xl border-[6px] border-[#2c6ea5] bg-[#173048] p-3;
+  @apply rounded-xl border-[6px] border-[#2c6ea5] bg-[#173048] p-2;
 }
 
 .abc-frame {
-  @apply rounded-xl border-[6px] border-[#2c6ea5] bg-[#173048] p-3;
+  @apply rounded-xl border-[6px] border-[#2c6ea5] bg-[#173048] p-2;
 }
 
 .slot-column {
   @apply grid;
   gap: var(--scada-gap);
+  width: fit-content;
+  justify-self: start;
 }
 
 .slot-row {
@@ -131,26 +137,26 @@
 .ed-columns {
   @apply grid;
   gap: var(--scada-gap);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, var(--pond-tile-width));
 }
 
 .row-four {
   @apply mb-1;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, var(--pond-tile-width));
 }
 
 .row-c-pairs {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, max-content);
 }
 
 .c-pair {
   @apply grid;
   gap: var(--scada-gap);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, var(--pond-tile-width));
 }
 
 .c-pair-single {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: var(--pond-tile-width);
 }
 
 .zone-tag {
@@ -162,21 +168,27 @@
 }
 
 .geom-f .slot-column {
-  width: auto;
+  width: fit-content;
+}
+
+.geom-f .slot-column > .pond-tile.slot-horizontal {
+  height: var(--zone-f-tile-height);
 }
 
 .geom-ed .slot-column {
-  width: auto;
+  width: fit-content;
 }
 
 .slot-column > .pond-tile,
 .slot-row > .pond-tile,
 .c-pair > .pond-tile {
-  width: 100%;
+  width: var(--pond-tile-width);
+  min-width: var(--pond-tile-width);
+  max-width: var(--pond-tile-width);
 }
 
 .pond-tile {
-  @apply relative overflow-hidden rounded-md border border-[#355c88] bg-[#2a3f58] p-1.5 pb-6 text-left text-[#eff5ff] transition;
+  @apply relative overflow-hidden rounded-md border border-[#355c88] bg-[#2a3f58] p-1.5 pb-5 text-left text-[#eff5ff] transition;
 }
 
 .pond-tile:hover {
@@ -252,7 +264,7 @@
 }
 
 .pond-code {
-  @apply absolute bottom-1 left-1 inline-flex min-w-[2rem] justify-center rounded-sm bg-[#0f3e68] px-1.5 py-0.5 text-[0.68rem] font-semibold;
+  @apply absolute bottom-1 left-1 inline-flex min-w-[1.8rem] justify-center rounded-sm bg-[#0f3e68] px-1.5 py-0.5 text-[0.64rem] font-semibold;
 }
 
 .pond-age {
@@ -326,7 +338,7 @@
 }
 
 .slot-horizontal .pond-metrics p {
-  @apply text-[0.6rem] leading-tight;
+  @apply text-[0.61rem] leading-tight;
 }
 
 .slot-horizontal .pond-alert-count {
