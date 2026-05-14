@@ -1,5 +1,7 @@
 import { Router } from "express";
+import { randomUUID } from "crypto";
 import { z } from "zod";
+import { env } from "../config/env.js";
 import { query } from "../database/pool.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireFeature } from "../middleware/featureAccess.js";
@@ -11,6 +13,57 @@ import { HttpError } from "../utils/httpError.js";
 const lotCodeSchema = z.object({
   lotCode: z.string().min(1).max(80)
 });
+
+const reportAutomationRunNowSchema = z.object({
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  frequency: z.enum(["daily", "weekly"]).optional(),
+  template: z.enum(["executive", "operations", "financial", "compliance"]).optional(),
+  assumptions: z.object({
+    feedCostPerKg: z.number().min(0).optional(),
+    treatmentCostPerUnit: z.number().min(0).optional(),
+    maintenanceCostPerUnit: z.number().min(0).optional(),
+    salePricePerKg: z.number().min(0).optional()
+  }).optional()
+});
+
+const reportTemplateSchema = z.object({
+  template: z.enum(["executive", "operations", "financial", "compliance"]).optional()
+});
+
+const trainingScenarioPayloadSchema = z.object({
+  label: z.string().trim().min(1).max(120).optional(),
+  assumptions: z.record(z.any()),
+  summary: z.object({
+    totalCurrentBiomassKg: z.number().optional(),
+    totalProjectedBiomassKg: z.number().optional(),
+    totalProjectedRevenueEur: z.number().optional(),
+    totalProjectedCostEur: z.number().optional(),
+    totalMarginEur: z.number().optional(),
+    globalMarginPct: z.number().nullable().optional(),
+    averageReadiness: z.number().optional()
+  }),
+  riskBreakdown: z.object({
+    critical: z.number().int().min(0).optional(),
+    high: z.number().int().min(0).optional(),
+    medium: z.number().int().min(0).optional(),
+    low: z.number().int().min(0).optional()
+  }).optional(),
+  topRows: z.array(
+    z.object({
+      pondName: z.string().optional(),
+      lotCode: z.string().optional(),
+      marginEur: z.number().optional(),
+      riskLevel: z.string().optional(),
+      readinessScore: z.number().optional()
+    })
+  ).max(12).optional()
+});
+
+const SCHEDULED_REPORT_ACTION = "planning.executive_report.scheduled.generated";
+const MANUAL_REPORT_ACTION = "planning.executive_report.manual.generated";
+const TRAINING_SCENARIO_ACTION = "planning.harvest_simulator.training_scenario.saved";
+const TRAINING_SCENARIO_ENTITY = "harvest_simulator_training_scenarios";
 
 const numberOrNull = (value) => {
   if (value === null || value === undefined) {
@@ -57,6 +110,346 @@ function parseNonNegativeQueryNumber(value, fallback, fieldName) {
   }
 
   return parsed;
+}
+
+function clampInteger(value, fallback, min, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, Math.floor(parsed)));
+}
+
+function normalizeCadence(value) {
+  return String(value || "daily").toLowerCase() === "weekly" ? "weekly" : "daily";
+}
+
+function resolveSchedulerWindowStart(now, frequency, hourUtc, minuteUtc) {
+  const current = new Date(now);
+
+  if (frequency === "weekly") {
+    const currentUtcDay = current.getUTCDay();
+    const daysFromMonday = (currentUtcDay + 6) % 7;
+    const monday = new Date(Date.UTC(
+      current.getUTCFullYear(),
+      current.getUTCMonth(),
+      current.getUTCDate() - daysFromMonday,
+      hourUtc,
+      minuteUtc,
+      0,
+      0
+    ));
+
+    if (current < monday) {
+      monday.setUTCDate(monday.getUTCDate() - 7);
+    }
+
+    return monday;
+  }
+
+  const todayRun = new Date(Date.UTC(
+    current.getUTCFullYear(),
+    current.getUTCMonth(),
+    current.getUTCDate(),
+    hourUtc,
+    minuteUtc,
+    0,
+    0
+  ));
+
+  if (current < todayRun) {
+    todayRun.setUTCDate(todayRun.getUTCDate() - 1);
+  }
+
+  return todayRun;
+}
+
+function resolveNextSchedulerRunAt(now, frequency, hourUtc, minuteUtc) {
+  const currentWindowStart = resolveSchedulerWindowStart(now, frequency, hourUtc, minuteUtc);
+  const nextRun = new Date(currentWindowStart);
+
+  if (frequency === "weekly") {
+    nextRun.setUTCDate(nextRun.getUTCDate() + 7);
+  } else {
+    nextRun.setUTCDate(nextRun.getUTCDate() + 1);
+  }
+
+  return nextRun;
+}
+
+function normalizeReportTemplate(value) {
+  const raw = String(value || "executive").toLowerCase();
+  if (["executive", "operations", "financial", "compliance"].includes(raw)) {
+    return raw;
+  }
+
+  return "executive";
+}
+
+function templateLabel(template) {
+  if (template === "operations") {
+    return "Operativo";
+  }
+
+  if (template === "financial") {
+    return "Financiero";
+  }
+
+  if (template === "compliance") {
+    return "Compliance";
+  }
+
+  return "Ejecutivo";
+}
+
+function sectionRowsFromObject(objectLike, labels = {}) {
+  return Object.entries(objectLike || {}).map(([key, value]) => ({
+    key,
+    label: labels[key] || key,
+    value
+  }));
+}
+
+function buildTemplateReportView(baseReport, template) {
+  const normalizedTemplate = normalizeReportTemplate(template);
+  const economics = baseReport?.report?.economics || {};
+  const operations = baseReport?.report?.operations || {};
+  const risk = baseReport?.report?.risk || {};
+  const maintenance = baseReport?.report?.maintenance || {};
+  const harvest = baseReport?.report?.harvest || {};
+  const logistics = baseReport?.report?.logistics || {};
+  const traceability = baseReport?.report?.traceability || {};
+  const compliance = baseReport?.report?.compliance || {};
+
+  if (normalizedTemplate === "operations") {
+    return {
+      template: normalizedTemplate,
+      templateLabel: templateLabel(normalizedTemplate),
+      generatedAt: baseReport.generatedAt,
+      period: baseReport.period,
+      kpis: baseReport.kpis,
+      highlights: [
+        {
+          key: "operationalPressureScore",
+          label: "Presion operativa",
+          value: baseReport.kpis?.operationalPressureScore ?? 0
+        },
+        {
+          key: "operationsCount",
+          label: "Operaciones del periodo",
+          value: operations.operationsCount ?? 0
+        },
+        {
+          key: "openMaintenanceTasks",
+          label: "Mantenimiento abierto",
+          value: baseReport.kpis?.openMaintenanceTasks ?? 0
+        }
+      ],
+      sections: [
+        {
+          key: "operations",
+          title: "Produccion y operaciones",
+          rows: sectionRowsFromObject(operations, {
+            operationsCount: "Operaciones",
+            pondsWithActivity: "Piscinas con actividad",
+            feedKg: "Feed distribuido (kg)",
+            treatmentQty: "Tratamientos",
+            maintenanceQty: "Mantenimientos"
+          })
+        },
+        {
+          key: "risk",
+          title: "Riesgo operativo",
+          rows: sectionRowsFromObject(risk, {
+            openAlerts: "Alertas abiertas",
+            severeOpenAlerts: "Alertas severas",
+            alertsCreatedPeriod: "Alertas creadas",
+            alertsResolvedPeriod: "Alertas resueltas"
+          })
+        },
+        {
+          key: "logistics",
+          title: "Logistica de cosecha",
+          rows: sectionRowsFromObject(logistics, {
+            harvestShipmentsPeriod: "Despachos periodo",
+            openHarvestShipments: "Despachos abiertos",
+            liveTransportTripsPeriod: "Viajes transporte vivo",
+            activeLiveTransportTrips: "Viajes activos",
+            liveTransportFishUnitsPeriod: "Unidades transportadas"
+          })
+        }
+      ],
+      recommendations: baseReport.recommendations || []
+    };
+  }
+
+  if (normalizedTemplate === "financial") {
+    const currentBiomassKg = numberOrNull(economics.currentBiomassKg) ?? 0;
+    const projectedCostEur = numberOrNull(economics.projectedCostEur) ?? 0;
+    const projectedRevenueEur = numberOrNull(economics.projectedRevenueEur) ?? 0;
+    const breakEvenPricePerKg = currentBiomassKg > 0
+      ? round(projectedCostEur / currentBiomassKg, 3)
+      : null;
+
+    return {
+      template: normalizedTemplate,
+      templateLabel: templateLabel(normalizedTemplate),
+      generatedAt: baseReport.generatedAt,
+      period: baseReport.period,
+      assumptions: baseReport.assumptions,
+      highlights: [
+        {
+          key: "projectedMarginEur",
+          label: "Margen proyectado EUR",
+          value: economics.projectedMarginEur ?? 0
+        },
+        {
+          key: "projectedMarginPct",
+          label: "Margen proyectado %",
+          value: economics.projectedMarginPct ?? null
+        },
+        {
+          key: "breakEvenPricePerKg",
+          label: "Precio equilibrio EUR/kg",
+          value: breakEvenPricePerKg
+        }
+      ],
+      sections: [
+        {
+          key: "economics",
+          title: "Resumen economico",
+          rows: sectionRowsFromObject(economics, {
+            currentBiomassKg: "Biomasa actual (kg)",
+            projectedCostEur: "Coste proyectado (EUR)",
+            projectedRevenueEur: "Ingreso proyectado (EUR)",
+            projectedMarginEur: "Margen proyectado (EUR)",
+            projectedMarginPct: "Margen proyectado (%)",
+            activeLotSnapshots: "Lotes activos"
+          })
+        },
+        {
+          key: "costInputs",
+          title: "Supuestos de coste",
+          rows: sectionRowsFromObject(baseReport.assumptions, {
+            feedCostPerKg: "Feed EUR/kg",
+            treatmentCostPerUnit: "Tratamiento EUR/unidad",
+            maintenanceCostPerUnit: "Mantenimiento EUR/unidad",
+            salePricePerKg: "Precio venta EUR/kg"
+          })
+        }
+      ],
+      recommendations: baseReport.recommendations || []
+    };
+  }
+
+  if (normalizedTemplate === "compliance") {
+    const openAlerts = Number(baseReport.kpis?.openAlerts || 0);
+    const severeAlerts = Number(baseReport.kpis?.severeOpenAlerts || 0);
+    const auditEntries = Number(compliance.auditEntries || 0);
+    const openTasks = Number(maintenance.openTasks || 0);
+    const complianceRiskScore = Math.min(100, severeAlerts * 20 + openTasks * 8 + openAlerts * 6);
+
+    return {
+      template: normalizedTemplate,
+      templateLabel: templateLabel(normalizedTemplate),
+      generatedAt: baseReport.generatedAt,
+      period: baseReport.period,
+      highlights: [
+        {
+          key: "complianceRiskScore",
+          label: "Riesgo compliance",
+          value: round(complianceRiskScore, 1) ?? 0
+        },
+        {
+          key: "auditEntries",
+          label: "Entradas auditables",
+          value: auditEntries
+        },
+        {
+          key: "trackedLots",
+          label: "Lotes trazados",
+          value: traceability.trackedLots ?? 0
+        }
+      ],
+      sections: [
+        {
+          key: "audit",
+          title: "Auditoria y evidencia",
+          rows: sectionRowsFromObject(compliance, {
+            auditEntries: "Registros de auditoria"
+          })
+        },
+        {
+          key: "traceability",
+          title: "Trazabilidad",
+          rows: sectionRowsFromObject(traceability, {
+            trackedLots: "Lotes con seguimiento"
+          })
+        },
+        {
+          key: "risk",
+          title: "Alertas y sanidad",
+          rows: sectionRowsFromObject(risk, {
+            openAlerts: "Alertas abiertas",
+            severeOpenAlerts: "Alertas severas",
+            alertsCreatedPeriod: "Alertas creadas",
+            alertsResolvedPeriod: "Alertas resueltas"
+          })
+        }
+      ],
+      recommendations: baseReport.recommendations || []
+    };
+  }
+
+  return {
+    template: "executive",
+    templateLabel: templateLabel("executive"),
+    generatedAt: baseReport.generatedAt,
+    period: baseReport.period,
+    assumptions: baseReport.assumptions,
+    kpis: baseReport.kpis,
+    highlights: [
+      {
+        key: "operationalPressureScore",
+        label: "Presion operativa",
+        value: baseReport.kpis?.operationalPressureScore ?? 0
+      },
+      {
+        key: "projectedMarginEur",
+        label: "Margen proyectado EUR",
+        value: economics.projectedMarginEur ?? 0
+      },
+      {
+        key: "trackedLots",
+        label: "Lotes trazados",
+        value: baseReport.kpis?.trackedLots ?? 0
+      }
+    ],
+    sections: [
+      {
+        key: "operations",
+        title: "Operaciones",
+        rows: sectionRowsFromObject(operations)
+      },
+      {
+        key: "economics",
+        title: "Economia",
+        rows: sectionRowsFromObject(economics)
+      },
+      {
+        key: "maintenance",
+        title: "Mantenimiento",
+        rows: sectionRowsFromObject(maintenance)
+      },
+      {
+        key: "harvest",
+        title: "Cosecha",
+        rows: sectionRowsFromObject(harvest)
+      }
+    ],
+    recommendations: baseReport.recommendations || []
+  };
 }
 
 async function getLatestBiomassWithFeedTable(tenantId) {
@@ -1365,5 +1758,325 @@ planningRoutes.get(
     });
 
     res.json(report);
+  })
+);
+
+planningRoutes.get(
+  "/reports/generated",
+  asyncHandler(async (req, res) => {
+    const templateParse = reportTemplateSchema.safeParse(req.query || {});
+    if (!templateParse.success) {
+      throw new HttpError(400, "Invalid template query param");
+    }
+
+    const template = normalizeReportTemplate(templateParse.data.template);
+    const { from, to } = parseDateRange(req, 14);
+    const cadenceFrequency = String(req.query.frequency || "daily").toLowerCase() === "weekly"
+      ? "weekly"
+      : "daily";
+
+    const feedCostPerKg = parseNonNegativeQueryNumber(req.query.feedCostPerKg, 1.28, "feedCostPerKg");
+    const treatmentCostPerUnit = parseNonNegativeQueryNumber(
+      req.query.treatmentCostPerUnit,
+      6.2,
+      "treatmentCostPerUnit"
+    );
+    const maintenanceCostPerUnit = parseNonNegativeQueryNumber(
+      req.query.maintenanceCostPerUnit,
+      35,
+      "maintenanceCostPerUnit"
+    );
+    const salePricePerKg = parseNonNegativeQueryNumber(req.query.salePricePerKg, 6.7, "salePricePerKg");
+
+    const baseReport = await buildExecutiveReportForTenant({
+      tenantId: req.user.tenantId,
+      from,
+      to,
+      assumptions: {
+        feedCostPerKg,
+        treatmentCostPerUnit,
+        maintenanceCostPerUnit,
+        salePricePerKg
+      },
+      cadenceFrequency
+    });
+
+    const templatedReport = buildTemplateReportView(baseReport, template);
+
+    res.json({
+      ...templatedReport,
+      cadenceSuggestion: baseReport.cadenceSuggestion
+    });
+  })
+);
+
+planningRoutes.get(
+  "/reports/automation/status",
+  asyncHandler(async (req, res) => {
+    const frequency = normalizeCadence(env.executiveReportSchedulerFrequency);
+    const hourUtc = clampInteger(env.executiveReportSchedulerHourUtc, 6, 0, 23);
+    const minuteUtc = clampInteger(env.executiveReportSchedulerMinuteUtc, 0, 0, 59);
+    const pollMs = clampInteger(env.executiveReportSchedulerPollMs, 300000, 60000, 86400000);
+    const lookbackDays = clampInteger(env.executiveReportSchedulerLookbackDays, 14, 3, 120);
+
+    const now = new Date();
+    const currentWindowStart = resolveSchedulerWindowStart(now, frequency, hourUtc, minuteUtc);
+    const nextRunAt = resolveNextSchedulerRunAt(now, frequency, hourUtc, minuteUtc);
+
+    const recentRunsResult = await query(
+      `
+        SELECT
+          id,
+          action,
+          entity_id,
+          payload,
+          created_at
+        FROM audit_logs
+        WHERE tenant_id = $1
+          AND action = ANY($2::text[])
+        ORDER BY created_at DESC
+        LIMIT 60
+      `,
+      [req.user.tenantId, [SCHEDULED_REPORT_ACTION, MANUAL_REPORT_ACTION]]
+    );
+
+    const recentRuns = recentRunsResult.rows.map((row) => {
+      const payload = row.payload || {};
+      const scheduler = payload.scheduler || {};
+
+      return {
+        id: row.id,
+        action: row.action,
+        mode: row.action === SCHEDULED_REPORT_ACTION ? "scheduled" : "manual",
+        generatedAt: scheduler.generatedAt || row.created_at,
+        windowStart: scheduler.windowStart || null,
+        frequency: scheduler.frequency || frequency,
+        template: normalizeReportTemplate(scheduler.template || payload.template || "executive"),
+        entityId: row.entity_id,
+        kpis: payload.kpis || null,
+        economics: payload.economics || null,
+        recommendations: payload.recommendations || []
+      };
+    });
+
+    res.json({
+      scheduler: {
+        enabled: env.executiveReportSchedulerEnabled,
+        frequency,
+        hourUtc,
+        minuteUtc,
+        pollMs,
+        lookbackDays,
+        currentWindowStart,
+        nextRunAt
+      },
+      recentRuns
+    });
+  })
+);
+
+planningRoutes.post(
+  "/reports/automation/run-now",
+  asyncHandler(async (req, res) => {
+    const parseResult = reportAutomationRunNowSchema.safeParse(req.body || {});
+    if (!parseResult.success) {
+      throw new HttpError(400, "Invalid automation run payload");
+    }
+
+    const payload = parseResult.data;
+    const template = normalizeReportTemplate(payload.template || "executive");
+    const now = new Date();
+    const lookbackDays = clampInteger(env.executiveReportSchedulerLookbackDays, 14, 3, 120);
+
+    const to = payload.to ? new Date(payload.to) : now;
+    const from = payload.from
+      ? new Date(payload.from)
+      : new Date(to.getTime() - lookbackDays * 24 * 3600 * 1000);
+
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
+      throw new HttpError(400, "Invalid from/to range in automation run payload");
+    }
+
+    const assumptions = {
+      feedCostPerKg: payload.assumptions?.feedCostPerKg,
+      treatmentCostPerUnit: payload.assumptions?.treatmentCostPerUnit,
+      maintenanceCostPerUnit: payload.assumptions?.maintenanceCostPerUnit,
+      salePricePerKg: payload.assumptions?.salePricePerKg
+    };
+
+    const cleanedAssumptions = Object.fromEntries(
+      Object.entries(assumptions).filter(([, value]) => value !== undefined)
+    );
+
+    const report = await buildExecutiveReportForTenant({
+      tenantId: req.user.tenantId,
+      from,
+      to,
+      assumptions: cleanedAssumptions,
+      cadenceFrequency: normalizeCadence(payload.frequency || env.executiveReportSchedulerFrequency)
+    });
+    const templateReport = buildTemplateReportView(report, template);
+
+    const auditPayload = {
+      template,
+      scheduler: {
+        mode: "manual",
+        frequency: normalizeCadence(payload.frequency || env.executiveReportSchedulerFrequency),
+        windowStart: from.toISOString(),
+        generatedAt: report.generatedAt,
+        template,
+        requestedByUserId: req.user.id
+      },
+      kpis: report.kpis,
+      economics: report.report?.economics,
+      recommendations: (report.recommendations || []).slice(0, 8)
+    };
+
+    const auditInsert = await query(
+      `
+        INSERT INTO audit_logs (tenant_id, user_id, action, entity, entity_id, payload)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+        RETURNING id, created_at
+      `,
+      [
+        req.user.tenantId,
+        req.user.id,
+        MANUAL_REPORT_ACTION,
+        "planning_reports",
+        `manual:${new Date().toISOString()}`,
+        JSON.stringify(auditPayload)
+      ]
+    );
+
+    res.status(201).json({
+      run: {
+        id: auditInsert.rows[0].id,
+        createdAt: auditInsert.rows[0].created_at,
+        action: MANUAL_REPORT_ACTION,
+        template,
+        from,
+        to
+      },
+      report,
+      templateReport
+    });
+  })
+);
+
+planningRoutes.get(
+  "/harvest-simulator/training-scenarios",
+  asyncHandler(async (req, res) => {
+    const requestedLimit = Number(req.query.limit || 30);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.max(1, Math.min(120, Math.round(requestedLimit)))
+      : 30;
+
+    const result = await query(
+      `
+        SELECT
+          id,
+          entity_id,
+          payload,
+          created_at
+        FROM audit_logs
+        WHERE tenant_id = $1
+          AND user_id = $2
+          AND action = $3
+          AND entity = $4
+        ORDER BY created_at DESC
+        LIMIT $5
+      `,
+      [
+        req.user.tenantId,
+        req.user.id,
+        TRAINING_SCENARIO_ACTION,
+        TRAINING_SCENARIO_ENTITY,
+        limit
+      ]
+    );
+
+    const scenarios = result.rows.map((row) => {
+      const payload = row.payload || {};
+
+      return {
+        id: row.entity_id || String(row.id),
+        label: payload.label || "Escenario",
+        createdAt: payload.createdAt || row.created_at,
+        assumptions: payload.assumptions || {},
+        summary: payload.summary || {},
+        riskBreakdown: payload.riskBreakdown || {},
+        topRows: payload.topRows || []
+      };
+    });
+
+    res.json(scenarios);
+  })
+);
+
+planningRoutes.post(
+  "/harvest-simulator/training-scenarios",
+  asyncHandler(async (req, res) => {
+    const parseResult = trainingScenarioPayloadSchema.safeParse(req.body || {});
+    if (!parseResult.success) {
+      throw new HttpError(400, "Invalid training scenario payload");
+    }
+
+    const payload = parseResult.data;
+    const scenarioId = `scenario:${randomUUID()}`;
+    const createdAt = new Date().toISOString();
+    const storedPayload = {
+      ...payload,
+      createdAt
+    };
+
+    await query(
+      `
+        INSERT INTO audit_logs (tenant_id, user_id, action, entity, entity_id, payload)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+      `,
+      [
+        req.user.tenantId,
+        req.user.id,
+        TRAINING_SCENARIO_ACTION,
+        TRAINING_SCENARIO_ENTITY,
+        scenarioId,
+        JSON.stringify(storedPayload)
+      ]
+    );
+
+    res.status(201).json({
+      id: scenarioId,
+      label: storedPayload.label || "Escenario",
+      createdAt,
+      assumptions: storedPayload.assumptions,
+      summary: storedPayload.summary,
+      riskBreakdown: storedPayload.riskBreakdown || {},
+      topRows: storedPayload.topRows || []
+    });
+  })
+);
+
+planningRoutes.delete(
+  "/harvest-simulator/training-scenarios",
+  asyncHandler(async (req, res) => {
+    const result = await query(
+      `
+        DELETE FROM audit_logs
+        WHERE tenant_id = $1
+          AND user_id = $2
+          AND action = $3
+          AND entity = $4
+      `,
+      [
+        req.user.tenantId,
+        req.user.id,
+        TRAINING_SCENARIO_ACTION,
+        TRAINING_SCENARIO_ENTITY
+      ]
+    );
+
+    res.json({
+      deleted: result.rowCount || 0
+    });
   })
 );

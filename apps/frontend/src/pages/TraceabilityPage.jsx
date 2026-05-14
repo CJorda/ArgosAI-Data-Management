@@ -47,6 +47,308 @@ function toDateInput(value = new Date()) {
   return value.toISOString().slice(0, 10);
 }
 
+function csvEscape(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+
+  if (/[",\n;]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  return text;
+}
+
+function downloadBlob(content, mimeType, fileName) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildTimelineCsv(rows) {
+  const header = [
+    "fecha",
+    "origen",
+    "piscina",
+    "evento",
+    "estado",
+    "ruta",
+    "codigo",
+    "cantidad",
+    "unidad",
+    "peces",
+    "peso_g",
+    "nota",
+    "lote_mezcla",
+    "etiquetas"
+  ];
+
+  const body = rows.map((event) => [
+    event.event_at,
+    event.source,
+    event.pond_name,
+    event.event_type,
+    event.status,
+    event.route_label,
+    event.external_code,
+    event.quantity,
+    event.quantity_unit,
+    event.fish_count,
+    event.avg_weight_g,
+    event.note,
+    event.mix_with_lot_code,
+    event.label_tags?.join(" | ")
+  ]);
+
+  return [header, ...body]
+    .map((row) => row.map(csvEscape).join(";"))
+    .join("\n");
+}
+
+function slugToken(rawValue, fallback = "na") {
+  const value = String(rawValue || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return value || fallback;
+}
+
+function epcisBizStep(eventType) {
+  if (eventType === "feeding") {
+    return "urn:epcglobal:cbv:bizstep:commissioning";
+  }
+
+  if (eventType === "harvest_plan") {
+    return "urn:epcglobal:cbv:bizstep:planning";
+  }
+
+  if (eventType === "harvest_shipment" || eventType === "live_transport") {
+    return "urn:epcglobal:cbv:bizstep:shipping";
+  }
+
+  if (eventType === "transfer") {
+    return "urn:epcglobal:cbv:bizstep:storing";
+  }
+
+  if (eventType === "treatment") {
+    return "urn:epcglobal:cbv:bizstep:inspecting";
+  }
+
+  return "urn:epcglobal:cbv:bizstep:processing";
+}
+
+function epcisDisposition(status) {
+  const normalized = String(status || "").toLowerCase();
+
+  if (normalized === "delivered" || normalized === "completed" || normalized === "resolved") {
+    return "urn:epcglobal:cbv:disp:active";
+  }
+
+  if (normalized === "cancelled") {
+    return "urn:epcglobal:cbv:disp:inactive";
+  }
+
+  return "urn:epcglobal:cbv:disp:in_progress";
+}
+
+function buildEpcisDocument({ lotCode, rows, stats, filters }) {
+  const eventList = rows.map((event, index) => {
+    const eventType = String(event.event_type || "unknown");
+    const pondToken = slugToken(event.pond_name, "pond");
+    const eventTime = event.event_at || new Date().toISOString();
+    const quantityValue = Number(event.quantity);
+    const hasQuantity = Number.isFinite(quantityValue);
+
+    return {
+      type: "ObjectEvent",
+      eventID: `urn:argosai:traceability:event:${slugToken(lotCode)}:${index + 1}`,
+      eventTime,
+      eventTimeZoneOffset: "+00:00",
+      bizStep: epcisBizStep(eventType),
+      disposition: epcisDisposition(event.status),
+      epcList: [`urn:epc:id:sgtin:argosai.${slugToken(lotCode)}.0`],
+      readPoint: {
+        id: `urn:argosai:readpoint:${pondToken}`
+      },
+      bizLocation: {
+        id: `urn:argosai:location:${pondToken}`
+      },
+      bizTransactionList: event.external_code
+        ? [{
+          type: "urn:epcglobal:cbv:btt:desadv",
+          bizTransaction: String(event.external_code)
+        }]
+        : [],
+      quantityList: hasQuantity
+        ? [{
+          epcClass: `urn:epc:class:lgtin:argosai.${slugToken(lotCode)}.0`,
+          quantity: quantityValue,
+          uom: event.quantity_unit || "KGM"
+        }]
+        : [],
+      sourceList: [
+        {
+          type: "urn:epcglobal:cbv:sdt:location",
+          source: `urn:argosai:source:${slugToken(event.source, "event")}`
+        }
+      ],
+      destinationList: event.route_label
+        ? [{
+          type: "urn:epcglobal:cbv:sdt:location",
+          destination: `urn:argosai:destination:${slugToken(event.route_label, "route")}`
+        }]
+        : [],
+      ilmd: {
+        eventType,
+        note: event.note || null,
+        status: event.status || null,
+        mixedWithLot: event.mix_with_lot_code || null,
+        fishCount: event.fish_count || null,
+        avgWeightG: event.avg_weight_g || null,
+        labels: event.label_tags || []
+      }
+    };
+  });
+
+  return {
+    "@context": [
+      "https://ref.gs1.org/standards/epcis/epcis-context.jsonld"
+    ],
+    type: "EPCISDocument",
+    schemaVersion: "2.0",
+    creationDate: new Date().toISOString(),
+    sender: "urn:argosai:sender:platform",
+    receiver: "urn:argosai:receiver:regulator",
+    instanceIdentifier: `urn:argosai:epcis:${slugToken(lotCode)}:${Date.now()}`,
+    epcisHeader: {
+      epcisMasterData: {
+        lotCode,
+        filters,
+        stats
+      }
+    },
+    epcisBody: {
+      eventList
+    }
+  };
+}
+
+function xmlEscape(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function buildEpcisXmlDocument(epcisDocument) {
+  const statsJson = JSON.stringify(epcisDocument?.epcisHeader?.epcisMasterData?.stats || {});
+  const filtersJson = JSON.stringify(epcisDocument?.epcisHeader?.epcisMasterData?.filters || {});
+  const lotCode = epcisDocument?.epcisHeader?.epcisMasterData?.lotCode || "";
+
+  const eventsXml = (epcisDocument?.epcisBody?.eventList || [])
+    .map((event) => {
+      const epcXml = (event.epcList || [])
+        .map((epc) => `<epcis:epc>${xmlEscape(epc)}</epcis:epc>`)
+        .join("");
+
+      const bizTxXml = (event.bizTransactionList || [])
+        .map(
+          (item) =>
+            `<epcis:bizTransaction type="${xmlEscape(item.type)}">${xmlEscape(item.bizTransaction)}</epcis:bizTransaction>`
+        )
+        .join("");
+
+      const sourceXml = (event.sourceList || [])
+        .map(
+          (item) => `<epcis:source type="${xmlEscape(item.type)}">${xmlEscape(item.source)}</epcis:source>`
+        )
+        .join("");
+
+      const destinationXml = (event.destinationList || [])
+        .map(
+          (item) =>
+            `<epcis:destination type="${xmlEscape(item.type)}">${xmlEscape(item.destination)}</epcis:destination>`
+        )
+        .join("");
+
+      const quantityXml = (event.quantityList || [])
+        .map(
+          (item) => `
+              <epcis:quantityElement>
+                <epcis:epcClass>${xmlEscape(item.epcClass)}</epcis:epcClass>
+                <epcis:quantity>${xmlEscape(item.quantity)}</epcis:quantity>
+                <epcis:uom>${xmlEscape(item.uom)}</epcis:uom>
+              </epcis:quantityElement>`
+        )
+        .join("");
+
+      const labelsXml = (event.ilmd?.labels || [])
+        .map((label) => `<argosai:label>${xmlEscape(label)}</argosai:label>`)
+        .join("");
+
+      return `
+        <epcis:ObjectEvent>
+          <epcis:eventID>${xmlEscape(event.eventID)}</epcis:eventID>
+          <epcis:eventTime>${xmlEscape(event.eventTime)}</epcis:eventTime>
+          <epcis:eventTimeZoneOffset>${xmlEscape(event.eventTimeZoneOffset || "+00:00")}</epcis:eventTimeZoneOffset>
+          <epcis:action>OBSERVE</epcis:action>
+          <epcis:bizStep>${xmlEscape(event.bizStep)}</epcis:bizStep>
+          <epcis:disposition>${xmlEscape(event.disposition)}</epcis:disposition>
+          <epcis:epcList>${epcXml}</epcis:epcList>
+          <epcis:readPoint>
+            <epcis:id>${xmlEscape(event.readPoint?.id || "")}</epcis:id>
+          </epcis:readPoint>
+          <epcis:bizLocation>
+            <epcis:id>${xmlEscape(event.bizLocation?.id || "")}</epcis:id>
+          </epcis:bizLocation>
+          <epcis:bizTransactionList>${bizTxXml}</epcis:bizTransactionList>
+          <epcis:sourceList>${sourceXml}</epcis:sourceList>
+          <epcis:destinationList>${destinationXml}</epcis:destinationList>
+          <epcis:quantityList>${quantityXml}</epcis:quantityList>
+          <epcis:ilmd>
+            <argosai:eventType>${xmlEscape(event.ilmd?.eventType || "")}</argosai:eventType>
+            <argosai:note>${xmlEscape(event.ilmd?.note || "")}</argosai:note>
+            <argosai:status>${xmlEscape(event.ilmd?.status || "")}</argosai:status>
+            <argosai:mixedWithLot>${xmlEscape(event.ilmd?.mixedWithLot || "")}</argosai:mixedWithLot>
+            <argosai:fishCount>${xmlEscape(event.ilmd?.fishCount ?? "")}</argosai:fishCount>
+            <argosai:avgWeightG>${xmlEscape(event.ilmd?.avgWeightG ?? "")}</argosai:avgWeightG>
+            <argosai:labels>${labelsXml}</argosai:labels>
+          </epcis:ilmd>
+        </epcis:ObjectEvent>`;
+    })
+    .join("");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<epcis:EPCISDocument
+  xmlns:epcis="urn:epcglobal:epcis:xsd:2"
+  xmlns:cbvmda="urn:epcglobal:cbv:mda"
+  xmlns:argosai="urn:argosai:epcis:ext"
+  schemaVersion="${xmlEscape(epcisDocument?.schemaVersion || "2.0")}"
+  creationDate="${xmlEscape(epcisDocument?.creationDate || new Date().toISOString())}">
+  <epcis:EPCISHeader>
+    <epcis:extension>
+      <argosai:MasterData>
+        <argosai:lotCode>${xmlEscape(lotCode)}</argosai:lotCode>
+        <argosai:filtersJson>${xmlEscape(filtersJson)}</argosai:filtersJson>
+        <argosai:statsJson>${xmlEscape(statsJson)}</argosai:statsJson>
+      </argosai:MasterData>
+    </epcis:extension>
+  </epcis:EPCISHeader>
+  <epcis:EPCISBody>
+    <epcis:EventList>${eventsXml}
+    </epcis:EventList>
+  </epcis:EPCISBody>
+</epcis:EPCISDocument>`;
+}
+
 function toDateRange(fromDate, toDate) {
   const from = new Date(`${fromDate}T00:00:00`);
   const to = new Date(`${toDate}T00:00:00`);
@@ -561,6 +863,105 @@ export function TraceabilityPage() {
     };
   }, [filteredTimelineRows]);
 
+  const relatedLots = useMemo(() => {
+    const related = new Set();
+
+    for (const event of filteredTimelineRows) {
+      const mixedLot = String(event.mix_with_lot_code || "").trim();
+      if (mixedLot && mixedLot !== activeLotCode) {
+        related.add(mixedLot);
+      }
+    }
+
+    return Array.from(related).sort();
+  }, [filteredTimelineRows, activeLotCode]);
+
+  const exportTimelineJson = () => {
+    if (!activeLotCode) {
+      return;
+    }
+
+    const payload = {
+      lotCode: activeLotCode,
+      generatedAt: new Date().toISOString(),
+      filters: {
+        source: timelineSourceFilter,
+        search: timelineSearch
+      },
+      stats: {
+        ...timelineStats,
+        relatedLots
+      },
+      timeline: filteredTimelineRows
+    };
+
+    downloadBlob(
+      JSON.stringify(payload, null, 2),
+      "application/json;charset=utf-8",
+      `trazabilidad-${activeLotCode}.json`
+    );
+  };
+
+  const exportTimelineCsv = () => {
+    if (!activeLotCode) {
+      return;
+    }
+
+    const csv = buildTimelineCsv(filteredTimelineRows);
+    downloadBlob(csv, "text/csv;charset=utf-8", `trazabilidad-${activeLotCode}.csv`);
+  };
+
+  const exportTimelineEpcis = () => {
+    if (!activeLotCode) {
+      return;
+    }
+
+    const epcisDocument = buildEpcisDocument({
+      lotCode: activeLotCode,
+      rows: filteredTimelineRows,
+      stats: {
+        ...timelineStats,
+        relatedLots
+      },
+      filters: {
+        source: timelineSourceFilter,
+        search: timelineSearch
+      }
+    });
+
+    downloadBlob(
+      JSON.stringify(epcisDocument, null, 2),
+      "application/json;charset=utf-8",
+      `trazabilidad-epcis-${activeLotCode}.json`
+    );
+  };
+
+  const exportTimelineEpcisXml = () => {
+    if (!activeLotCode) {
+      return;
+    }
+
+    const epcisDocument = buildEpcisDocument({
+      lotCode: activeLotCode,
+      rows: filteredTimelineRows,
+      stats: {
+        ...timelineStats,
+        relatedLots
+      },
+      filters: {
+        source: timelineSourceFilter,
+        search: timelineSearch
+      }
+    });
+
+    const xml = buildEpcisXmlDocument(epcisDocument);
+    downloadBlob(
+      xml,
+      "application/xml;charset=utf-8",
+      `trazabilidad-epcis-${activeLotCode}.xml`
+    );
+  };
+
   const showDemoNote = historyState.isDemo || lotsState.isDemo || lotTimelineState.isDemo;
 
   return (
@@ -729,7 +1130,28 @@ export function TraceabilityPage() {
               onChange={(event) => setTimelineSearch(event.target.value)}
             />
           </div>
+
+          <button type="button" className="tiny-button" onClick={exportTimelineCsv}>
+            Exportar CSV
+          </button>
+          <button type="button" className="tiny-button" onClick={exportTimelineJson}>
+            Exportar JSON
+          </button>
+          <button type="button" className="tiny-button" onClick={exportTimelineEpcis}>
+            Exportar EPCIS
+          </button>
+          <button type="button" className="tiny-button" onClick={exportTimelineEpcisXml}>
+            Exportar EPCIS XML
+          </button>
         </div>
+
+        {relatedLots.length > 0 ? (
+          <p className="trace-related-lots">
+            Lotes relacionados en cadena de custodia: {relatedLots.join(", ")}
+          </p>
+        ) : (
+          <p className="trace-related-lots">No hay lotes relacionados detectados en los eventos filtrados.</p>
+        )}
 
         <div className="trace-lot-kpi-grid">
           <div className="trace-lot-kpi-card">
@@ -751,6 +1173,10 @@ export function TraceabilityPage() {
           <div className="trace-lot-kpi-card">
             <span>Cantidad total movida</span>
             <strong>{timelineStats.totalQuantity.toFixed(2)}</strong>
+          </div>
+          <div className="trace-lot-kpi-card">
+            <span>Lotes relacionados</span>
+            <strong>{relatedLots.length}</strong>
           </div>
         </div>
 

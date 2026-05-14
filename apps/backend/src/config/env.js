@@ -47,5 +47,16 @@ export const env = {
   executiveReportSchedulerPollMs: Number(process.env.EXECUTIVE_REPORT_SCHEDULER_POLL_MS || 300000),
   executiveReportSchedulerLookbackDays: Number(
     process.env.EXECUTIVE_REPORT_SCHEDULER_LOOKBACK_DAYS || 14
+  ),
+  sensorHealthAlertSyncSchedulerEnabled:
+    String(process.env.SENSOR_HEALTH_ALERT_SYNC_SCHEDULER_ENABLED || "true") === "true",
+  sensorHealthAlertSyncSchedulerPollMs: Number(
+    process.env.SENSOR_HEALTH_ALERT_SYNC_SCHEDULER_POLL_MS || 300000
+  ),
+  sensorHealthAlertSyncWindowHours: Number(
+    process.env.SENSOR_HEALTH_ALERT_SYNC_WINDOW_HOURS || 24
+  ),
+  sensorHealthAlertSyncStaleMinutes: Number(
+    process.env.SENSOR_HEALTH_ALERT_SYNC_STALE_MINUTES || 35
   )
 };

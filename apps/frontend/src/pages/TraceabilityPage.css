@@ -16,12 +16,16 @@
   @apply items-end;
 }
 
+.trace-related-lots {
+  @apply mt-2 rounded-lg border border-[#dbe4f2] bg-[#f6f9ff] px-3 py-2 text-[0.83rem] text-[#3f5f84];
+}
+
 .trace-search-input {
   @apply rounded-[10px] border border-[#d8dfd1] bg-white px-3 py-2;
 }
 
 .trace-lot-kpi-grid {
-  @apply mt-4 grid grid-cols-5 gap-3;
+  @apply mt-4 grid grid-cols-6 gap-3;
 }
 
 .trace-lot-kpi-card {

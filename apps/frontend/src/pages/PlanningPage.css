@@ -12,6 +12,26 @@
   @apply grid grid-cols-2 gap-4;
 }
 
+.planning-inline-note {
+  @apply mt-1 rounded-lg border border-[#d8e2f3] bg-[#f4f8ff] px-3 py-2 text-[0.84rem] text-[#33567f];
+}
+
+.planning-pill {
+  @apply inline-flex rounded-full border px-2 py-0.5 text-[0.74rem] font-semibold;
+}
+
+.planning-pill-info {
+  @apply border-[#b9cde8] bg-[#edf5ff] text-[#2f5e93];
+}
+
+.planning-pill-warning {
+  @apply border-[#d8d39c] bg-[#f8f4db] text-[#7a6522];
+}
+
+.planning-pill-critical {
+  @apply border-[#eab3b3] bg-[#fdecec] text-[#9c2e2e];
+}
+
 @media (max-width: 1100px) {
   .planning-grid {
     @apply grid-cols-1;

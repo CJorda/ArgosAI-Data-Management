@@ -11,6 +11,7 @@ import {
   listDemoAlerts,
   listDemoRules,
   resolveDemoAlert,
+  syncDemoSensorHealthAlerts,
   updateDemoAlertProtocol
 } from "../services/noDbDemoService.js";
 import { FEATURE_KEYS } from "../security/featureCatalog.js";
@@ -25,6 +26,11 @@ const createRuleSchema = z.object({
   minValue: z.number().nullable().optional(),
   maxValue: z.number().nullable().optional(),
   severity: z.enum(["low", "medium", "high", "critical"]).default("medium")
+});
+
+const syncSensorHealthAlertsSchema = z.object({
+  windowHours: z.coerce.number().int().min(4).max(168).optional(),
+  staleMinutes: z.coerce.number().int().min(5).max(240).optional()
 });
 
 const protocolStatusSchema = z.enum(["pending", "acknowledged", "in_progress", "blocked", "resolved"]);
@@ -90,6 +96,151 @@ const fallbackThresholdBySensor = {
   salinity: { min: 30, max: 37 },
   turbidity: { min: 0, max: 15 }
 };
+
+const sensorHealthProfiles = {
+  oxygen: {
+    min: 5.8,
+    max: 9.5,
+    jumpWarning: 0.8,
+    jumpCritical: 1.4,
+    frozenRangeMax: 0.08,
+    freezeMinSamples: 6
+  },
+  temperature: {
+    min: 13.5,
+    max: 23,
+    jumpWarning: 1.8,
+    jumpCritical: 3.1,
+    frozenRangeMax: 0.24,
+    freezeMinSamples: 6
+  },
+  ph: {
+    min: 7,
+    max: 8.2,
+    jumpWarning: 0.18,
+    jumpCritical: 0.32,
+    frozenRangeMax: 0.03,
+    freezeMinSamples: 6
+  },
+  salinity: {
+    min: 29,
+    max: 37.8,
+    jumpWarning: 2.2,
+    jumpCritical: 3.8,
+    frozenRangeMax: 0.32,
+    freezeMinSamples: 6
+  },
+  turbidity: {
+    min: 0,
+    max: 15,
+    jumpWarning: 4,
+    jumpCritical: 6.5,
+    frozenRangeMax: 0.5,
+    freezeMinSamples: 6
+  },
+  default: {
+    min: 0,
+    max: 100,
+    jumpWarning: 12,
+    jumpCritical: 20,
+    frozenRangeMax: 0.2,
+    freezeMinSamples: 6
+  }
+};
+
+const sensorHealthAlertMessageByCode = {
+  missing_signal: "Sin señal reciente",
+  out_of_range: "Valor fuera de rango",
+  frozen_signal: "Posible señal congelada",
+  abrupt_jump: "Salto brusco detectado",
+  quality_flag: "Calidad de muestra no fiable"
+};
+
+function sensorHealthProfileForType(sensorType) {
+  return sensorHealthProfiles[String(sensorType || "").toLowerCase()] || sensorHealthProfiles.default;
+}
+
+function sensorHealthAlertMessage(code) {
+  const title = sensorHealthAlertMessageByCode[code] || "Incidencia de salud de sensor";
+  return `Salud sensor - ${code}: ${title}`;
+}
+
+function parseSensorHealthAlertCode(message) {
+  const text = String(message || "");
+  const match = text.match(/^Salud sensor - ([a-z_]+):/i);
+  return match ? String(match[1]).toLowerCase() : null;
+}
+
+function alertSeverityForIncident(incidentSeverity) {
+  return incidentSeverity === "critical" ? "critical" : "medium";
+}
+
+function evaluateSensorHealthIncidents(row, { staleMinutes }) {
+  const nowMs = Date.now();
+  const sensorType = String(row.sensor_type || "").toLowerCase();
+  const profile = sensorHealthProfileForType(sensorType);
+  const enabled = Boolean(row.enabled);
+
+  const currentValue = toNumberOrNull(row.current_value);
+  const previousValue = toNumberOrNull(row.prev_value);
+  const windowMin = toNumberOrNull(row.window_min);
+  const windowMax = toNumberOrNull(row.window_max);
+  const sampleCount = Number(row.sample_count) || 0;
+  const quality = String(row.last_quality || "").trim().toLowerCase();
+
+  let minutesSinceLast = null;
+  if (row.last_recorded_at) {
+    const ts = new Date(row.last_recorded_at).getTime();
+    if (Number.isFinite(ts)) {
+      minutesSinceLast = (nowMs - ts) / 60000;
+    }
+  }
+
+  const incidents = [];
+  const addIncident = (code, severity) => {
+    incidents.push({ code, severity });
+  };
+
+  if (enabled) {
+    if (minutesSinceLast === null || minutesSinceLast > staleMinutes) {
+      addIncident("missing_signal", "critical");
+    }
+
+    if (currentValue !== null && (currentValue < profile.min || currentValue > profile.max)) {
+      const rangeSpan = Math.max(0.001, profile.max - profile.min);
+      const distance = currentValue < profile.min
+        ? profile.min - currentValue
+        : currentValue - profile.max;
+      addIncident("out_of_range", distance >= rangeSpan * 0.25 ? "critical" : "warning");
+    }
+
+    if (sampleCount >= profile.freezeMinSamples && windowMin !== null && windowMax !== null) {
+      const windowRange = Math.abs(windowMax - windowMin);
+      if (windowRange <= profile.frozenRangeMax) {
+        addIncident("frozen_signal", "warning");
+      }
+    }
+
+    if (currentValue !== null && previousValue !== null) {
+      const delta = Math.abs(currentValue - previousValue);
+      if (delta >= profile.jumpWarning) {
+        addIncident("abrupt_jump", delta >= profile.jumpCritical ? "critical" : "warning");
+      }
+    }
+
+    if (quality && !["ok", "good"].includes(quality)) {
+      addIncident("quality_flag", "warning");
+    }
+  }
+
+  return {
+    sensorId: Number(row.sensor_id) || 0,
+    pondId: Number(row.pond_id) || 0,
+    sensorType,
+    currentValue,
+    incidents
+  };
+}
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -310,6 +461,233 @@ async function getAlertByIdForTenant(alertId, tenantId) {
   return result.rows[0] || null;
 }
 
+export async function syncSensorHealthAlertsForTenant({ tenantId, actorUserId, windowHours, staleMinutes }) {
+  const telemetryResult = await query(
+    `
+      SELECT
+        s.id AS sensor_id,
+        s.pond_id,
+        p.name AS pond_name,
+        s.name AS sensor_name,
+        s.type AS sensor_type,
+        s.unit,
+        s.enabled,
+        latest.value AS current_value,
+        latest.recorded_at AS last_recorded_at,
+        latest.quality AS last_quality,
+        prev.value AS prev_value,
+        prev.recorded_at AS prev_recorded_at,
+        stats.sample_count,
+        stats.window_min,
+        stats.window_max,
+        stats.window_avg,
+        stats.window_stddev
+      FROM sensors s
+      JOIN ponds p ON p.id = s.pond_id
+      LEFT JOIN LATERAL (
+        SELECT m.value, m.recorded_at, m.quality
+        FROM measurements m
+        WHERE m.tenant_id = $1
+          AND m.sensor_id = s.id
+        ORDER BY m.recorded_at DESC
+        LIMIT 1
+      ) latest ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT m.value, m.recorded_at
+        FROM measurements m
+        WHERE m.tenant_id = $1
+          AND m.sensor_id = s.id
+        ORDER BY m.recorded_at DESC
+        OFFSET 1
+        LIMIT 1
+      ) prev ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT
+          COUNT(*)::int AS sample_count,
+          MIN(m.value) AS window_min,
+          MAX(m.value) AS window_max,
+          ROUND(AVG(m.value)::numeric, 3) AS window_avg,
+          ROUND(STDDEV_SAMP(m.value)::numeric, 3) AS window_stddev
+        FROM measurements m
+        WHERE m.tenant_id = $1
+          AND m.sensor_id = s.id
+          AND m.recorded_at >= NOW() - ($2::int * INTERVAL '1 hour')
+      ) stats ON TRUE
+      WHERE s.tenant_id = $1
+      ORDER BY p.name ASC, s.name ASC
+    `,
+    [tenantId, windowHours]
+  );
+
+  const expectedByKey = new Map();
+  for (const row of telemetryResult.rows) {
+    const sensor = evaluateSensorHealthIncidents(row, { staleMinutes });
+
+    for (const incident of sensor.incidents || []) {
+      const code = String(incident.code || "").toLowerCase();
+      if (!code) {
+        continue;
+      }
+
+      const key = `${sensor.sensorId}:${code}`;
+      expectedByKey.set(key, {
+        sensor,
+        incident,
+        message: sensorHealthAlertMessage(code),
+        severity: alertSeverityForIncident(incident.severity)
+      });
+    }
+  }
+
+  const openManagedResult = await query(
+    `
+      SELECT id, sensor_id, message
+      FROM alerts
+      WHERE tenant_id = $1
+        AND status = 'open'
+        AND message LIKE 'Salud sensor - %'
+    `,
+    [tenantId]
+  );
+
+  const openManagedByKey = new Map();
+  for (const row of openManagedResult.rows) {
+    const code = parseSensorHealthAlertCode(row.message);
+    if (!code) {
+      continue;
+    }
+
+    openManagedByKey.set(`${Number(row.sensor_id) || 0}:${code}`, row);
+  }
+
+  let created = 0;
+  let updated = 0;
+  let autoResolved = 0;
+  const createdAlertIds = [];
+  const resolvedAlertIds = [];
+
+  for (const [key, expected] of expectedByKey.entries()) {
+    const existing = openManagedByKey.get(key);
+
+    if (existing) {
+      await query(
+        `
+          UPDATE alerts
+          SET
+            severity = $3,
+            current_value = $4,
+            protocol_updated_at = NOW()
+          WHERE id = $1
+            AND tenant_id = $2
+        `,
+        [
+          Number(existing.id) || 0,
+          tenantId,
+          expected.severity,
+          expected.sensor.currentValue
+        ]
+      );
+      updated += 1;
+      continue;
+    }
+
+    const inserted = await query(
+      `
+        INSERT INTO alerts (
+          tenant_id,
+          pond_id,
+          sensor_id,
+          severity,
+          status,
+          protocol_status,
+          protocol_steps,
+          message,
+          current_value
+        )
+        VALUES ($1, $2, $3, $4, 'open', 'pending', $5::jsonb, $6, $7)
+        RETURNING id
+      `,
+      [
+        tenantId,
+        expected.sensor.pondId,
+        expected.sensor.sensorId,
+        expected.severity,
+        JSON.stringify(buildAlertProtocolTemplate(expected.sensor.sensorType, expected.severity)),
+        expected.message,
+        expected.sensor.currentValue
+      ]
+    );
+
+    const newId = Number(inserted.rows[0]?.id) || 0;
+    if (newId > 0) {
+      createdAlertIds.push(newId);
+    }
+    created += 1;
+  }
+
+  for (const row of openManagedResult.rows) {
+    const code = parseSensorHealthAlertCode(row.message);
+    if (!code) {
+      continue;
+    }
+
+    const key = `${Number(row.sensor_id) || 0}:${code}`;
+    if (expectedByKey.has(key)) {
+      continue;
+    }
+
+    const resolved = await query(
+      `
+        UPDATE alerts a
+        SET status = 'resolved',
+            protocol_status = 'resolved',
+            protocol_owner = COALESCE(a.protocol_owner, $3),
+            protocol_started_at = COALESCE(a.protocol_started_at, NOW()),
+            protocol_updated_at = NOW(),
+            resolved_at = NOW(),
+            resolved_by = $3
+        WHERE a.id = $1
+          AND a.tenant_id = $2
+          AND a.status = 'open'
+        RETURNING a.id
+      `,
+      [Number(row.id) || 0, tenantId, actorUserId]
+    );
+
+    if (resolved.rowCount > 0) {
+      resolvedAlertIds.push(Number(resolved.rows[0].id) || 0);
+      autoResolved += 1;
+    }
+  }
+
+  for (const alertId of createdAlertIds) {
+    const payload = await getAlertByIdForTenant(alertId, tenantId);
+    if (payload) {
+      emitToTenant(tenantId, "alert:updated", payload);
+    }
+  }
+
+  for (const alertId of resolvedAlertIds) {
+    const payload = await getAlertByIdForTenant(alertId, tenantId);
+    if (payload) {
+      emitToTenant(tenantId, "alert:resolved", payload);
+    }
+  }
+
+  return {
+    generatedAt: new Date().toISOString(),
+    windowHours,
+    staleMinutes,
+    summary: {
+      created,
+      updated,
+      autoResolved,
+      openManaged: openManagedResult.rows.length - autoResolved + created,
+      expectedIncidents: expectedByKey.size
+    }
+  };
+}
+
 export const alertsRoutes = Router();
 
 alertsRoutes.use(requireAuth, requireFeature(FEATURE_KEYS.ALERTS_VIEW));
@@ -328,6 +706,24 @@ alertsRoutes.use((req, res, next) => {
 
   if (req.method === "GET" && req.path === "/risk-forecast") {
     res.json(getDemoRiskForecast());
+    return;
+  }
+
+  if (req.method === "POST" && req.path === "/sensor-health/sync") {
+    const parsed = syncSensorHealthAlertsSchema.safeParse(req.body || {});
+
+    if (!parsed.success) {
+      next(new HttpError(400, parsed.error.issues[0]?.message || "Invalid payload"));
+      return;
+    }
+
+    const payload = syncDemoSensorHealthAlerts({
+      windowHours: parsed.data.windowHours,
+      staleMinutes: parsed.data.staleMinutes,
+      actorUser: req.user
+    });
+
+    res.json(payload);
     return;
   }
 
@@ -650,6 +1046,24 @@ alertsRoutes.get(
       horizons: riskHorizonHours,
       ponds
     });
+  })
+);
+
+alertsRoutes.post(
+  "/sensor-health/sync",
+  validate(syncSensorHealthAlertsSchema),
+  asyncHandler(async (req, res) => {
+    const windowHours = Number(req.body?.windowHours || 24);
+    const staleMinutes = Number(req.body?.staleMinutes || 35);
+
+    const payload = await syncSensorHealthAlertsForTenant({
+      tenantId: req.user.tenantId,
+      actorUserId: req.user.id,
+      windowHours,
+      staleMinutes
+    });
+
+    res.json(payload);
   })
 );
 

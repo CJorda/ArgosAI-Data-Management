@@ -151,6 +151,63 @@ const metricRanges = {
   turbidity: { min: 1, max: 15 }
 };
 
+const sensorHealthProfiles = {
+  oxygen: {
+    min: 5.8,
+    max: 9.5,
+    jumpWarning: 0.8,
+    jumpCritical: 1.4,
+    frozenRangeMax: 0.08,
+    freezeMinSamples: 6
+  },
+  temperature: {
+    min: 13.5,
+    max: 23,
+    jumpWarning: 1.8,
+    jumpCritical: 3.1,
+    frozenRangeMax: 0.24,
+    freezeMinSamples: 6
+  },
+  ph: {
+    min: 7,
+    max: 8.2,
+    jumpWarning: 0.18,
+    jumpCritical: 0.32,
+    frozenRangeMax: 0.03,
+    freezeMinSamples: 6
+  },
+  salinity: {
+    min: 29,
+    max: 37.8,
+    jumpWarning: 2.2,
+    jumpCritical: 3.8,
+    frozenRangeMax: 0.32,
+    freezeMinSamples: 6
+  },
+  turbidity: {
+    min: 0,
+    max: 15,
+    jumpWarning: 4,
+    jumpCritical: 6.5,
+    frozenRangeMax: 0.5,
+    freezeMinSamples: 6
+  },
+  default: {
+    min: 0,
+    max: 100,
+    jumpWarning: 12,
+    jumpCritical: 20,
+    frozenRangeMax: 0.2,
+    freezeMinSamples: 6
+  }
+};
+
+const sensorHealthSeverityPriority = {
+  ok: 0,
+  warning: 1,
+  critical: 2
+};
+
 function round(value, digits = 2) {
   return Number(value.toFixed(digits));
 }
@@ -920,6 +977,581 @@ export function getDemoHistory({ sensorId, from, to, bucket }) {
     from: fromDate,
     to: toDate,
     series
+  };
+}
+
+function sensorHealthProfileForType(sensorType) {
+  return sensorHealthProfiles[String(sensorType || "").toLowerCase()] || sensorHealthProfiles.default;
+}
+
+function healthIncidentPenalty(code, severity) {
+  if (code === "missing_signal") {
+    return severity === "critical" ? 58 : 34;
+  }
+
+  if (code === "out_of_range") {
+    return severity === "critical" ? 35 : 20;
+  }
+
+  if (code === "abrupt_jump") {
+    return severity === "critical" ? 25 : 15;
+  }
+
+  if (code === "frozen_signal") {
+    return severity === "critical" ? 26 : 18;
+  }
+
+  if (code === "quality_flag") {
+    return 10;
+  }
+
+  return severity === "critical" ? 24 : 12;
+}
+
+function summarizeSensorHealth(sensors) {
+  const activeSensors = sensors.filter((sensor) => sensor.enabled);
+  const okSensors = activeSensors.filter((sensor) => sensor.status === "ok").length;
+  const warningSensors = activeSensors.filter((sensor) => sensor.status === "warning").length;
+  const criticalSensors = activeSensors.filter((sensor) => sensor.status === "critical").length;
+
+  const incidentsByCode = {};
+  const topIncidents = [];
+  const byTypeMap = new Map();
+
+  for (const sensor of sensors) {
+    const typeKey = String(sensor.sensorType || "unknown");
+
+    if (!byTypeMap.has(typeKey)) {
+      byTypeMap.set(typeKey, {
+        sensorType: typeKey,
+        total: 0,
+        ok: 0,
+        warning: 0,
+        critical: 0,
+        disabled: 0
+      });
+    }
+
+    const bucket = byTypeMap.get(typeKey);
+    bucket.total += 1;
+
+    if (sensor.status === "disabled") {
+      bucket.disabled += 1;
+    } else if (sensor.status === "critical") {
+      bucket.critical += 1;
+    } else if (sensor.status === "warning") {
+      bucket.warning += 1;
+    } else {
+      bucket.ok += 1;
+    }
+
+    for (const incident of sensor.incidents || []) {
+      incidentsByCode[incident.code] = Number(incidentsByCode[incident.code] || 0) + 1;
+      topIncidents.push({
+        ...incident,
+        sensorId: sensor.sensorId,
+        sensorName: sensor.sensorName,
+        sensorType: sensor.sensorType,
+        pondName: sensor.pondName
+      });
+    }
+  }
+
+  topIncidents.sort((left, right) => {
+    const severityDelta =
+      Number(sensorHealthSeverityPriority[right.severity] || 0)
+      - Number(sensorHealthSeverityPriority[left.severity] || 0);
+
+    if (severityDelta !== 0) {
+      return severityDelta;
+    }
+
+    return String(left.sensorName || "").localeCompare(String(right.sensorName || ""));
+  });
+
+  const scoreSamples = activeSensors
+    .map((sensor) => Number(sensor.healthScore))
+    .filter((score) => Number.isFinite(score));
+  const overallScore = scoreSamples.length > 0
+    ? round(scoreSamples.reduce((sum, score) => sum + score, 0) / scoreSamples.length, 1)
+    : null;
+
+  return {
+    totalSensors: sensors.length,
+    activeSensors: activeSensors.length,
+    disabledSensors: sensors.length - activeSensors.length,
+    okSensors,
+    warningSensors,
+    criticalSensors,
+    overallScore,
+    incidentTotal: topIncidents.length,
+    incidentsByCode,
+    byType: Array.from(byTypeMap.values()).sort((left, right) =>
+      String(left.sensorType).localeCompare(String(right.sensorType))
+    ),
+    topIncidents: topIncidents.slice(0, 12)
+  };
+}
+
+function evaluateSensorHealthSample(sample, staleMinutes) {
+  const sensorType = String(sample.sensorType || "unknown").toLowerCase();
+  const profile = sensorHealthProfileForType(sensorType);
+  const nowMs = Date.now();
+
+  let minutesSinceLast = null;
+  if (sample.lastReadingAt) {
+    const ts = new Date(sample.lastReadingAt).getTime();
+    if (Number.isFinite(ts)) {
+      minutesSinceLast = (nowMs - ts) / 60000;
+    }
+  }
+
+  const checks = {
+    missingSignal: {
+      triggered: false,
+      severity: null,
+      thresholdMinutes: staleMinutes,
+      minutesSinceLast: minutesSinceLast === null ? null : round(minutesSinceLast, 1)
+    },
+    outOfRange: {
+      triggered: false,
+      severity: null,
+      minAllowed: profile.min,
+      maxAllowed: profile.max,
+      distance: null
+    },
+    frozenSignal: {
+      triggered: false,
+      severity: null,
+      sampleCount: sample.sampleCount,
+      range: null,
+      maxRangeAllowed: profile.frozenRangeMax
+    },
+    abruptJump: {
+      triggered: false,
+      severity: null,
+      delta: null,
+      warningThreshold: profile.jumpWarning,
+      criticalThreshold: profile.jumpCritical
+    },
+    qualityFlag: {
+      triggered: false,
+      severity: null,
+      quality: sample.lastQuality || null
+    }
+  };
+
+  const incidents = [];
+  const addIncident = (code, severity, message, details = {}) => {
+    incidents.push({
+      code,
+      severity,
+      message,
+      ...details
+    });
+  };
+
+  if (sample.enabled) {
+    if (minutesSinceLast === null || minutesSinceLast > staleMinutes) {
+      checks.missingSignal = {
+        ...checks.missingSignal,
+        triggered: true,
+        severity: "critical"
+      };
+
+      addIncident(
+        "missing_signal",
+        "critical",
+        minutesSinceLast === null
+          ? "Sensor sin telemetria disponible."
+          : `Sin muestra reciente (${round(minutesSinceLast, 1)} min).`,
+        {
+          minutesSinceLast: minutesSinceLast === null ? null : round(minutesSinceLast, 1)
+        }
+      );
+    }
+
+    if (Number.isFinite(sample.currentValue) && (sample.currentValue < profile.min || sample.currentValue > profile.max)) {
+      const rangeSpan = Math.max(0.001, profile.max - profile.min);
+      const distance = sample.currentValue < profile.min
+        ? profile.min - sample.currentValue
+        : sample.currentValue - profile.max;
+      const severity = distance >= rangeSpan * 0.25 ? "critical" : "warning";
+
+      checks.outOfRange = {
+        ...checks.outOfRange,
+        triggered: true,
+        severity,
+        distance: round(distance, 3)
+      };
+
+      addIncident(
+        "out_of_range",
+        severity,
+        `Valor fuera de rango recomendado (${profile.min} - ${profile.max}).`,
+        {
+          currentValue: sample.currentValue,
+          minAllowed: profile.min,
+          maxAllowed: profile.max,
+          distance: round(distance, 3)
+        }
+      );
+    }
+
+    if (Number.isFinite(sample.windowMin) && Number.isFinite(sample.windowMax) && sample.sampleCount >= profile.freezeMinSamples) {
+      const windowRange = Math.abs(sample.windowMax - sample.windowMin);
+
+      checks.frozenSignal = {
+        ...checks.frozenSignal,
+        range: round(windowRange, 3)
+      };
+
+      if (windowRange <= profile.frozenRangeMax) {
+        checks.frozenSignal = {
+          ...checks.frozenSignal,
+          triggered: true,
+          severity: "warning"
+        };
+
+        addIncident(
+          "frozen_signal",
+          "warning",
+          "Serie con variacion minima (posible sensor degradado o bloqueado).",
+          {
+            range: round(windowRange, 3),
+            sampleCount: sample.sampleCount
+          }
+        );
+      }
+    }
+
+    if (Number.isFinite(sample.currentValue) && Number.isFinite(sample.previousValue)) {
+      const delta = Math.abs(sample.currentValue - sample.previousValue);
+
+      checks.abruptJump = {
+        ...checks.abruptJump,
+        delta: round(delta, 3)
+      };
+
+      if (delta >= profile.jumpWarning) {
+        const severity = delta >= profile.jumpCritical ? "critical" : "warning";
+
+        checks.abruptJump = {
+          ...checks.abruptJump,
+          triggered: true,
+          severity
+        };
+
+        addIncident(
+          "abrupt_jump",
+          severity,
+          "Salto brusco entre las dos ultimas lecturas.",
+          {
+            delta: round(delta, 3),
+            previousValue: sample.previousValue,
+            currentValue: sample.currentValue
+          }
+        );
+      }
+    }
+
+    if (sample.lastQuality && !["ok", "good"].includes(String(sample.lastQuality).toLowerCase())) {
+      checks.qualityFlag = {
+        ...checks.qualityFlag,
+        triggered: true,
+        severity: "warning"
+      };
+
+      addIncident(
+        "quality_flag",
+        "warning",
+        `Muestra marcada con calidad ${sample.lastQuality}.`,
+        {
+          quality: String(sample.lastQuality)
+        }
+      );
+    }
+  }
+
+  const status = !sample.enabled
+    ? "disabled"
+    : incidents.reduce((current, incident) => {
+        return sensorHealthSeverityPriority[incident.severity] > sensorHealthSeverityPriority[current]
+          ? incident.severity
+          : current;
+      }, "ok");
+
+  let healthScore = null;
+  if (sample.enabled) {
+    healthScore = 100;
+    for (const incident of incidents) {
+      healthScore -= healthIncidentPenalty(incident.code, incident.severity);
+    }
+    healthScore = clamp(Math.round(healthScore), 0, 100);
+  }
+
+  return {
+    sensorId: sample.sensorId,
+    sensorName: sample.sensorName,
+    sensorType,
+    pondId: sample.pondId,
+    pondName: sample.pondName,
+    unit: sample.unit,
+    enabled: sample.enabled,
+    status,
+    healthScore,
+    currentValue: Number.isFinite(sample.currentValue) ? round(sample.currentValue, 3) : null,
+    previousValue: Number.isFinite(sample.previousValue) ? round(sample.previousValue, 3) : null,
+    lastReadingAt: sample.lastReadingAt,
+    previousReadingAt: sample.previousReadingAt,
+    minutesSinceLast: minutesSinceLast === null ? null : round(minutesSinceLast, 1),
+    sampleCount: sample.sampleCount,
+    windowMin: Number.isFinite(sample.windowMin) ? round(sample.windowMin, 3) : null,
+    windowMax: Number.isFinite(sample.windowMax) ? round(sample.windowMax, 3) : null,
+    windowAvg: Number.isFinite(sample.windowAvg) ? round(sample.windowAvg, 3) : null,
+    windowStddev: Number.isFinite(sample.windowStddev) ? round(sample.windowStddev, 3) : null,
+    checks,
+    incidents
+  };
+}
+
+export function getDemoSensorHealthOverview({ windowHours = 24, staleMinutes = 35 } = {}) {
+  const nowMs = Date.now();
+  const safeWindowHours = Math.max(4, Math.min(168, Math.round(Number(windowHours) || 24)));
+  const safeStaleMinutes = Math.max(5, Math.min(240, Math.round(Number(staleMinutes) || 35)));
+
+  const simulated = demoSensors.map((sensor) => {
+    const profile = sensorHealthProfileForType(sensor.type);
+    const range = metricRanges[sensor.type] || { min: profile.min, max: profile.max };
+    const mid = (range.min + range.max) / 2;
+
+    const sample = {
+      sensorId: sensor.id,
+      sensorName: sensor.name,
+      sensorType: sensor.type,
+      pondId: sensor.pond_id,
+      pondName: sensor.pond_name,
+      unit: sensor.unit,
+      enabled: Boolean(sensor.enabled),
+      currentValue: mid,
+      previousValue: mid,
+      lastReadingAt: new Date(nowMs - 6 * 60 * 1000).toISOString(),
+      previousReadingAt: new Date(nowMs - 11 * 60 * 1000).toISOString(),
+      sampleCount: 24,
+      windowMin: mid - profile.frozenRangeMax * 3,
+      windowMax: mid + profile.frozenRangeMax * 3,
+      windowAvg: mid,
+      windowStddev: profile.frozenRangeMax,
+      lastQuality: "good"
+    };
+
+    if (sensor.id === 1001) {
+      sample.currentValue = profile.min - 0.7;
+      sample.previousValue = sample.currentValue + 1.05;
+      sample.lastReadingAt = new Date(nowMs - 5 * 60 * 1000).toISOString();
+      sample.previousReadingAt = new Date(nowMs - 10 * 60 * 1000).toISOString();
+      sample.windowMin = sample.currentValue - 0.12;
+      sample.windowMax = sample.currentValue + 0.2;
+      sample.windowStddev = 0.18;
+    } else if (sensor.id === 1002) {
+      sample.currentValue = mid;
+      sample.previousValue = mid - 0.15;
+      sample.lastReadingAt = new Date(nowMs - (safeStaleMinutes + 22) * 60 * 1000).toISOString();
+      sample.previousReadingAt = new Date(nowMs - (safeStaleMinutes + 28) * 60 * 1000).toISOString();
+      sample.sampleCount = 5;
+      sample.windowMin = mid - 0.3;
+      sample.windowMax = mid + 0.35;
+      sample.windowStddev = 0.14;
+    } else if (sensor.id === 1003) {
+      sample.currentValue = mid + 0.1;
+      sample.previousValue = sample.currentValue - 0.01;
+      sample.lastReadingAt = new Date(nowMs - 4 * 60 * 1000).toISOString();
+      sample.previousReadingAt = new Date(nowMs - 9 * 60 * 1000).toISOString();
+      sample.sampleCount = 30;
+      sample.windowMin = sample.currentValue - 0.01;
+      sample.windowMax = sample.currentValue + 0.01;
+      sample.windowStddev = 0.006;
+    } else if (sensor.id === 1004) {
+      sample.currentValue = profile.max - 0.02;
+      sample.previousValue = sample.currentValue - 0.62;
+      sample.lastReadingAt = new Date(nowMs - 2 * 60 * 1000).toISOString();
+      sample.previousReadingAt = new Date(nowMs - 7 * 60 * 1000).toISOString();
+      sample.sampleCount = 28;
+      sample.windowMin = sample.currentValue - 0.28;
+      sample.windowMax = sample.currentValue + 0.22;
+      sample.windowStddev = 0.19;
+      sample.lastQuality = "suspect";
+    }
+
+    return sample;
+  });
+
+  const sensors = simulated.map((sample) => evaluateSensorHealthSample(sample, safeStaleMinutes));
+  const summary = summarizeSensorHealth(sensors);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    windowHours: safeWindowHours,
+    staleMinutes: safeStaleMinutes,
+    summary: {
+      totalSensors: summary.totalSensors,
+      activeSensors: summary.activeSensors,
+      disabledSensors: summary.disabledSensors,
+      okSensors: summary.okSensors,
+      warningSensors: summary.warningSensors,
+      criticalSensors: summary.criticalSensors,
+      overallScore: summary.overallScore,
+      incidentTotal: summary.incidentTotal,
+      incidentsByCode: summary.incidentsByCode
+    },
+    byType: summary.byType,
+    topIncidents: summary.topIncidents,
+    sensors
+  };
+}
+
+const demoSensorHealthAlertMessageByCode = {
+  missing_signal: "Sin señal reciente",
+  out_of_range: "Valor fuera de rango",
+  frozen_signal: "Posible señal congelada",
+  abrupt_jump: "Salto brusco detectado",
+  quality_flag: "Calidad de muestra no fiable"
+};
+
+function demoSensorHealthAlertMessage(code) {
+  const title = demoSensorHealthAlertMessageByCode[code] || "Incidencia de salud de sensor";
+  return `Salud sensor - ${code}: ${title}`;
+}
+
+function demoAlertSeverityForIncident(severity) {
+  return severity === "critical" ? "critical" : "medium";
+}
+
+function parseDemoSensorHealthAlertCode(message) {
+  const text = String(message || "");
+  const match = text.match(/^Salud sensor - ([a-z_]+):/i);
+  return match ? String(match[1]).toLowerCase() : null;
+}
+
+export function syncDemoSensorHealthAlerts({ windowHours = 24, staleMinutes = 35, actorUser } = {}) {
+  const overview = getDemoSensorHealthOverview({ windowHours, staleMinutes });
+  const expectedByKey = new Map();
+
+  for (const sensor of overview.sensors || []) {
+    if (!sensor?.enabled) {
+      continue;
+    }
+
+    for (const incident of sensor.incidents || []) {
+      const code = String(incident.code || "").toLowerCase();
+      if (!code) {
+        continue;
+      }
+
+      const key = `${sensor.sensorId}:${code}`;
+      expectedByKey.set(key, {
+        sensor,
+        incident,
+        message: demoSensorHealthAlertMessage(code),
+        severity: demoAlertSeverityForIncident(incident.severity)
+      });
+    }
+  }
+
+  const openManagedAlerts = demoAlerts.filter(
+    (item) =>
+      item.status === "open"
+      && typeof parseDemoSensorHealthAlertCode(item.message) === "string"
+  );
+
+  let created = 0;
+  let updated = 0;
+  let autoResolved = 0;
+
+  const openByKey = new Map();
+  for (const alert of openManagedAlerts) {
+    const code = parseDemoSensorHealthAlertCode(alert.message);
+    if (!code) {
+      continue;
+    }
+
+    openByKey.set(`${alert.sensor_id}:${code}`, alert);
+  }
+
+  for (const [key, expected] of expectedByKey.entries()) {
+    const existing = openByKey.get(key);
+
+    if (existing) {
+      existing.severity = expected.severity;
+      existing.current_value = Number.isFinite(Number(expected.sensor.currentValue))
+        ? Number(expected.sensor.currentValue)
+        : null;
+      existing.protocol_updated_at = new Date().toISOString();
+      updated += 1;
+      continue;
+    }
+
+    const createdAlert = buildAlert({
+      pondId: expected.sensor.pondId,
+      sensorId: expected.sensor.sensorId,
+      severity: expected.severity,
+      message: expected.message,
+      status: "open",
+      createdAt: new Date().toISOString(),
+      currentValue: Number.isFinite(Number(expected.sensor.currentValue))
+        ? Number(expected.sensor.currentValue)
+        : null
+    });
+
+    demoAlerts.unshift(createdAlert);
+    created += 1;
+  }
+
+  for (const alert of openManagedAlerts) {
+    const code = parseDemoSensorHealthAlertCode(alert.message);
+    if (!code) {
+      continue;
+    }
+
+    const key = `${alert.sensor_id}:${code}`;
+    if (expectedByKey.has(key)) {
+      continue;
+    }
+
+    const nowIso = new Date().toISOString();
+    alert.status = "resolved";
+    alert.protocol_status = "resolved";
+    alert.protocol_owner = alert.protocol_owner || Number(actorUser?.id || demoUser.id);
+    alert.protocol_owner_name = demoUser.fullName;
+    alert.protocol_started_at = alert.protocol_started_at || nowIso;
+    alert.protocol_updated_at = nowIso;
+    alert.resolved_at = nowIso;
+    alert.resolved_by = Number(actorUser?.id || demoUser.id);
+    alert.resolved_by_name = demoUser.fullName;
+    alert.protocol_steps = normalizeAlertProtocolSteps(
+      (alert.protocol_steps || []).map((step) => ({
+        ...step,
+        done: true
+      }))
+    );
+    autoResolved += 1;
+  }
+
+  return {
+    generatedAt: new Date().toISOString(),
+    windowHours: overview.windowHours,
+    staleMinutes: overview.staleMinutes,
+    summary: {
+      created,
+      updated,
+      autoResolved,
+      openManaged: demoAlerts.filter(
+        (item) =>
+          item.status === "open"
+          && typeof parseDemoSensorHealthAlertCode(item.message) === "string"
+      ).length,
+      expectedIncidents: expectedByKey.size
+    }
   };
 }
 

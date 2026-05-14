@@ -87,6 +87,15 @@ function SidebarSubIcon({ path }) {
     );
   }
 
+  if (normalizedPath.includes("/salud-sensores")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="2.4" y="2.7" width="11.2" height="10.6" rx="1.5" stroke="currentColor" strokeWidth="1.15" />
+        <path d="M3.7 8h1.7l1-1.6 1.8 3 1.1-1.7h2.9" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
   if (normalizedPath.startsWith("/planta") || normalizedPath.includes("/caudal")) {
     return (
       <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -198,6 +207,11 @@ const navItems = [
         group: "Supervisión en tiempo real"
       },
       {
+        to: "/planta/salud-sensores",
+        label: "Salud de sensores",
+        group: "Supervisión en tiempo real"
+      },
+      {
         to: "/planta/compuertas",
         label: "Compuertas entrada/salida",
         group: "Control hidráulico"
@@ -275,6 +289,11 @@ const navItems = [
       {
         to: "/historico/heatmap",
         label: "Heatmap mensual",
+        group: "Analítica histórica"
+      },
+      {
+        to: "/historico/avanzada",
+        label: "Analítica avanzada",
         group: "Analítica histórica"
       },
       {
@@ -458,6 +477,7 @@ const featureByPath = {
   "/proyecto/boyas": FEATURE_KEYS.BUOYS_VIEW,
   "/planta": FEATURE_KEYS.PLANT_VIEW,
   "/planta/caudal": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/salud-sensores": FEATURE_KEYS.PLANT_VIEW,
   "/planta/compuertas": FEATURE_KEYS.PLANT_VIEW,
   "/planta/grupo-electrogeno": FEATURE_KEYS.PLANT_VIEW,
   "/planta/bombas": FEATURE_KEYS.PLANT_VIEW,
@@ -481,6 +501,7 @@ const featureByPath = {
   "/historico/parametros": FEATURE_KEYS.HISTORY_VIEW,
   "/historico/xy": FEATURE_KEYS.HISTORY_VIEW,
   "/historico/heatmap": FEATURE_KEYS.HISTORY_VIEW,
+  "/historico/avanzada": FEATURE_KEYS.HISTORY_VIEW,
   "/alertas": FEATURE_KEYS.ALERTS_VIEW,
   "/alertas/prediccion-riesgo": FEATURE_KEYS.ALERTS_VIEW,
   "/alertas/alertas": FEATURE_KEYS.ALERTS_VIEW,

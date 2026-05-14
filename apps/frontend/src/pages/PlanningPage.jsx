@@ -15,6 +15,27 @@ function toDateInput(value = new Date()) {
   return value.toISOString().slice(0, 10);
 }
 
+function toDateKey(value) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+function calendarSeverityClass(severity) {
+  if (severity === "critical") {
+    return "planning-pill planning-pill-critical";
+  }
+
+  if (severity === "warning") {
+    return "planning-pill planning-pill-warning";
+  }
+
+  return "planning-pill planning-pill-info";
+}
+
 export function PlanningPage() {
   const { accessToken } = useAuth();
   const [fromDate, setFromDate] = useState(toDateInput(new Date(Date.now() - 30 * 24 * 3600 * 1000)));
@@ -63,6 +84,118 @@ export function PlanningPage() {
     queryKey: ["planning", "weekly-sheet", fromDate],
     queryFn: () => weeklySheetRequest(accessToken, { weekStart: `${fromDate}T00:00:00Z` })
   });
+
+  const productionCalendarRows = useMemo(() => {
+    const events = [];
+    const pondFilter = pondId ? Number(pondId) : null;
+    const selectedWeekDate = new Date(`${fromDate}T00:00:00Z`);
+
+    const addEvent = (dateValue, event) => {
+      const date = new Date(dateValue);
+      if (Number.isNaN(date.getTime())) {
+        return;
+      }
+
+      events.push({
+        date,
+        ...event
+      });
+    };
+
+    for (const forecast of forecastsQuery.data || []) {
+      if (pondFilter && Number(forecast.pondId) !== pondFilter) {
+        continue;
+      }
+
+      const checkpoints = [
+        { days: 30, biomass: forecast.forecast30d?.projectedBiomassKg, severity: "info" },
+        { days: 60, biomass: forecast.forecast60d?.projectedBiomassKg, severity: "warning" },
+        { days: 90, biomass: forecast.forecast90d?.projectedBiomassKg, severity: "warning" }
+      ];
+
+      for (const checkpoint of checkpoints) {
+        const date = new Date(Date.now() + checkpoint.days * 24 * 3600 * 1000);
+
+        addEvent(date, {
+          pondName: forecast.pondName,
+          category: "Hito biomasa",
+          detail: `Objetivo ${checkpoint.days}d: ${checkpoint.biomass ?? "-"} kg`,
+          severity: checkpoint.severity
+        });
+      }
+    }
+
+    for (const withdrawal of activeWithdrawalsQuery.data || []) {
+      if (pondFilter && Number(withdrawal.pond_id) !== pondFilter) {
+        continue;
+      }
+
+      addEvent(withdrawal.withdrawal_until, {
+        pondName: withdrawal.pond_name,
+        category: "Retiro sanitario",
+        detail: `Fin retiro lote ${withdrawal.lot_code || "sin codigo"}`,
+        severity: "critical"
+      });
+    }
+
+    for (const row of weeklySheetQuery.data?.rows || []) {
+      if (pondFilter && Number(row.pond_id) !== pondFilter) {
+        continue;
+      }
+
+      const reviewDate = new Date(selectedWeekDate.getTime() + 7 * 24 * 3600 * 1000);
+      const highMortality = Number(row.avg_mortality_pct) >= 2;
+      const highFcr = Number(row.avg_fcr) >= 1.45;
+
+      addEvent(reviewDate, {
+        pondName: row.pond_name,
+        category: "Revision semanal",
+        detail: `FCR ${row.avg_fcr} | Mortalidad ${row.avg_mortality_pct}%`,
+        severity: highMortality || highFcr ? "warning" : "info"
+      });
+    }
+
+    const collisionsByPondAndDay = events.reduce((acc, event) => {
+      const key = `${event.pondName}|${toDateKey(event.date)}`;
+      acc.set(key, (acc.get(key) || 0) + 1);
+      return acc;
+    }, new Map());
+
+    return events
+      .map((event) => {
+        const key = `${event.pondName}|${toDateKey(event.date)}`;
+        const conflictCount = collisionsByPondAndDay.get(key) || 1;
+        const hasConflict = conflictCount > 1;
+
+        return {
+          ...event,
+          conflictCount,
+          hasConflict,
+          severity: hasConflict && event.severity === "info" ? "warning" : event.severity
+        };
+      })
+      .sort((left, right) => left.date.getTime() - right.date.getTime())
+      .slice(0, 200);
+  }, [
+    pondId,
+    fromDate,
+    forecastsQuery.data,
+    activeWithdrawalsQuery.data,
+    weeklySheetQuery.data
+  ]);
+
+  const calendarSummary = useMemo(() => {
+    const conflictRows = productionCalendarRows.filter((event) => event.hasConflict).length;
+    const criticalRows = productionCalendarRows.filter((event) => event.severity === "critical").length;
+    const warningRows = productionCalendarRows.filter((event) => event.severity === "warning").length;
+
+    return {
+      total: productionCalendarRows.length,
+      conflicts: conflictRows,
+      critical: criticalRows,
+      warning: warningRows
+    };
+  }, [productionCalendarRows]);
 
   return (
     <section className="planning-page">
@@ -261,6 +394,48 @@ export function PlanningPage() {
                   <td>{item.avg_fcr}</td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article className="panel">
+        <h3>Calendario productivo y conflictos</h3>
+        <p className="planning-inline-note">
+          Eventos: {calendarSummary.total} | Conflictos: {calendarSummary.conflicts} | Criticos: {calendarSummary.critical} | Warnings: {calendarSummary.warning}
+        </p>
+
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Piscina</th>
+                <th>Categoria</th>
+                <th>Detalle</th>
+                <th>Severidad</th>
+                <th>Conflictos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {productionCalendarRows.length > 0 ? (
+                productionCalendarRows.map((event, index) => (
+                  <tr key={`${event.pondName}-${event.category}-${event.date.toISOString()}-${index}`}>
+                    <td>{event.date.toLocaleDateString()}</td>
+                    <td>{event.pondName}</td>
+                    <td>{event.category}</td>
+                    <td>{event.detail}</td>
+                    <td>
+                      <span className={calendarSeverityClass(event.severity)}>{event.severity}</span>
+                    </td>
+                    <td>{event.hasConflict ? `x${event.conflictCount}` : "-"}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="empty-text">No hay eventos productivos para el rango actual.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

@@ -86,9 +86,11 @@ pnpm run dev
 - `GET /api/stats/summary`
 - `GET /api/data/ponds`
 - `GET /api/data/sensors`
+- `GET /api/data/sensors/health`
 - `GET /api/data/readings/latest`
 - `GET /api/data/readings/history`
 - `GET /api/alerts`
+- `POST /api/alerts/sensor-health/sync`
 - `PATCH /api/alerts/:alertId/resolve`
 - `GET/POST /api/operations`
 - `GET/POST /api/biomass`
@@ -113,6 +115,10 @@ Variables de entorno relevantes:
 
 - `TENANT_FEATURES_STRICT_MODE=true`: si un tenant no tiene configuracion en `tenant_features`, se queda sin acceso a views.
 - `TENANT_FEATURES_STRICT_MODE=false` (default): comportamiento retrocompatible (permite todas las views cuando no hay filas para el tenant).
+- `SENSOR_HEALTH_ALERT_SYNC_SCHEDULER_ENABLED=true`: activa la sincronizacion automatica de incidencias de salud de sensores hacia alertas operativas.
+- `SENSOR_HEALTH_ALERT_SYNC_SCHEDULER_POLL_MS=300000`: frecuencia del scheduler en milisegundos (default: 5 minutos).
+- `SENSOR_HEALTH_ALERT_SYNC_WINDOW_HOURS=24`: ventana historica usada por la evaluacion de salud de sensores.
+- `SENSOR_HEALTH_ALERT_SYNC_STALE_MINUTES=35`: umbral de minutos para marcar sensores sin señal.
 
 ## Aislamiento de datos por tenant (RLS)
 

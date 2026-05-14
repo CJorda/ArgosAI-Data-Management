@@ -5,6 +5,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { useAuth } from "./context/AuthContext";
 import { FEATURE_KEYS } from "./features/featureCatalog";
 import { AlertsPage } from "./pages/AlertsPage";
+import { AdvancedAnalyticsPage } from "./pages/AdvancedAnalyticsPage";
 import { ArgosMachinePage } from "./pages/ArgosMachinePage";
 import { BiomassPage } from "./pages/BiomassPage";
 import { BuoysPage } from "./pages/BuoysPage";
@@ -28,6 +29,7 @@ import { PlantMapPage } from "./pages/PlantMapPage";
 import { PlanningPage } from "./pages/PlanningPage";
 import { PlantAutomationEquipmentPage } from "./pages/PlantAutomationEquipmentPage";
 import { PreventiveMaintenancePage } from "./pages/PreventiveMaintenancePage";
+import { SensorHealthPage } from "./pages/SensorHealthPage";
 import { PlantWaterFlowPage } from "./pages/PlantWaterFlowPage";
 import { SmsAlertSetpointsPage } from "./pages/SmsAlertSetpointsPage";
 import { StrategicForecastPage } from "./pages/StrategicForecastPage";
@@ -105,6 +107,10 @@ export default function App() {
           <Route
             path="/planta/caudal"
             element={withFeature(FEATURE_KEYS.PLANT_VIEW, <PlantWaterFlowPage />)}
+          />
+          <Route
+            path="/planta/salud-sensores"
+            element={withFeature(FEATURE_KEYS.PLANT_VIEW, <SensorHealthPage />)}
           />
           <Route
             path="/planta/compuertas"
@@ -198,6 +204,10 @@ export default function App() {
           <Route
             path="/historico/heatmap"
             element={withFeature(FEATURE_KEYS.HISTORY_VIEW, <HistoryPage />)}
+          />
+          <Route
+            path="/historico/avanzada"
+            element={withFeature(FEATURE_KEYS.HISTORY_VIEW, <AdvancedAnalyticsPage />)}
           />
           <Route
             path="/planificacion"

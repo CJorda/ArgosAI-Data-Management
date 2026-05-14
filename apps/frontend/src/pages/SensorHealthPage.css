@@ -1,0 +1,160 @@
+@reference "tailwindcss";
+
+.sensor-health-page {
+  @apply grid gap-4;
+}
+
+.sensor-health-intro {
+  @apply mt-1 mb-0 text-[#4f6482];
+}
+
+.sensor-health-filters {
+  @apply mt-3;
+}
+
+.sensor-health-error {
+  @apply mt-2 mb-0 rounded-lg border border-[#efc6c6] bg-[#fff2f2] px-3 py-2 text-[0.85rem] text-[#8d3030];
+}
+
+.sensor-health-actions {
+  @apply mt-3 flex flex-wrap items-center gap-2;
+}
+
+.sensor-health-actions .btn-primary {
+  @apply px-3 py-1.5 text-[0.84rem];
+}
+
+.sensor-health-sync-note {
+  @apply text-[0.8rem] text-[#5c7290];
+}
+
+.sensor-health-sync-result {
+  @apply m-0 rounded-lg border border-[#c8d9ef] bg-[#f1f7ff] px-3 py-1.5 text-[0.83rem] text-[#2c5f99];
+}
+
+.sensor-health-kpi-grid {
+  @apply grid gap-3;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.sensor-health-kpi {
+  @apply rounded-[11px] border border-[#d3deed] bg-[#f8fbff] px-3 py-2;
+}
+
+.sensor-health-kpi span {
+  @apply block text-[0.75rem] font-semibold uppercase tracking-[0.04em] text-[#5e7493];
+}
+
+.sensor-health-kpi strong {
+  @apply mt-1 block text-[1.36rem] font-semibold text-[#1a3f69];
+}
+
+.sensor-health-kpi small {
+  @apply mt-0.5 block text-[0.78rem] text-[#5c7290];
+}
+
+.sensor-health-kpi-critical {
+  color: #9b2f2f;
+}
+
+.sensor-health-kpi-warning {
+  color: #8c6514;
+}
+
+.sensor-health-kpi-ok {
+  color: #2c724d;
+}
+
+.sensor-health-status-chip {
+  @apply inline-flex rounded-full border px-2 py-0.5 text-[0.72rem] font-semibold;
+}
+
+.sensor-health-status-ok {
+  @apply border-[#b8d8c2] bg-[#f0f9f4] text-[#2f6f4e];
+}
+
+.sensor-health-status-warning {
+  @apply border-[#ecd7a4] bg-[#fff9ea] text-[#855e13];
+}
+
+.sensor-health-status-critical {
+  @apply border-[#ecb9b9] bg-[#fff1f1] text-[#9a3333];
+}
+
+.sensor-health-status-disabled {
+  @apply border-[#d7deea] bg-[#f7f9fd] text-[#596f8f];
+}
+
+.sensor-health-minutes {
+  @apply mt-1 block text-[0.74rem] text-[#5c7290];
+}
+
+.sensor-health-incident-stack {
+  @apply flex flex-wrap gap-1;
+}
+
+.sensor-health-incident-chip {
+  @apply inline-flex rounded-full border px-2 py-0.5 text-[0.7rem] font-semibold text-[#4d6484];
+}
+
+.sensor-health-incident-warning {
+  @apply border-[#ecd7a4] bg-[#fff9ea] text-[#855e13];
+}
+
+.sensor-health-incident-critical {
+  @apply border-[#ecb9b9] bg-[#fff1f1] text-[#9a3333];
+}
+
+.sensor-health-no-incidents {
+  @apply text-[0.8rem] text-[#5a708f];
+}
+
+.sensor-health-empty {
+  @apply m-0 text-[#556b8a];
+}
+
+.sensor-health-top-list {
+  @apply mt-2 grid gap-2;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sensor-health-top-item {
+  @apply rounded-[11px] border border-[#d6e0ee] bg-[#fbfdff] px-3 py-2;
+}
+
+.sensor-health-top-head {
+  @apply flex items-center justify-between gap-2;
+}
+
+.sensor-health-top-head strong {
+  @apply text-[#1a3f69];
+}
+
+.sensor-health-top-head span {
+  @apply text-[0.78rem] text-[#5e7493];
+}
+
+.sensor-health-top-item p {
+  @apply mt-2 mb-2 text-[0.86rem] text-[#4f6482];
+}
+
+@media (max-width: 1250px) {
+  .sensor-health-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .sensor-health-top-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .sensor-health-kpi-grid,
+  .sensor-health-top-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sensor-health-actions {
+    @apply items-stretch;
+  }
+}

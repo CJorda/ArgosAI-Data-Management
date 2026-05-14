@@ -10,12 +10,17 @@ import {
   startExecutiveReportScheduler,
   stopExecutiveReportScheduler
 } from "./services/executiveReportScheduler.js";
+import {
+  startSensorHealthAlertSyncScheduler,
+  stopSensorHealthAlertSyncScheduler
+} from "./services/sensorHealthAlertSyncScheduler.js";
 import { startSimulator, stopSimulator } from "./services/simulatorService.js";
 
 const app = createApp();
 const server = http.createServer(app);
 let simulatorStarted = false;
 let schedulerStarted = false;
+let sensorHealthAlertSchedulerStarted = false;
 let warnedBypassRlsRole = false;
 
 const io = new SocketServer(server, {
@@ -116,6 +121,10 @@ async function ensureDbConnection() {
       startExecutiveReportScheduler();
       schedulerStarted = true;
     }
+    if (!sensorHealthAlertSchedulerStarted) {
+      startSensorHealthAlertSyncScheduler();
+      sensorHealthAlertSchedulerStarted = true;
+    }
     logger.info("Database connection is available");
   } catch (error) {
     if (error?.code === "RLS_ROLE_BYPASS") {
@@ -152,6 +161,7 @@ async function start() {
 async function shutdown() {
   stopSimulator();
   stopExecutiveReportScheduler();
+  stopSensorHealthAlertSyncScheduler();
   io.removeAllListeners();
   await pool.end();
   server.close(() => {

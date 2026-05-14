@@ -68,6 +68,14 @@ export async function sensorsRequest(token, pondId) {
   return data;
 }
 
+export async function sensorHealthOverviewRequest(token, params) {
+  const { data } = await apiClient.get("/data/sensors/health", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
 export async function latestReadingsRequest(token, limit = 30) {
   const { data } = await apiClient.get("/data/readings/latest", {
     ...authConfig(token),
@@ -147,6 +155,15 @@ export async function alertsRiskForecastRequest(token, params) {
     ...authConfig(token),
     params
   });
+  return data;
+}
+
+export async function syncSensorHealthAlertsRequest(token, payload) {
+  const { data } = await apiClient.post(
+    "/alerts/sensor-health/sync",
+    payload,
+    authConfig(token)
+  );
   return data;
 }
 
@@ -361,11 +378,54 @@ export async function harvestSimulatorRequest(token, params) {
   return data;
 }
 
+export async function harvestTrainingScenariosRequest(token, params) {
+  const { data } = await apiClient.get("/planning/harvest-simulator/training-scenarios", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function createHarvestTrainingScenarioRequest(token, payload) {
+  const { data } = await apiClient.post(
+    "/planning/harvest-simulator/training-scenarios",
+    payload,
+    authConfig(token)
+  );
+  return data;
+}
+
+export async function clearHarvestTrainingScenariosRequest(token) {
+  const { data } = await apiClient.delete(
+    "/planning/harvest-simulator/training-scenarios",
+    authConfig(token)
+  );
+  return data;
+}
+
 export async function planningExecutiveReportRequest(token, params) {
   const { data } = await apiClient.get("/planning/reports/executive", {
     ...authConfig(token),
     params
   });
+  return data;
+}
+
+export async function planningGeneratedReportRequest(token, params) {
+  const { data } = await apiClient.get("/planning/reports/generated", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function planningReportAutomationStatusRequest(token) {
+  const { data } = await apiClient.get("/planning/reports/automation/status", authConfig(token));
+  return data;
+}
+
+export async function planningReportRunNowRequest(token, payload) {
+  const { data } = await apiClient.post("/planning/reports/automation/run-now", payload, authConfig(token));
   return data;
 }
 

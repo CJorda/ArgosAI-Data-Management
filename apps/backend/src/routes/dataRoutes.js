@@ -10,6 +10,7 @@ import {
   getDemoHistory,
   getDemoLatestReadings,
   getDemoPonds,
+  getDemoSensorHealthOverview,
   getDemoSensors,
   getDemoSites,
   getDemoWaterFlowConfig,
@@ -156,6 +157,63 @@ const waterFlowDefaultMeters = [
   }
 ];
 
+const sensorHealthProfiles = {
+  oxygen: {
+    min: 5.8,
+    max: 9.5,
+    jumpWarning: 0.8,
+    jumpCritical: 1.4,
+    frozenRangeMax: 0.08,
+    freezeMinSamples: 6
+  },
+  temperature: {
+    min: 13.5,
+    max: 23,
+    jumpWarning: 1.8,
+    jumpCritical: 3.1,
+    frozenRangeMax: 0.24,
+    freezeMinSamples: 6
+  },
+  ph: {
+    min: 7,
+    max: 8.2,
+    jumpWarning: 0.18,
+    jumpCritical: 0.32,
+    frozenRangeMax: 0.03,
+    freezeMinSamples: 6
+  },
+  salinity: {
+    min: 29,
+    max: 37.8,
+    jumpWarning: 2.2,
+    jumpCritical: 3.8,
+    frozenRangeMax: 0.32,
+    freezeMinSamples: 6
+  },
+  turbidity: {
+    min: 0,
+    max: 15,
+    jumpWarning: 4,
+    jumpCritical: 6.5,
+    frozenRangeMax: 0.5,
+    freezeMinSamples: 6
+  },
+  default: {
+    min: 0,
+    max: 100,
+    jumpWarning: 12,
+    jumpCritical: 20,
+    frozenRangeMax: 0.2,
+    freezeMinSamples: 6
+  }
+};
+
+const sensorHealthSeverityPriority = {
+  ok: 0,
+  warning: 1,
+  critical: 2
+};
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -171,6 +229,367 @@ function round(value, digits = 3) {
 function toNumber(value, fallback = 0) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function toNullableNumber(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function sensorHealthProfileForType(sensorType) {
+  const normalized = String(sensorType || "").toLowerCase();
+  return sensorHealthProfiles[normalized] || sensorHealthProfiles.default;
+}
+
+function healthIncidentPenalty(code, severity) {
+  if (code === "missing_signal") {
+    return severity === "critical" ? 58 : 34;
+  }
+
+  if (code === "out_of_range") {
+    return severity === "critical" ? 35 : 20;
+  }
+
+  if (code === "abrupt_jump") {
+    return severity === "critical" ? 25 : 15;
+  }
+
+  if (code === "frozen_signal") {
+    return severity === "critical" ? 26 : 18;
+  }
+
+  if (code === "quality_flag") {
+    return 10;
+  }
+
+  return severity === "critical" ? 24 : 12;
+}
+
+function evaluateSensorHealthRow(row, { staleMinutes }) {
+  const nowMs = Date.now();
+  const sensorType = String(row.sensor_type || "unknown").toLowerCase();
+  const profile = sensorHealthProfileForType(sensorType);
+  const enabled = Boolean(row.enabled);
+
+  const currentValue = toNullableNumber(row.current_value);
+  const previousValue = toNullableNumber(row.prev_value);
+  const windowMin = toNullableNumber(row.window_min);
+  const windowMax = toNullableNumber(row.window_max);
+  const sampleCount = toNumber(row.sample_count, 0);
+  const quality = String(row.last_quality || "").trim().toLowerCase();
+
+  const lastReadingAt = row.last_recorded_at || null;
+  const previousReadingAt = row.prev_recorded_at || null;
+
+  let minutesSinceLast = null;
+  if (lastReadingAt) {
+    const lastMs = new Date(lastReadingAt).getTime();
+    if (Number.isFinite(lastMs)) {
+      minutesSinceLast = (nowMs - lastMs) / 60000;
+    }
+  }
+
+  const checks = {
+    missingSignal: {
+      triggered: false,
+      severity: null,
+      thresholdMinutes: staleMinutes,
+      minutesSinceLast: minutesSinceLast === null ? null : round(minutesSinceLast, 1)
+    },
+    outOfRange: {
+      triggered: false,
+      severity: null,
+      minAllowed: profile.min,
+      maxAllowed: profile.max,
+      distance: null
+    },
+    frozenSignal: {
+      triggered: false,
+      severity: null,
+      sampleCount,
+      range: null,
+      maxRangeAllowed: profile.frozenRangeMax
+    },
+    abruptJump: {
+      triggered: false,
+      severity: null,
+      delta: null,
+      warningThreshold: profile.jumpWarning,
+      criticalThreshold: profile.jumpCritical
+    },
+    qualityFlag: {
+      triggered: false,
+      severity: null,
+      quality: quality || null
+    }
+  };
+
+  const incidents = [];
+  const addIncident = (code, severity, message, details = {}) => {
+    incidents.push({
+      code,
+      severity,
+      message,
+      ...details
+    });
+  };
+
+  if (enabled) {
+    if (minutesSinceLast === null) {
+      checks.missingSignal = {
+        ...checks.missingSignal,
+        triggered: true,
+        severity: "critical"
+      };
+
+      addIncident(
+        "missing_signal",
+        "critical",
+        "Sensor sin telemetria disponible.",
+        { minutesSinceLast: null }
+      );
+    } else if (minutesSinceLast > staleMinutes) {
+      checks.missingSignal = {
+        ...checks.missingSignal,
+        triggered: true,
+        severity: "critical"
+      };
+
+      addIncident(
+        "missing_signal",
+        "critical",
+        `Sin muestra reciente (${round(minutesSinceLast, 1)} min).`,
+        { minutesSinceLast: round(minutesSinceLast, 1) }
+      );
+    }
+
+    if (currentValue !== null && (currentValue < profile.min || currentValue > profile.max)) {
+      const rangeSpan = Math.max(0.001, profile.max - profile.min);
+      const distance = currentValue < profile.min
+        ? profile.min - currentValue
+        : currentValue - profile.max;
+      const severity = distance >= rangeSpan * 0.25 ? "critical" : "warning";
+
+      checks.outOfRange = {
+        ...checks.outOfRange,
+        triggered: true,
+        severity,
+        distance: round(distance, 3)
+      };
+
+      addIncident(
+        "out_of_range",
+        severity,
+        `Valor fuera de rango recomendado (${profile.min} - ${profile.max}).`,
+        {
+          currentValue,
+          minAllowed: profile.min,
+          maxAllowed: profile.max,
+          distance: round(distance, 3)
+        }
+      );
+    }
+
+    if (sampleCount >= profile.freezeMinSamples && windowMin !== null && windowMax !== null) {
+      const windowRange = Math.abs(windowMax - windowMin);
+
+      checks.frozenSignal = {
+        ...checks.frozenSignal,
+        range: round(windowRange, 3)
+      };
+
+      if (windowRange <= profile.frozenRangeMax) {
+        checks.frozenSignal = {
+          ...checks.frozenSignal,
+          triggered: true,
+          severity: "warning"
+        };
+
+        addIncident(
+          "frozen_signal",
+          "warning",
+          "Serie con variacion minima (posible sensor degradado o bloqueado).",
+          {
+            range: round(windowRange, 3),
+            sampleCount
+          }
+        );
+      }
+    }
+
+    if (currentValue !== null && previousValue !== null) {
+      const delta = Math.abs(currentValue - previousValue);
+
+      checks.abruptJump = {
+        ...checks.abruptJump,
+        delta: round(delta, 3)
+      };
+
+      if (delta >= profile.jumpWarning) {
+        const severity = delta >= profile.jumpCritical ? "critical" : "warning";
+
+        checks.abruptJump = {
+          ...checks.abruptJump,
+          triggered: true,
+          severity
+        };
+
+        addIncident(
+          "abrupt_jump",
+          severity,
+          "Salto brusco entre las dos ultimas lecturas.",
+          {
+            delta: round(delta, 3),
+            previousValue,
+            currentValue
+          }
+        );
+      }
+    }
+
+    if (quality && !["ok", "good"].includes(quality)) {
+      checks.qualityFlag = {
+        ...checks.qualityFlag,
+        triggered: true,
+        severity: "warning"
+      };
+
+      addIncident(
+        "quality_flag",
+        "warning",
+        `Muestra marcada con calidad ${quality}.`,
+        { quality }
+      );
+    }
+  }
+
+  const status = !enabled
+    ? "disabled"
+    : incidents.reduce((current, incident) => {
+        return sensorHealthSeverityPriority[incident.severity] > sensorHealthSeverityPriority[current]
+          ? incident.severity
+          : current;
+      }, "ok");
+
+  let healthScore = null;
+  if (enabled) {
+    healthScore = 100;
+
+    for (const incident of incidents) {
+      healthScore -= healthIncidentPenalty(incident.code, incident.severity);
+    }
+
+    healthScore = clamp(Math.round(healthScore), 0, 100);
+  }
+
+  return {
+    sensorId: toNumber(row.sensor_id, 0),
+    sensorName: row.sensor_name,
+    sensorType,
+    pondId: toNumber(row.pond_id, 0),
+    pondName: row.pond_name,
+    unit: row.unit,
+    enabled,
+    status,
+    healthScore,
+    currentValue,
+    previousValue,
+    lastReadingAt,
+    previousReadingAt,
+    minutesSinceLast: minutesSinceLast === null ? null : round(minutesSinceLast, 1),
+    sampleCount,
+    windowMin,
+    windowMax,
+    windowAvg: toNullableNumber(row.window_avg),
+    windowStddev: toNullableNumber(row.window_stddev),
+    checks,
+    incidents
+  };
+}
+
+function summarizeSensorHealth(sensors) {
+  const activeSensors = sensors.filter((sensor) => sensor.enabled);
+  const okSensors = activeSensors.filter((sensor) => sensor.status === "ok").length;
+  const warningSensors = activeSensors.filter((sensor) => sensor.status === "warning").length;
+  const criticalSensors = activeSensors.filter((sensor) => sensor.status === "critical").length;
+
+  const incidentsByCode = {};
+  const topIncidents = [];
+
+  const byTypeMap = new Map();
+  for (const sensor of sensors) {
+    const key = String(sensor.sensorType || "unknown");
+
+    if (!byTypeMap.has(key)) {
+      byTypeMap.set(key, {
+        sensorType: key,
+        total: 0,
+        ok: 0,
+        warning: 0,
+        critical: 0,
+        disabled: 0
+      });
+    }
+
+    const bucket = byTypeMap.get(key);
+    bucket.total += 1;
+
+    if (sensor.status === "disabled") {
+      bucket.disabled += 1;
+    } else if (sensor.status === "critical") {
+      bucket.critical += 1;
+    } else if (sensor.status === "warning") {
+      bucket.warning += 1;
+    } else {
+      bucket.ok += 1;
+    }
+
+    for (const incident of sensor.incidents || []) {
+      incidentsByCode[incident.code] = toNumber(incidentsByCode[incident.code], 0) + 1;
+      topIncidents.push({
+        ...incident,
+        sensorId: sensor.sensorId,
+        sensorName: sensor.sensorName,
+        sensorType: sensor.sensorType,
+        pondName: sensor.pondName
+      });
+    }
+  }
+
+  topIncidents.sort((left, right) => {
+    const severityDelta =
+      toNumber(sensorHealthSeverityPriority[right.severity], 0)
+      - toNumber(sensorHealthSeverityPriority[left.severity], 0);
+
+    if (severityDelta !== 0) {
+      return severityDelta;
+    }
+
+    return String(left.sensorName || "").localeCompare(String(right.sensorName || ""));
+  });
+
+  const scoreSamples = activeSensors
+    .map((sensor) => toNullableNumber(sensor.healthScore))
+    .filter((score) => score !== null);
+  const overallScore = scoreSamples.length > 0
+    ? round(scoreSamples.reduce((sum, score) => sum + score, 0) / scoreSamples.length, 1)
+    : null;
+
+  return {
+    totalSensors: sensors.length,
+    activeSensors: activeSensors.length,
+    disabledSensors: sensors.length - activeSensors.length,
+    okSensors,
+    warningSensors,
+    criticalSensors,
+    overallScore,
+    incidentTotal: topIncidents.length,
+    incidentsByCode,
+    byType: Array.from(byTypeMap.values()).sort((left, right) =>
+      String(left.sensorType).localeCompare(String(right.sensorType))
+    ),
+    topIncidents: topIncidents.slice(0, 12)
+  };
 }
 
 function pseudoNoise(seed, index) {
@@ -881,6 +1300,25 @@ dataRoutes.use((req, res, next) => {
     return;
   }
 
+  if (req.method === "GET" && req.path === "/sensors/health") {
+    const requestedWindowHours = Number(req.query.windowHours || 24);
+    const requestedStaleMinutes = Number(req.query.staleMinutes || 35);
+    const windowHours = Number.isFinite(requestedWindowHours)
+      ? Math.max(4, Math.min(168, Math.round(requestedWindowHours)))
+      : 24;
+    const staleMinutes = Number.isFinite(requestedStaleMinutes)
+      ? Math.max(5, Math.min(240, Math.round(requestedStaleMinutes)))
+      : 35;
+
+    res.json(
+      getDemoSensorHealthOverview({
+        windowHours,
+        staleMinutes
+      })
+    );
+    return;
+  }
+
   if (req.method === "GET" && req.path === "/readings/latest") {
     const requestedLimit = Number(req.query.limit || 24);
     const limit = Number.isFinite(requestedLimit)
@@ -1316,6 +1754,104 @@ dataRoutes.get(
     );
 
     res.json(result.rows);
+  })
+);
+
+dataRoutes.get(
+  "/sensors/health",
+  asyncHandler(async (req, res) => {
+    const requestedWindowHours = Number(req.query.windowHours || 24);
+    const requestedStaleMinutes = Number(req.query.staleMinutes || 35);
+    const windowHours = Number.isFinite(requestedWindowHours)
+      ? Math.max(4, Math.min(168, Math.round(requestedWindowHours)))
+      : 24;
+    const staleMinutes = Number.isFinite(requestedStaleMinutes)
+      ? Math.max(5, Math.min(240, Math.round(requestedStaleMinutes)))
+      : 35;
+
+    const result = await query(
+      `
+        SELECT
+          s.id AS sensor_id,
+          s.pond_id,
+          p.name AS pond_name,
+          s.name AS sensor_name,
+          s.type AS sensor_type,
+          s.unit,
+          s.enabled,
+          latest.value AS current_value,
+          latest.recorded_at AS last_recorded_at,
+          latest.quality AS last_quality,
+          prev.value AS prev_value,
+          prev.recorded_at AS prev_recorded_at,
+          stats.sample_count,
+          stats.window_min,
+          stats.window_max,
+          stats.window_avg,
+          stats.window_stddev
+        FROM sensors s
+        JOIN ponds p ON p.id = s.pond_id
+        LEFT JOIN LATERAL (
+          SELECT m.value, m.recorded_at, m.quality
+          FROM measurements m
+          WHERE m.tenant_id = $1
+            AND m.sensor_id = s.id
+          ORDER BY m.recorded_at DESC
+          LIMIT 1
+        ) latest ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT m.value, m.recorded_at
+          FROM measurements m
+          WHERE m.tenant_id = $1
+            AND m.sensor_id = s.id
+          ORDER BY m.recorded_at DESC
+          OFFSET 1
+          LIMIT 1
+        ) prev ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT
+            COUNT(*)::int AS sample_count,
+            MIN(m.value) AS window_min,
+            MAX(m.value) AS window_max,
+            ROUND(AVG(m.value)::numeric, 3) AS window_avg,
+            ROUND(STDDEV_SAMP(m.value)::numeric, 3) AS window_stddev
+          FROM measurements m
+          WHERE m.tenant_id = $1
+            AND m.sensor_id = s.id
+            AND m.recorded_at >= NOW() - ($2::int * INTERVAL '1 hour')
+        ) stats ON TRUE
+        WHERE s.tenant_id = $1
+        ORDER BY p.name ASC, s.name ASC
+      `,
+      [req.user.tenantId, windowHours]
+    );
+
+    const sensors = result.rows.map((row) =>
+      evaluateSensorHealthRow(row, {
+        staleMinutes
+      })
+    );
+    const summary = summarizeSensorHealth(sensors);
+
+    res.json({
+      generatedAt: new Date().toISOString(),
+      windowHours,
+      staleMinutes,
+      summary: {
+        totalSensors: summary.totalSensors,
+        activeSensors: summary.activeSensors,
+        disabledSensors: summary.disabledSensors,
+        okSensors: summary.okSensors,
+        warningSensors: summary.warningSensors,
+        criticalSensors: summary.criticalSensors,
+        overallScore: summary.overallScore,
+        incidentTotal: summary.incidentTotal,
+        incidentsByCode: summary.incidentsByCode
+      },
+      byType: summary.byType,
+      topIncidents: summary.topIncidents,
+      sensors
+    });
   })
 );
 

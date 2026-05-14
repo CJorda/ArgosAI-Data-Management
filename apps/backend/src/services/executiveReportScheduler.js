@@ -79,10 +79,12 @@ async function hasRunInCurrentWindow(tenantId, windowStartIso) {
 
 async function persistScheduledRun({ tenantId, windowStartIso, report, frequency }) {
   const payload = {
+    template: "executive",
     scheduler: {
       frequency,
       windowStart: windowStartIso,
-      generatedAt: report.generatedAt
+      generatedAt: report.generatedAt,
+      template: "executive"
     },
     kpis: report.kpis,
     economics: report.report?.economics,

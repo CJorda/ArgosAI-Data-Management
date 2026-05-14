@@ -1,8 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  clearHarvestTrainingScenariosRequest,
+  createHarvestTrainingScenarioRequest,
   createHarvestPlanRequest,
   createHarvestShipmentRequest,
+  harvestTrainingScenariosRequest,
   harvestSimulatorRequest,
   harvestPlansRequest,
   harvestShipmentsRequest,
@@ -50,6 +53,18 @@ function riskClass(riskLevel) {
   return "module-pill module-pill-priority-low";
 }
 
+function deltaClassName(delta) {
+  if (delta > 0.01) {
+    return "module-delta-positive";
+  }
+
+  if (delta < -0.01) {
+    return "module-delta-negative";
+  }
+
+  return "module-delta-neutral";
+}
+
 export function HarvestLogisticsPage() {
   const { accessToken } = useAuth();
   const queryClient = useQueryClient();
@@ -86,6 +101,7 @@ export function HarvestLogisticsPage() {
     riskPenaltyPct: "4.5",
     mortalityStressFactor: "1"
   });
+  const [trainingBaselineId, setTrainingBaselineId] = useState("");
 
   const pondsQuery = useQuery({
     queryKey: ["ponds", "harvest"],
@@ -128,6 +144,11 @@ export function HarvestLogisticsPage() {
     queryFn: () => harvestSimulatorRequest(accessToken, simulatorParams)
   });
 
+  const trainingScenariosQuery = useQuery({
+    queryKey: ["planning", "harvest-simulator", "training-scenarios"],
+    queryFn: () => harvestTrainingScenariosRequest(accessToken, { limit: 80 })
+  });
+
   const createPlanMutation = useMutation({
     mutationFn: (payload) => createHarvestPlanRequest(accessToken, payload),
     onSuccess: () => {
@@ -165,8 +186,28 @@ export function HarvestLogisticsPage() {
     }
   });
 
+  const createTrainingScenarioMutation = useMutation({
+    mutationFn: (payload) => createHarvestTrainingScenarioRequest(accessToken, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["planning", "harvest-simulator", "training-scenarios"]
+      });
+    }
+  });
+
+  const clearTrainingScenariosMutation = useMutation({
+    mutationFn: () => clearHarvestTrainingScenariosRequest(accessToken),
+    onSuccess: () => {
+      setTrainingBaselineId("");
+      queryClient.invalidateQueries({
+        queryKey: ["planning", "harvest-simulator", "training-scenarios"]
+      });
+    }
+  });
+
   const plans = plansQuery.data || [];
   const shipments = shipmentsQuery.data || [];
+  const trainingScenarios = trainingScenariosQuery.data || [];
   const simulatorRows = harvestSimulatorQuery.data?.scenarios || [];
   const simulatorSummary = harvestSimulatorQuery.data?.summary || {
     totalCurrentBiomassKg: 0,
@@ -181,6 +222,113 @@ export function HarvestLogisticsPage() {
     () => plans.filter((plan) => ["planned", "ready", "in_transit"].includes(plan.status)).length,
     [plans]
   );
+
+  useEffect(() => {
+    if (trainingScenarios.length === 0) {
+      if (trainingBaselineId) {
+        setTrainingBaselineId("");
+      }
+      return;
+    }
+
+    const hasBaseline = trainingScenarios.some((scenario) => scenario.id === trainingBaselineId);
+    if (!hasBaseline) {
+      setTrainingBaselineId(trainingScenarios[0].id);
+    }
+  }, [trainingScenarios, trainingBaselineId]);
+
+  const simulatorRiskBreakdown = useMemo(() => {
+    return simulatorRows.reduce(
+      (acc, row) => {
+        acc.totalReadiness += Number(row.readinessScore) || 0;
+
+        if (row.riskLevel === "critical") {
+          acc.critical += 1;
+        } else if (row.riskLevel === "high") {
+          acc.high += 1;
+        } else if (row.riskLevel === "medium") {
+          acc.medium += 1;
+        } else {
+          acc.low += 1;
+        }
+
+        return acc;
+      },
+      {
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        totalReadiness: 0
+      }
+    );
+  }, [simulatorRows]);
+
+  const saveTrainingScenario = () => {
+    const nowIso = new Date().toISOString();
+    const index = trainingScenarios.length + 1;
+    const averageReadiness = simulatorRows.length > 0
+      ? Number((simulatorRiskBreakdown.totalReadiness / simulatorRows.length).toFixed(1))
+      : 0;
+
+    const snapshot = {
+      id: `training-${Date.now()}`,
+      label: `Escenario ${index}`,
+      createdAt: nowIso,
+      assumptions: {
+        ...simulatorParams
+      },
+      summary: {
+        ...simulatorSummary,
+        averageReadiness
+      },
+      riskBreakdown: {
+        critical: simulatorRiskBreakdown.critical,
+        high: simulatorRiskBreakdown.high,
+        medium: simulatorRiskBreakdown.medium,
+        low: simulatorRiskBreakdown.low
+      },
+      topRows: simulatorRows.slice(0, 3).map((row) => ({
+        pondName: row.pondName,
+        lotCode: row.lotCode,
+        marginEur: row.marginEur,
+        riskLevel: row.riskLevel,
+        readinessScore: row.readinessScore
+      }))
+    };
+
+    createTrainingScenarioMutation.mutate(snapshot);
+  };
+
+  const baselineScenario = useMemo(() => {
+    if (trainingScenarios.length === 0) {
+      return null;
+    }
+
+    return trainingScenarios.find((scenario) => scenario.id === trainingBaselineId) || trainingScenarios[0];
+  }, [trainingScenarios, trainingBaselineId]);
+
+  const scenariosWithDelta = useMemo(() => {
+    if (trainingScenarios.length === 0) {
+      return [];
+    }
+
+    const baselineMargin = baselineScenario?.summary?.totalMarginEur || 0;
+
+    return trainingScenarios.map((scenario) => {
+      const margin = Number(scenario.summary?.totalMarginEur || 0);
+      const deltaMargin = margin - baselineMargin;
+
+      return {
+        ...scenario,
+        deltaMargin
+      };
+    });
+  }, [trainingScenarios, baselineScenario]);
+
+  const clearTrainingScenarios = () => {
+    clearTrainingScenariosMutation.mutate();
+  };
 
   const handleCreatePlan = (event) => {
     event.preventDefault();
@@ -385,6 +533,89 @@ export function HarvestLogisticsPage() {
                 : "-"}
             </strong>
           </article>
+        </div>
+
+        <div className="filters-inline module-training-toolbar">
+          <button
+            type="button"
+            className="tiny-button"
+            onClick={saveTrainingScenario}
+            disabled={simulatorRows.length === 0 || createTrainingScenarioMutation.isPending}
+          >
+            {createTrainingScenarioMutation.isPending ? "Guardando..." : "Guardar escenario entrenamiento"}
+          </button>
+          <button
+            type="button"
+            className="tiny-button"
+            onClick={clearTrainingScenarios}
+            disabled={trainingScenarios.length === 0 || clearTrainingScenariosMutation.isPending}
+          >
+            {clearTrainingScenariosMutation.isPending ? "Limpiando..." : "Limpiar escenarios"}
+          </button>
+
+          <div>
+            <label htmlFor="trainingBaseline">Baseline</label>
+            <select
+              id="trainingBaseline"
+              value={baselineScenario?.id || ""}
+              onChange={(event) => setTrainingBaselineId(event.target.value)}
+              disabled={trainingScenarios.length === 0}
+            >
+              {trainingScenarios.length === 0 ? <option value="">Sin escenarios</option> : null}
+              {trainingScenarios.map((scenario) => (
+                <option key={scenario.id} value={scenario.id}>
+                  {scenario.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Escenario</th>
+                <th>Fecha</th>
+                <th>Margen EUR</th>
+                <th>Delta vs baseline</th>
+                <th>Readiness medio</th>
+                <th>Riesgo alto/critico</th>
+                <th>Top candidatos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scenariosWithDelta.length > 0 ? (
+                scenariosWithDelta.map((scenario) => (
+                  <tr key={scenario.id}>
+                    <td>{scenario.label}</td>
+                    <td>{new Date(scenario.createdAt).toLocaleString()}</td>
+                    <td>{Number(scenario.summary?.totalMarginEur || 0).toLocaleString("es-ES")}</td>
+                    <td>
+                      <span className={deltaClassName(scenario.deltaMargin)}>
+                        {scenario.deltaMargin.toLocaleString("es-ES", { maximumFractionDigits: 2 })}
+                      </span>
+                    </td>
+                    <td>{scenario.summary?.averageReadiness ?? 0}</td>
+                    <td>{(scenario.riskBreakdown?.high || 0) + (scenario.riskBreakdown?.critical || 0)}</td>
+                    <td>
+                      {(scenario.topRows || [])
+                        .map((item) => `${item.pondName} (${item.lotCode})`)
+                        .join(" | ") || "-"}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="empty-text">
+                    {trainingScenariosQuery.isFetching
+                      ? "Cargando escenarios guardados..."
+                      : "Guarda escenarios para entrenar al equipo comparando cambios de supuestos."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
 
         <div className="table-wrap">
