@@ -41,27 +41,20 @@
 }
 
 .scada-panel {
-  @apply overflow-x-auto overflow-y-hidden border-[#23344a] p-0;
-  background: linear-gradient(180deg, #161f2a 0%, #111824 100%);
-  --scada-gap: 4px;
-  --pond-tile-width: 140px;
-  --pond-tile-height: 140px;
-  --horizontal-tile-height: var(--pond-tile-height);
-  --vertical-tile-height: var(--pond-tile-height);
-  --compact-tile-height: var(--pond-tile-height);
-  --zone-f-tile-height: var(--pond-tile-height);
+  @apply overflow-hidden p-0;
+  @apply border-[#d6dfec] bg-white;
 }
 
 .scada-header {
-  @apply flex flex-wrap items-center justify-between gap-3 border-b border-b-[#2e435f] px-4 py-3 text-[#deebff];
+  @apply flex flex-wrap items-center justify-between gap-3 border-b border-b-[#d7e1ef] bg-[#f7fbff] px-4 py-3 text-[#2b4568];
 }
 
 .scada-header h3 {
-  @apply m-0 text-[#edf4ff];
+  @apply m-0 text-[#1a3658];
 }
 
 .scada-header-meta {
-  @apply flex flex-wrap items-center gap-2 text-[0.82rem] text-[#b3c6e2];
+  @apply flex flex-wrap items-center gap-2 text-[0.82rem] text-[#516989];
 }
 
 .legend-item {
@@ -85,15 +78,148 @@
 }
 
 .legend-o2-unknown {
-  @apply border-[#8f97ab] bg-[#374253] text-[#eef2f9];
+  @apply border-[#b5bfce] bg-[#eef2f7] text-[#3c4f6b];
 }
 
 .legend-alert-outline {
-  @apply border-[#f0a6b0] bg-[#422731] text-[#ffdbe2];
+  @apply border-[#efb7bf] bg-[#fff0f2] text-[#7b3345];
 }
 
 .legend-template {
+  @apply border-[#b5bfce] bg-[#eef2f7] text-[#3c4f6b];
+}
+
+.scada-table-wrap {
+  @apply overflow-x-auto;
+}
+
+.scada-table {
+  width: 100%;
+  min-width: 1220px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.scada-table th {
+  @apply border-b border-b-[#d7e1ef] bg-[#f3f8ff] px-3 py-2 text-left text-[0.73rem] font-semibold uppercase tracking-[0.05em] text-[#4a6385];
+}
+
+.scada-table td {
+  @apply border-b border-b-[#e2e9f3] px-3 py-2 text-[0.82rem] text-[#1f3556] align-middle;
+  max-width: 260px;
+}
+
+.scada-row:hover td {
+  @apply bg-[#f4f8ff];
+}
+
+.scada-row-alarm td {
+  @apply bg-white;
+}
+
+.scada-row-alarm td:first-child {
+  @apply border-l-2 border-l-[#e8a3a8];
+}
+
+.scada-row-template td {
+  @apply text-[#677c98];
+}
+
+.scada-code-chip {
+  @apply inline-flex min-w-[2.25rem] justify-center rounded-md border border-[#4a6d95] bg-[#123a62] px-1.5 py-0.5 text-[0.73rem] font-semibold text-[#dcecff];
+}
+
+.scada-status-chip {
+  @apply inline-flex rounded-md border px-2 py-0.5 text-[0.74rem] font-semibold;
+}
+
+.scada-status-ok {
+  @apply border-[#71b896] bg-[#1f3b2f] text-[#b7efcf];
+}
+
+.scada-status-alarm {
+  @apply border-[#e298a8] bg-[#4a2732] text-[#ffd9e1];
+}
+
+.scada-status-stale,
+.scada-status-unknown {
+  @apply border-[#a9b4c8] bg-[#2f3a4d] text-[#d9e4f6];
+}
+
+.scada-status-template {
+  @apply border-[#9daac1] bg-[#334055] text-[#e0e8f6];
+}
+
+.scada-source-chip {
+  @apply inline-flex rounded-md border px-2 py-0.5 text-[0.74rem] font-semibold;
+}
+
+.scada-source-real {
+  @apply border-[#8ad4bd] bg-[#1e443b] text-[#c6f3e7];
+}
+
+.scada-source-demo {
+  @apply border-[#b8c5db] bg-[#314158] text-[#e3ebf9];
+}
+
+.scada-source-none {
+  @apply border-[#9eaac0] bg-[#354359] text-[#dbe5f4];
+}
+
+.oxygen-state-chip {
+  @apply inline-flex rounded-md border px-2 py-0.5 text-[0.74rem] font-semibold;
+}
+
+.oxygen-state-critical {
+  @apply border-[#e8a3a8] bg-[#ef8087] text-[#271b1f];
+}
+
+.oxygen-state-low {
+  @apply border-[#e4d18a] bg-[#f3dd57] text-[#3a351f];
+}
+
+.oxygen-state-normal {
+  @apply border-[#9ad7ac] bg-[#79dc9a] text-[#173226];
+}
+
+.oxygen-state-high {
+  @apply border-[#c8a4ee] bg-[#b377eb] text-[#261c33];
+}
+
+.oxygen-state-unknown {
   @apply border-[#8f97ab] bg-[#374253] text-[#eef2f9];
+}
+
+.scada-alert-count {
+  @apply inline-flex min-w-[1.6rem] justify-center rounded-full border border-[#6c86a8] bg-[#21354c] px-2 py-0.5 text-[0.73rem] font-semibold text-[#d8e6fa];
+}
+
+.scada-metric-with-trend {
+  @apply inline-flex items-center gap-1.5;
+}
+
+.scada-trend-arrow {
+  @apply inline-flex min-w-[1rem] justify-center rounded px-1 py-[0.1rem] text-[0.68rem] font-semibold;
+}
+
+.scada-trend-good {
+  @apply border border-[#96d8b3] bg-[#eef9f2] text-[#237548];
+}
+
+.scada-trend-bad {
+  @apply border border-[#efb5bf] bg-[#fff1f4] text-[#8c2d44];
+}
+
+.scada-trend-neutral {
+  @apply border border-[#d0d8e4] bg-[#f7f9fc] text-[#6f819a];
+}
+
+.scada-alert-message {
+  @apply block truncate text-[#8a2f44];
+}
+
+.scada-empty-text {
+  @apply text-[#6f819a];
 }
 
 .scada-geometry {

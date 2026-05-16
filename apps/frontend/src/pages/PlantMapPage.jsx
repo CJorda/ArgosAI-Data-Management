@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   alertsRequest,
@@ -44,25 +44,6 @@ const plantTemplate = [
     ]
   }
 ];
-
-const scadaGeometry = {
-  fColumn: ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10"],
-  eColumn: ["E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "E10", "E11", "E12"],
-  dColumn: ["D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10", "D11", "D12"],
-  aRow: ["A4", "A3", "A2", "A1"],
-  bRow: ["B4", "B3", "B2", "B1"],
-  cPairs: [["C7", "C6"], ["C5", "C4"], ["C3", "C2"], ["C1"]]
-};
-
-const sensorLabels = {
-  temperature: "Temp",
-  oxygen: "O2 disuelto",
-  saturation: "Saturacion",
-  ph: "pH",
-  turbidity: "Turbidez"
-};
-
-const displayedSensors = ["temperature", "oxygen", "saturation", "turbidity", "ph"];
 
 const colorSetpointZones = [
   {
@@ -276,6 +257,7 @@ function buildDemoMetricsForSlot(slotCode, oxygenSetpoint, temperatureSetpoint) 
   }
 
   const salinityValue = 31 + (index % 5) * 0.7;
+  const conductivityValue = salinityValue * 1.5;
   const phValue = 7.2 + ((index % 7) - 3) * 0.07;
   const turbidityValue = 7.5 + (index % 8) * 1.1;
 
@@ -297,6 +279,11 @@ function buildDemoMetricsForSlot(slotCode, oxygenSetpoint, temperatureSetpoint) 
         unit: "ppt",
         recordedAt
       },
+      conductivity: {
+        value: Number(conductivityValue.toFixed(2)),
+        unit: "mS/cm",
+        recordedAt
+      },
       turbidity: {
         value: Number(turbidityValue.toFixed(2)),
         unit: "NTU",
@@ -309,6 +296,50 @@ function buildDemoMetricsForSlot(slotCode, oxygenSetpoint, temperatureSetpoint) 
       }
     }
   };
+}
+
+function buildTrendPreviewPreviousMetrics(slotCode, currentMetrics) {
+  const index = slotCodeNumber(slotCode) || 1;
+  const trendCycle = ["up", "down", "flat"];
+  const sensorConfig = [
+    { key: "oxygen", step: 0.18, min: 0, offset: 0 },
+    { key: "temperature", step: 0.35, min: -20, offset: 1 },
+    { key: "turbidity", step: 0.6, min: 0, offset: 2 },
+    { key: "ph", step: 0.04, min: 0, offset: 3 },
+    { key: "salinity", step: 0.4, min: 0, offset: 4 },
+    { key: "conductivity", step: 0.55, min: 0, offset: 5 }
+  ];
+  const previousMetrics = {};
+
+  for (const config of sensorConfig) {
+    const currentMetric = currentMetrics?.[config.key];
+    const currentValue = Number(currentMetric?.value);
+
+    if (!Number.isFinite(currentValue)) {
+      continue;
+    }
+
+    const direction = trendCycle[(index + config.offset) % trendCycle.length];
+    let previousValue = currentValue;
+
+    if (direction === "up") {
+      previousValue = currentValue - config.step;
+    } else if (direction === "down") {
+      previousValue = currentValue + config.step;
+    }
+
+    const boundedValue = Math.max(config.min, previousValue);
+    const currentRecordedAt = new Date(currentMetric?.recordedAt || Date.now()).getTime();
+    const previousRecordedAt = new Date(currentRecordedAt - 15 * 60 * 1000).toISOString();
+
+    previousMetrics[config.key] = {
+      value: Number(boundedValue.toFixed(2)),
+      unit: currentMetric?.unit,
+      recordedAt: previousRecordedAt
+    };
+  }
+
+  return previousMetrics;
 }
 
 function isFiniteNumber(value) {
@@ -447,6 +478,25 @@ function buildSaturationMetric(metrics) {
   };
 }
 
+function buildConductivityMetric(metrics) {
+  const conductivityValue = Number(metrics?.conductivity?.value);
+  if (Number.isFinite(conductivityValue)) {
+    return metrics.conductivity;
+  }
+
+  const salinityValue = Number(metrics?.salinity?.value);
+  if (!Number.isFinite(salinityValue)) {
+    return null;
+  }
+
+  return {
+    value: Number((salinityValue * 1.5).toFixed(2)),
+    unit: "mS/cm",
+    recordedAt: metrics?.salinity?.recordedAt || null,
+    estimated: true
+  };
+}
+
 function relativeTimeLabel(timestamp) {
   if (!timestamp) return "Sin datos";
 
@@ -460,9 +510,112 @@ function relativeTimeLabel(timestamp) {
   return `${hours} h`;
 }
 
+function tileStatusLabel(status) {
+  switch (status) {
+    case "ok":
+      return "Operativa";
+    case "alarm":
+      return "En alarma";
+    case "stale":
+      return "Dato atrasado";
+    case "unknown":
+      return "Sin datos";
+    case "template":
+      return "Sin vincular";
+    default:
+      return "Desconocido";
+  }
+}
+
+function metricTrendDirection(currentMetric, previousMetric, minTolerance = 0) {
+  const current = Number(currentMetric?.value);
+  const previous = Number(previousMetric?.value);
+
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) {
+    return "none";
+  }
+
+  const delta = current - previous;
+  const tolerance = Math.max(minTolerance, Math.abs(previous) * 0.01);
+
+  if (Math.abs(delta) <= tolerance) {
+    return "flat";
+  }
+
+  return delta > 0 ? "up" : "down";
+}
+
+function trendArrow(direction) {
+  switch (direction) {
+    case "up":
+      return "▲";
+    case "down":
+      return "▼";
+    case "flat":
+      return "→";
+    default:
+      return "•";
+  }
+}
+
+function trendLabel(direction) {
+  switch (direction) {
+    case "up":
+      return "Sube";
+    case "down":
+      return "Baja";
+    case "flat":
+      return "Estable";
+    default:
+      return "Sin dato previo";
+  }
+}
+
+function trendToneBySensor(sensorType, direction, metric) {
+  if (sensorType === "ph") {
+    const phValue = Number(metric?.value);
+
+    if (!Number.isFinite(phValue)) {
+      return "neutral";
+    }
+
+    return phValue >= 6.5 && phValue <= 8.5 ? "good" : "bad";
+  }
+
+  if (direction === "none" || direction === "flat") {
+    return "neutral";
+  }
+
+  if (sensorType === "temperature") {
+    return direction === "down" ? "good" : "bad";
+  }
+
+  if (sensorType === "oxygen") {
+    return direction === "up" ? "good" : "bad";
+  }
+
+  if (sensorType === "turbidity") {
+    return direction === "down" ? "good" : "bad";
+  }
+
+  if (sensorType === "saturation" || sensorType === "conductivity") {
+    return direction === "up" ? "good" : "bad";
+  }
+
+  return "neutral";
+}
+
+const trendToleranceBySensor = {
+  oxygen: 0.05,
+  temperature: 0.1,
+  saturation: 0.5,
+  turbidity: 0.1,
+  conductivity: 0.15,
+  ph: 0.02
+};
+
 export function PlantMapPage() {
   const { accessToken } = useAuth();
-  const [selectedTileKey, setSelectedTileKey] = useState(null);
 
   const pondsQuery = useQuery({
     queryKey: ["ponds", "plant-map"],
@@ -520,14 +673,22 @@ export function PlantMapPage() {
       if (!map.has(pondId)) {
         map.set(pondId, {
           metrics: {},
+          previousMetrics: {},
           updatedAt: reading.recorded_at
         });
       }
 
       const current = map.get(pondId);
+      const sensorType = reading.sensor_type;
 
-      if (!current.metrics[reading.sensor_type]) {
-        current.metrics[reading.sensor_type] = {
+      if (!current.metrics[sensorType]) {
+        current.metrics[sensorType] = {
+          value: reading.value,
+          unit: reading.unit,
+          recordedAt: reading.recorded_at
+        };
+      } else if (!current.previousMetrics[sensorType]) {
+        current.previousMetrics[sensorType] = {
           value: reading.value,
           unit: reading.unit,
           recordedAt: reading.recorded_at
@@ -656,7 +817,9 @@ export function PlantMapPage() {
 
     return templateSlots.map((slot) => {
       const pond = assignmentBySlot.get(slot.slotCode) || null;
-      const pondMetrics = pond ? metricsByPond.get(pond.id) || { metrics: {}, updatedAt: null } : null;
+      const pondMetrics = pond
+        ? metricsByPond.get(pond.id) || { metrics: {}, previousMetrics: {}, updatedAt: null }
+        : null;
       const pondAlerts = pond ? alertsByPond.get(pond.id) || [] : [];
       const oxygenSetpoint = oxygenColorBySlot.get(slot.slotCode) || null;
       const temperatureSetpoint = temperatureColorBySlot.get(slot.slotCode) || null;
@@ -667,6 +830,11 @@ export function PlantMapPage() {
       const resolvedMetrics = {
         ...(demoMetricsPack?.metrics || {}),
         ...(pondMetrics?.metrics || {})
+      };
+      const fallbackPreviousMetrics = buildTrendPreviewPreviousMetrics(slot.slotCode, resolvedMetrics);
+      const resolvedPreviousMetrics = {
+        ...fallbackPreviousMetrics,
+        ...(pondMetrics?.previousMetrics || {})
       };
       const resolvedUpdatedAt = pondMetrics?.updatedAt || demoMetricsPack?.updatedAt || null;
       const oxygenMetricValue = Number(resolvedMetrics?.oxygen?.value);
@@ -702,6 +870,7 @@ export function PlantMapPage() {
         species: pond ? pond.species : "Sin vincular",
         updatedAt: resolvedUpdatedAt,
         metrics: resolvedMetrics,
+        previousMetrics: resolvedPreviousMetrics,
         alerts: pondAlerts,
         status,
         oxygenState,
@@ -717,14 +886,6 @@ export function PlantMapPage() {
     oxygenColorBySlot,
     temperatureColorBySlot
   ]);
-
-  const tileByCode = useMemo(
-    () => new Map(pondTiles.map((tile) => [tile.shortCode, tile])),
-    [pondTiles]
-  );
-
-  const activeKey = selectedTileKey || pondTiles[0]?.key || null;
-  const activeTile = pondTiles.find((item) => item.key === activeKey) || null;
 
   const summary = useMemo(() => {
     const total = pondTiles.length;
@@ -754,81 +915,71 @@ export function PlantMapPage() {
     };
   }, [pondTiles]);
 
-  const renderTile = (tile, options = {}) => {
-    const {
-      orientation = "horizontal",
-      showAlerts = orientation === "horizontal",
-      compact = false
-    } = options;
-    const saturationMetric = buildSaturationMetric(tile.metrics);
-    const tileMetrics = [
-      {
-        label: "Temp",
-        value: formatMetric(tile.metrics.temperature, { includeUnit: true }),
-        indicatorClass: `temp-indicator-${tile.temperatureState || "unknown"}`
-      },
-      {
-        label: "O2",
-        value: formatMetric(tile.metrics.oxygen, { includeUnit: true })
-      },
-      {
-        label: "Sat",
-        value: formatMetric(saturationMetric, { includeUnit: true })
-      },
-      {
-        label: "Turb",
-        value: formatMetric(tile.metrics.turbidity, { includeUnit: true })
-      },
-      {
-        label: "pH",
-        value: formatMetric(tile.metrics.ph, { includeUnit: false })
-      }
-    ];
+  const scadaTableRows = useMemo(
+    () =>
+      pondTiles.map((tile) => {
+        const saturationMetric = buildSaturationMetric(tile.metrics);
+        const previousSaturationMetric = buildSaturationMetric(tile.previousMetrics);
+        const conductivityMetric = buildConductivityMetric(tile.metrics);
+        const previousConductivityMetric = buildConductivityMetric(tile.previousMetrics);
+        const hasDirectConductivity = Number.isFinite(Number(tile.metrics?.conductivity?.value));
 
-    const className = [
-      "pond-tile",
-      orientation === "horizontal" ? "slot-horizontal" : "slot-vertical",
-      compact ? "slot-compact" : "",
-      tile.dataSource !== "none" ? `pond-oxygen-${tile.oxygenState || "unknown"}` : "",
-      `pond-${tile.status}`,
-      activeKey === tile.key ? "pond-active" : ""
-    ]
-      .filter(Boolean)
-      .join(" ");
+        return {
+          ...tile,
+          saturationMetric,
+          conductivityMetric,
+          isConductivityEstimated: Boolean(conductivityMetric) && !hasDirectConductivity,
+          statusLabel: tileStatusLabel(tile.status),
+          trends: {
+            temperature: metricTrendDirection(
+              tile.metrics.temperature,
+              tile.previousMetrics.temperature,
+              trendToleranceBySensor.temperature
+            ),
+            oxygen: metricTrendDirection(
+              tile.metrics.oxygen,
+              tile.previousMetrics.oxygen,
+              trendToleranceBySensor.oxygen
+            ),
+            saturation: metricTrendDirection(
+              saturationMetric,
+              previousSaturationMetric,
+              trendToleranceBySensor.saturation
+            ),
+            turbidity: metricTrendDirection(
+              tile.metrics.turbidity,
+              tile.previousMetrics.turbidity,
+              trendToleranceBySensor.turbidity
+            ),
+            conductivity: metricTrendDirection(
+              conductivityMetric,
+              previousConductivityMetric,
+              trendToleranceBySensor.conductivity
+            ),
+            ph: metricTrendDirection(
+              tile.metrics.ph,
+              tile.previousMetrics.ph,
+              trendToleranceBySensor.ph
+            )
+          }
+        };
+      }),
+    [pondTiles]
+  );
+
+  const renderMetricWithTrend = (sensorType, metric, direction, options = {}) => {
+    const { valuePrefix = "", ...metricFormatOptions } = options;
+    const trendTone = trendToneBySensor(sensorType, direction, metric);
+    const title =
+      sensorType === "ph"
+        ? `Tendencia: ${trendLabel(direction)}. Objetivo pH: 6.5 - 8.5`
+        : `Tendencia: ${trendLabel(direction)}`;
 
     return (
-      <button
-        key={tile.key}
-        type="button"
-        className={className}
-        onClick={() => setSelectedTileKey(tile.key)}
-      >
-        <div className="pond-title-row">
-          <span className="pond-age">{relativeTimeLabel(tile.updatedAt)}</span>
-        </div>
-
-        <div className="pond-metrics">
-          {tileMetrics.map((metric) => (
-            <p key={`${tile.key}-${metric.label}`}>
-              <span>{metric.label}:</span>
-              <strong>
-                {metric.indicatorClass ? (
-                  <span className={`temp-indicator ${metric.indicatorClass}`.trim()} aria-hidden="true" />
-                ) : null}
-                {metric.value}
-              </strong>
-            </p>
-          ))}
-        </div>
-
-        {showAlerts ? (
-          <p className="pond-alert-count">
-            Alertas: <strong>{tile.alerts.length}</strong>
-          </p>
-        ) : null}
-
-        <span className="pond-code">{tile.shortCode}</span>
-      </button>
+      <span className="scada-metric-with-trend" title={title}>
+        <span className={`scada-trend-arrow scada-trend-${trendTone}`}>{trendArrow(direction)}</span>
+        <span>{`${valuePrefix}${formatMetric(metric, metricFormatOptions)}`}</span>
+      </span>
     );
   };
 
@@ -837,8 +988,8 @@ export function PlantMapPage() {
       <article className="panel plant-summary-panel">
         <h3>Plano de planta SCADA</h3>
         <p className="plant-summary-text">
-          Representación visual de la planta con estado por piscina, alertas activas y últimas
-          lecturas de sensores. Plantilla SCADA completa para reflejar todas las piscinas.
+          Vista tabular operativa con estado por piscina, alertas activas y últimas lecturas de
+          sensores en tiempo real o demo.
         </p>
         {scadaDataState.isDemoFallback ? (
           <p className="plant-demo-note">
@@ -869,7 +1020,7 @@ export function PlantMapPage() {
 
       <article className="panel scada-panel">
         <header className="scada-header">
-          <h3>Mapa operativo</h3>
+          <h3>Tabla operativa SCADA</h3>
           <div className="scada-header-meta">
             <span>Actualizado: {new Date().toLocaleString()}</span>
             <span className="legend-item legend-o2-critical">O2 crítico</span>
@@ -877,138 +1028,63 @@ export function PlantMapPage() {
             <span className="legend-item legend-o2-normal">O2 normal</span>
             <span className="legend-item legend-o2-high">O2 alto</span>
             <span className="legend-item legend-o2-unknown">Sin consigna/lectura</span>
-            <span className="legend-item legend-alert-outline">Borde rojo = alerta activa</span>
+            <span className="legend-item legend-alert-outline">Alarma activa en fila</span>
             <span className="legend-item legend-template">Sin vincular</span>
           </div>
         </header>
 
-        <div className="scada-geometry">
-          <section className="geom-block geom-f">
-            <div className="scada-column-frame">
-              <div className="slot-column">
-                {scadaGeometry.fColumn.map((slotCode) => {
-                  const tile = tileByCode.get(slotCode);
-                  return renderTile(tile);
-                })}
-              </div>
-            </div>
-            <div className="zone-tag">Z4 - F</div>
-          </section>
-
-          <section className="geom-block geom-ed">
-            <div className="ed-frame">
-              <div className="ed-columns">
-                <div className="slot-column">
-                  {scadaGeometry.eColumn.map((slotCode) => {
-                    const tile = tileByCode.get(slotCode);
-                    return renderTile(tile);
-                  })}
-                </div>
-
-                <div className="slot-column">
-                  {scadaGeometry.dColumn.map((slotCode) => {
-                    const tile = tileByCode.get(slotCode);
-                    return renderTile(tile);
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="zone-tags-inline">
-              <div className="zone-tag">Z3 - E</div>
-              <div className="zone-tag">Z2 - D</div>
-            </div>
-          </section>
-
-          <section className="geom-block geom-abc">
-            <div className="abc-frame">
-              <div className="slot-row row-four">
-                {scadaGeometry.aRow.map((slotCode) => {
-                  const tile = tileByCode.get(slotCode);
-                  return renderTile(tile, { orientation: "vertical", showAlerts: false });
-                })}
-              </div>
-
-              <div className="slot-row row-four">
-                {scadaGeometry.bRow.map((slotCode) => {
-                  const tile = tileByCode.get(slotCode);
-                  return renderTile(tile, { orientation: "vertical", showAlerts: false });
-                })}
-              </div>
-
-              <div className="slot-row row-c-pairs">
-                {scadaGeometry.cPairs.map((pair) => {
-                  const pairClassName = `c-pair ${pair.length === 1 ? "c-pair-single" : ""}`.trim();
-
-                  return (
-                    <div key={pair.join("-")} className={pairClassName}>
-                      {pair.map((slotCode) => {
-                        const tile = tileByCode.get(slotCode);
-                        return renderTile(tile, {
-                          orientation: "vertical",
-                          showAlerts: false,
-                          compact: true
-                        });
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="zone-tag">Z1 - A/B/C</div>
-          </section>
+        <div className="scada-table-wrap">
+          <table className="scada-table">
+            <thead>
+              <tr>
+                <th>Zona</th>
+                <th>Piscina</th>
+                <th>Estado</th>
+                <th>Actualizacion</th>
+                <th>Temp</th>
+                <th>O2</th>
+                <th>Saturacion</th>
+                <th>Turbidez</th>
+                <th>Conductividad</th>
+                <th>pH</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scadaTableRows.map((tile) => (
+                <tr
+                  key={tile.key}
+                  className={`scada-row scada-row-${tile.status} scada-row-o2-${tile.oxygenState || "unknown"}`}
+                >
+                  <td>{tile.zoneName}</td>
+                  <td>{tile.name}</td>
+                  <td>
+                    <span className={`scada-status-chip scada-status-${tile.status}`}>{tile.statusLabel}</span>
+                  </td>
+                  <td>
+                    <span title={tile.updatedAt ? new Date(tile.updatedAt).toLocaleString() : "Sin datos"}>
+                      {relativeTimeLabel(tile.updatedAt)}
+                    </span>
+                  </td>
+                  <td>{renderMetricWithTrend("temperature", tile.metrics.temperature, tile.trends.temperature, { includeUnit: true })}</td>
+                  <td>{renderMetricWithTrend("oxygen", tile.metrics.oxygen, tile.trends.oxygen, { includeUnit: true })}</td>
+                  <td>{renderMetricWithTrend("saturation", tile.saturationMetric, tile.trends.saturation, { includeUnit: true })}</td>
+                  <td>
+                    {renderMetricWithTrend("turbidity", tile.metrics.turbidity, tile.trends.turbidity, {
+                      includeUnit: true
+                    })}
+                  </td>
+                  <td title={tile.isConductivityEstimated ? "Estimado desde salinidad (aprox.)" : "Lectura directa"}>
+                    {renderMetricWithTrend("conductivity", tile.conductivityMetric, tile.trends.conductivity, {
+                      includeUnit: true,
+                      valuePrefix: tile.isConductivityEstimated ? "~ " : ""
+                    })}
+                  </td>
+                  <td>{renderMetricWithTrend("ph", tile.metrics.ph, tile.trends.ph, { includeUnit: false })}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </article>
-
-      <article className="panel plant-detail-panel">
-        <h3>Detalle de piscina</h3>
-        {activeTile ? (
-          <>
-            <p className="plant-detail-title">
-              <strong>{activeTile.name}</strong> - {activeTile.species}
-            </p>
-
-            {!activeTile.configured ? (
-              <p className="plant-detail-note">
-                Esta piscina es parte del plano SCADA pero aún no está vinculada a una piscina real del
-                sistema. Puedes crearla en datos/operaciones y usar código como {activeTile.shortCode}.
-              </p>
-            ) : null}
-
-            <div className="plant-detail-metrics">
-              {displayedSensors.map((sensorType) => {
-                const metric =
-                  sensorType === "saturation"
-                    ? buildSaturationMetric(activeTile.metrics)
-                    : activeTile.metrics[sensorType];
-
-                return (
-                <div key={sensorType} className="detail-chip">
-                  <span>{sensorLabels[sensorType]}</span>
-                  <strong>{formatMetric(metric)}</strong>
-                </div>
-                );
-              })}
-            </div>
-
-            <h4>Alertas activas</h4>
-            {activeTile.alerts.length ? (
-              <ul className="plant-alert-list">
-                {activeTile.alerts.slice(0, 5).map((alert) => (
-                  <li key={alert.id}>
-                    <strong>{alert.severity}</strong>
-                    <span>{alert.message}</span>
-                    <small>{new Date(alert.created_at).toLocaleString()}</small>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="empty-text">Sin alertas activas en esta piscina.</p>
-            )}
-          </>
-        ) : (
-          <p className="empty-text">No hay piscinas para mostrar.</p>
-        )}
       </article>
     </section>
   );

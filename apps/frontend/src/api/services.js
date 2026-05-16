@@ -542,3 +542,11 @@ export async function cameraSessionsRequest(token) {
   const { data } = await apiClient.get("/cameras/session", authConfig(token));
   return data;
 }
+
+export async function cameraInferenceRequest(token, params) {
+  const { data } = await apiClient.get("/cameras/inference", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}

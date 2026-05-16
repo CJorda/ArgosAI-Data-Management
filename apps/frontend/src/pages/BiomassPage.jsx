@@ -468,6 +468,36 @@ function calculateDerivedBiomassMetrics(row, context = {}) {
   };
 }
 
+function buildSurvivalFunnelStages(initialCount, soldCount) {
+  const stageNames = ["Alevines", "Juveniles", "Pre-engorde", "Engorde", "Venta"];
+  const palette = ["#d7ebff", "#b8d8fa", "#95c1ec", "#679fd8", "#2f73b7"];
+
+  const safeInitial = Math.max(1, Math.round(Number(initialCount) || 0));
+  const boundedSold = Math.max(0, Math.min(safeInitial, Math.round(Number(soldCount) || 0)));
+  const soldRatio = Math.min(0.98, Math.max(0.05, boundedSold / safeInitial));
+  const progression = [0, 0.25, 0.5, 0.75, 1];
+
+  const values = progression.map((step) =>
+    Math.round(safeInitial * (1 - (1 - soldRatio) * Math.pow(step, 1.15)))
+  );
+
+  values[0] = safeInitial;
+  values[values.length - 1] = boundedSold;
+
+  for (let index = 1; index < values.length; index += 1) {
+    values[index] = Math.min(values[index], values[index - 1]);
+  }
+
+  return stageNames.map((name, index) => ({
+    name,
+    value: values[index],
+    survivalPct: Number(((values[index] / safeInitial) * 100).toFixed(1)),
+    itemStyle: {
+      color: palette[index]
+    }
+  }));
+}
+
 function extractPondCode(nameOrCode) {
   const match = String(nameOrCode || "").toUpperCase().match(/\b([A-F]\d{1,2})\b/);
   return match ? match[1] : null;
@@ -888,6 +918,8 @@ export function BiomassPage() {
   const [manualHistoryRows, setManualHistoryRows] = useState([]);
   const [historyPage, setHistoryPage] = useState(1);
   const [densityChartMode, setDensityChartMode] = useState(DENSITY_CHART_MODE_DEFAULT);
+  const [survivalScope, setSurvivalScope] = useState("total");
+  const [selectedSurvivalPond, setSelectedSurvivalPond] = useState("");
 
   const historyRows = useMemo(() => {
     const serverRows = biomassTableState.rows.map((entry) => {
@@ -1031,6 +1063,184 @@ export function BiomassPage() {
       };
     });
   }, [editableSummaryRows, biomassByPondRows, pondVolumeIndex]);
+
+  const survivalSourceRows = useMemo(
+    () => (editableSummaryRows.length > 0 ? editableSummaryRows : biomassByPondRows),
+    [editableSummaryRows, biomassByPondRows]
+  );
+
+  const survivalStatsByPond = useMemo(() => {
+    return survivalSourceRows
+      .map((row) => {
+        const aliveCount = Math.max(0, Math.round(Number(row.biomassUnitsValue) || 0));
+        const mortalityUnits = Math.max(0, Math.round(Number(row.mortalityUnitsValue) || 0));
+        const survivalPercent = Number(row.survivalPercentValue);
+
+        let initialCount;
+        if (Number.isFinite(survivalPercent) && survivalPercent > 0) {
+          initialCount = Math.round((aliveCount * 100) / survivalPercent);
+        } else if (Number.isFinite(mortalityUnits)) {
+          initialCount = aliveCount + mortalityUnits;
+        } else {
+          initialCount = aliveCount;
+        }
+
+        if (!Number.isFinite(initialCount) || initialCount <= 0) {
+          return null;
+        }
+
+        const boundedSoldCount = Math.max(0, Math.min(initialCount, aliveCount));
+        const pondCode = String(row.pondCode || "").toUpperCase().trim();
+        const pondLabel = row.pondName || (pondCode ? `Piscina ${pondCode}` : "Piscina");
+
+        return {
+          pondCode: pondCode || null,
+          pondLabel,
+          initialCount: Math.max(1, Math.round(initialCount)),
+          soldCount: Math.round(boundedSoldCount),
+          samples: Array.isArray(row.measurements) ? row.measurements.length : 1
+        };
+      })
+      .filter(Boolean)
+      .sort((left, right) => {
+        const leftOrder =
+          left.pondCode && projectPondOrder.has(left.pondCode)
+            ? projectPondOrder.get(left.pondCode)
+            : Number.POSITIVE_INFINITY;
+        const rightOrder =
+          right.pondCode && projectPondOrder.has(right.pondCode)
+            ? projectPondOrder.get(right.pondCode)
+            : Number.POSITIVE_INFINITY;
+
+        if (leftOrder !== rightOrder) {
+          return leftOrder - rightOrder;
+        }
+
+        return left.pondLabel.localeCompare(right.pondLabel);
+      });
+  }, [survivalSourceRows]);
+
+  const survivalPondOptions = useMemo(
+    () => survivalStatsByPond.map((item) => item.pondLabel),
+    [survivalStatsByPond]
+  );
+
+  const totalSurvivalStats = useMemo(() => {
+    if (survivalStatsByPond.length === 0) {
+      return null;
+    }
+
+    const initialCount = survivalStatsByPond.reduce((sum, item) => sum + item.initialCount, 0);
+    const soldCount = Math.max(
+      0,
+      Math.min(initialCount, survivalStatsByPond.reduce((sum, item) => sum + item.soldCount, 0))
+    );
+
+    return {
+      pondLabel: "Total",
+      initialCount: Math.max(1, initialCount),
+      soldCount,
+      samples: survivalStatsByPond.reduce((sum, item) => sum + item.samples, 0)
+    };
+  }, [survivalStatsByPond]);
+
+  const activeSurvivalStats = useMemo(() => {
+    if (survivalScope === "pond") {
+      if (survivalStatsByPond.length === 0) {
+        return null;
+      }
+
+      return (
+        survivalStatsByPond.find((item) => item.pondLabel === selectedSurvivalPond) ||
+        survivalStatsByPond[0]
+      );
+    }
+
+    return totalSurvivalStats;
+  }, [selectedSurvivalPond, survivalScope, survivalStatsByPond, totalSurvivalStats]);
+
+  const activeSurvivalRate = useMemo(() => {
+    if (!activeSurvivalStats) {
+      return null;
+    }
+
+    return Number(
+      ((activeSurvivalStats.soldCount / Math.max(1, activeSurvivalStats.initialCount)) * 100).toFixed(1)
+    );
+  }, [activeSurvivalStats]);
+
+  const survivalFunnelData = useMemo(() => {
+    if (!activeSurvivalStats) {
+      return [];
+    }
+
+    return buildSurvivalFunnelStages(activeSurvivalStats.initialCount, activeSurvivalStats.soldCount);
+  }, [activeSurvivalStats]);
+
+  const survivalFunnelMax = Math.max(1, activeSurvivalStats?.initialCount || 1);
+
+  const survivalFunnelOption = useMemo(
+    () => ({
+      animation: false,
+      tooltip: {
+        trigger: "item",
+        backgroundColor: "rgba(255,255,255,0.98)",
+        borderColor: "#b7c7da",
+        borderWidth: 1,
+        textStyle: {
+          color: "#1f3653"
+        },
+        formatter: (params) => {
+          const stageLabel = params?.name || "--";
+          const fishCount = Math.round(Number(params?.value) || 0);
+          const survivalPct = Number(params?.data?.survivalPct);
+          const survivalText = Number.isFinite(survivalPct) ? ` (${survivalPct}% supervivencia)` : "";
+
+          return `${stageLabel}<br/>${fishCount} peces${survivalText}`;
+        }
+      },
+      series: [
+        {
+          name: "Supervivencia",
+          type: "funnel",
+          left: "8%",
+          top: 16,
+          bottom: 12,
+          width: "84%",
+          min: 0,
+          max: survivalFunnelMax,
+          minSize: "18%",
+          maxSize: "100%",
+          sort: "descending",
+          gap: 2,
+          label: {
+            show: true,
+            position: "inside",
+            color: "#1f3858",
+            fontWeight: 700,
+            formatter: ({ name, value }) => `${name}\n${Math.round(Number(value) || 0)} peces`
+          },
+          labelLine: {
+            show: false
+          },
+          itemStyle: {
+            borderColor: "#ffffff",
+            borderWidth: 1
+          },
+          emphasis: {
+            label: {
+              fontSize: 13
+            }
+          },
+          data: survivalFunnelData
+        }
+      ]
+    }),
+    [survivalFunnelData, survivalFunnelMax]
+  );
+
+  const survivalDataSourceText =
+    "Estimación basada en Biomasa (uds), Mortalidad (uds) y Supervivencia (%) del resumen por piscina.";
 
   const densityCoverage = useMemo(() => {
     return densityTableRows.reduce(
@@ -1235,6 +1445,20 @@ export function BiomassPage() {
       return currentPage;
     });
   }, [totalHistoryPages]);
+
+  useEffect(() => {
+    if (survivalPondOptions.length === 0) {
+      if (selectedSurvivalPond !== "") {
+        setSelectedSurvivalPond("");
+      }
+
+      return;
+    }
+
+    if (!survivalPondOptions.includes(selectedSurvivalPond)) {
+      setSelectedSurvivalPond(survivalPondOptions[0]);
+    }
+  }, [selectedSurvivalPond, survivalPondOptions]);
 
   const beginCellEdit = (rowKey, field, value) => {
     setEditingCell({ rowKey, field });
@@ -1445,6 +1669,75 @@ export function BiomassPage() {
               No hay registros reales todavía. Se muestran datos demo para visualizar la sección.
             </p>
           ) : null}
+
+          <div className="biomass-survival-block">
+            <div className="biomass-survival-head">
+              <div>
+                <h4>Embudo de supervivencia (estimado)</h4>
+                <p>
+                  Evolución estimada desde alevines hasta venta, usando biomasa y mortalidad por
+                  piscina.
+                </p>
+              </div>
+
+              <div
+                className="biomass-survival-toolbar"
+                role="group"
+                aria-label="Configuracion del embudo de supervivencia"
+              >
+                <label className="biomass-survival-control">
+                  Vista
+                  <select value={survivalScope} onChange={(event) => setSurvivalScope(event.target.value)}>
+                    <option value="total">Total</option>
+                    <option value="pond">Por piscina</option>
+                  </select>
+                </label>
+
+                {survivalScope === "pond" ? (
+                  <label className="biomass-survival-control">
+                    Piscina
+                    <select
+                      value={selectedSurvivalPond}
+                      onChange={(event) => setSelectedSurvivalPond(event.target.value)}
+                      disabled={survivalPondOptions.length === 0}
+                    >
+                      {survivalPondOptions.map((pondLabel) => (
+                        <option key={pondLabel} value={pondLabel}>
+                          {pondLabel}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+            </div>
+
+            <p className="biomass-survival-note">{survivalDataSourceText}</p>
+
+            {activeSurvivalStats ? (
+              <>
+                <p className="biomass-survival-meta">
+                  Supervivencia estimada: <strong>{formatNumberCell(activeSurvivalRate, 1)}%</strong>
+                  ({activeSurvivalStats.soldCount} de {activeSurvivalStats.initialCount} peces)
+                  {survivalScope === "pond"
+                    ? ` en ${activeSurvivalStats.pondLabel}.`
+                    : " en total del resumen actual."}
+                </p>
+
+                <div className="biomass-survival-chart">
+                  <ReactECharts
+                    option={survivalFunnelOption}
+                    style={{ height: "100%", width: "100%" }}
+                    notMerge
+                    lazyUpdate
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="biomass-density-help">No hay datos suficientes para estimar supervivencia.</p>
+            )}
+          </div>
+
           <p className="biomass-edit-hint">
             Haz clic en una celda para editar su valor. Peso medio y Mortalidad (%) se calculan
             automáticamente con límites válidos. La proyección se estima a {PROJECTION_TARGET_DAYS} días.

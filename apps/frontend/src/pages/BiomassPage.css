@@ -83,6 +83,63 @@
   @apply mt-0 mb-3 text-[0.82rem] text-[#536b90];
 }
 
+.biomass-survival-block {
+  @apply mb-4 rounded-xl border border-[#d6dfec] bg-[#fbfdff] p-3;
+}
+
+.biomass-survival-head {
+  @apply mb-2 flex flex-wrap items-start justify-between gap-3;
+}
+
+.biomass-survival-head h4 {
+  @apply m-0 text-[0.98rem] text-[#19375f];
+}
+
+.biomass-survival-head p {
+  @apply mt-1 mb-0 text-[0.84rem] text-[#536783];
+}
+
+.biomass-survival-toolbar {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.biomass-survival-control {
+  @apply inline-flex items-center gap-1 rounded-lg border border-[#d2deed] bg-[#f8fbff] px-2 py-1 text-[0.78rem] font-semibold text-[#2f4f75];
+}
+
+.biomass-survival-control select {
+  @apply rounded-md border border-[#bfd1e6] bg-white px-1.5 py-0.5 text-[0.78rem] text-[#2b4b72] outline-none;
+  min-width: 122px;
+}
+
+.biomass-survival-control select:focus {
+  @apply border-[#6ea7df] ring-2 ring-[#6ea7df]/20;
+}
+
+.biomass-survival-control select:disabled {
+  @apply cursor-not-allowed bg-[#edf2f8] text-[#7b8fa9];
+}
+
+.biomass-survival-note {
+  @apply mt-0 mb-2 rounded-lg border border-[#bdd3ef] bg-[#eef5ff] px-3 py-2 text-[0.84rem] text-[#2d5688];
+}
+
+.biomass-survival-meta {
+  @apply mt-0 mb-2 text-[0.84rem] text-[#4a6687];
+}
+
+.biomass-survival-meta strong {
+  @apply text-[#1e5388];
+}
+
+.biomass-survival-chart {
+  height: clamp(320px, 42vh, 430px);
+}
+
+.biomass-survival-chart > div {
+  height: 100% !important;
+}
+
 .biomass-summary-table {
   width: 100%;
   table-layout: fixed;
@@ -160,5 +217,14 @@
 
   .biomass-density-chart-head {
     @apply items-start;
+  }
+
+  .biomass-survival-toolbar {
+    @apply w-full;
+  }
+
+  .biomass-survival-control {
+    @apply flex-1 justify-between;
+    min-width: 0;
   }
 }
