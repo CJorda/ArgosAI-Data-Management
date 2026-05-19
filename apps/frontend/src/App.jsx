@@ -19,9 +19,13 @@ import { HatcheryLarvalPage } from "./pages/HatcheryLarvalPage";
 import { HarvestLogisticsPage } from "./pages/HarvestLogisticsPage";
 import { HealthBiosecurityPage } from "./pages/HealthBiosecurityPage";
 import { HistoryPage } from "./pages/HistoryPage";
+import { HydroConfederationsPage } from "./pages/HydroConfederationsPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { LiveTransportPage } from "./pages/LiveTransportPage";
 import { LoginPage } from "./pages/LoginPage";
+import { CheDataDeliveryPage } from "./pages/CheDataDeliveryPage";
+import { ConnectivityWatchdogPage } from "./pages/ConnectivityWatchdogPage";
+import { LabWaterSamplesPage } from "./pages/LabWaterSamplesPage";
 import { OxygenPage } from "./pages/OxygenPage";
 import { OxygenColorSetpointsPage } from "./pages/OxygenColorSetpointsPage";
 import { OperationsPage } from "./pages/OperationsPage";
@@ -98,6 +102,26 @@ export default function App() {
             element={withFeature(FEATURE_KEYS.DASHBOARD_VIEW, <DashboardPage />)}
           />
           <Route path="/planta" element={withFeature(FEATURE_KEYS.PLANT_VIEW, <PlantMapPage />)} />
+          <Route
+            path="/planta/reportes-calidad-agua"
+            element={withFeature(FEATURE_KEYS.PLANT_VIEW, <PlantMapPage mode="reportes" />)}
+          />
+          <Route
+            path="/planta/confederaciones-hidrograficas"
+            element={withFeature(FEATURE_KEYS.PLANT_VIEW, <HydroConfederationsPage />)}
+          />
+          <Route
+            path="/planta/envio-che"
+            element={withFeature(FEATURE_KEYS.PLANT_VIEW, <CheDataDeliveryPage />)}
+          />
+          <Route
+            path="/planta/conectividad-internet"
+            element={withFeature(FEATURE_KEYS.PLANT_VIEW, <ConnectivityWatchdogPage />)}
+          />
+          <Route
+            path="/planta/muestras-laboratorio"
+            element={withFeature(FEATURE_KEYS.PLANT_VIEW, <LabWaterSamplesPage />)}
+          />
           <Route
             path="/planta/piscinas"
             element={withFeature(FEATURE_KEYS.PLANT_VIEW, <PondsCatalogPage />)}

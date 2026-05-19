@@ -11,6 +11,7 @@ import { authRoutes } from "./routes/authRoutes.js";
 import { biomassRoutes } from "./routes/biomassRoutes.js";
 import { cameraRoutes } from "./routes/cameraRoutes.js";
 import { consolidationRoutes } from "./routes/consolidationRoutes.js";
+import { connectivityRoutes } from "./routes/connectivityRoutes.js";
 import { dataRoutes } from "./routes/dataRoutes.js";
 import { hatcheryRoutes } from "./routes/hatcheryRoutes.js";
 import { operationsRoutes } from "./routes/operationsRoutes.js";
@@ -35,7 +36,7 @@ export function createApp() {
     })
   );
   app.use(helmet());
-  app.use(express.json({ limit: "1mb" }));
+  app.use(express.json({ limit: "12mb" }));
   app.use(pinoHttp({ logger }));
   app.use((_req, _res, next) => {
     runWithRequestDbContext(() => next());
@@ -51,6 +52,7 @@ export function createApp() {
 
   app.use("/api/auth", authRoutes);
   app.use("/api/data", dataRoutes);
+  app.use("/api/connectivity", connectivityRoutes);
   app.use("/api/alerts", alertsRoutes);
   app.use("/api/operations", operationsRoutes);
   app.use("/api/biomass", biomassRoutes);

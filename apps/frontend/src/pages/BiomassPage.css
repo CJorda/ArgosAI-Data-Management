@@ -186,6 +186,26 @@
   @apply py-4 text-center text-[#5b6d89];
 }
 
+.biomass-fcr-chip {
+  @apply inline-flex min-w-12 items-center justify-center rounded-full border px-2 py-0.5 text-[0.76rem] font-semibold;
+}
+
+.biomass-fcr-chip-good {
+  @apply border-[#a3d8bf] bg-[#e8f8ef] text-[#1f6f4a];
+}
+
+.biomass-fcr-chip-warning {
+  @apply border-[#e8d092] bg-[#fff8e6] text-[#8b6710];
+}
+
+.biomass-fcr-chip-critical {
+  @apply border-[#e6acac] bg-[#feecec] text-[#9a2f2f];
+}
+
+.biomass-fcr-chip-unknown {
+  @apply border-[#c8d2df] bg-[#f5f7fa] text-[#5f6f82];
+}
+
 .biomass-history-pagination {
   @apply mt-3 flex flex-wrap items-center gap-2;
 }

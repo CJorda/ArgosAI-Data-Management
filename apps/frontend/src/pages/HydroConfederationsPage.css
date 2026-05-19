@@ -1,0 +1,197 @@
+@reference "tailwindcss";
+
+.hydro-page {
+  @apply grid gap-4;
+}
+
+.hydro-intro-panel {
+  @apply border-[#d6dfec] bg-[#fbfdff];
+}
+
+.hydro-intro-text {
+  @apply mt-1 mb-3 text-[0.92rem] text-[#4b6283];
+}
+
+.hydro-controls {
+  @apply grid gap-2;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.hydro-field {
+  @apply grid gap-1;
+}
+
+.hydro-field span {
+  @apply text-[0.78rem] font-semibold uppercase tracking-[0.04em] text-[#4a6385];
+}
+
+.hydro-field input,
+.hydro-field select {
+  @apply rounded-lg border border-[#c7d6e8] bg-white px-2.5 py-2 text-[0.86rem] text-[#1f3556] outline-none;
+}
+
+.hydro-field input:focus,
+.hydro-field select:focus {
+  @apply border-[#7ca6d3] ring-2 ring-[#7ca6d3]/25;
+}
+
+.hydro-field-wide {
+  grid-column: span 2;
+}
+
+.hydro-run-button {
+  @apply mt-auto inline-flex min-h-[42px] items-center justify-center rounded-lg border border-[#6f9bc8] bg-[#2c5f95] px-3 py-2 text-[0.84rem] font-semibold text-[#eef5ff] transition;
+}
+
+.hydro-run-button:hover:not(:disabled) {
+  @apply border-[#517eaf] bg-[#224f80];
+}
+
+.hydro-run-button:disabled {
+  @apply cursor-not-allowed border-[#b8c8dc] bg-[#e9eff7] text-[#7e90a7];
+}
+
+.hydro-source-note {
+  @apply mt-2 mb-0 text-[0.84rem] text-[#526985];
+}
+
+.hydro-yesa-panel {
+  @apply mt-3 rounded-xl border border-[#d8e2ef] bg-[#f7faff] px-3 py-3;
+}
+
+.hydro-yesa-head {
+  @apply mb-1 flex flex-wrap items-center justify-between gap-2;
+}
+
+.hydro-yesa-head h4 {
+  @apply m-0 text-[0.93rem] text-[#244668];
+}
+
+.hydro-yesa-head span {
+  @apply text-[0.77rem] font-semibold uppercase tracking-[0.04em] text-[#557094];
+}
+
+.hydro-yesa-note {
+  @apply mt-0 mb-2 text-[0.83rem] text-[#4b6383];
+}
+
+.hydro-station-tags {
+  @apply mb-2 flex flex-wrap gap-1.5;
+}
+
+.hydro-station-chip {
+  @apply inline-flex items-center gap-1 rounded-md border border-[#cad8ea] bg-white px-2 py-1 text-[0.77rem] text-[#355577];
+}
+
+.hydro-station-chip strong {
+  @apply text-[#1f3f63];
+}
+
+.hydro-variable-actions {
+  @apply mb-2 flex flex-wrap gap-1.5;
+}
+
+.hydro-chip-btn {
+  @apply inline-flex items-center rounded-md border border-[#c6d6ea] bg-white px-2 py-1 text-[0.74rem] font-semibold text-[#37557a] transition;
+}
+
+.hydro-chip-btn:hover {
+  @apply border-[#9eb9d7] bg-[#f3f8ff];
+}
+
+.hydro-variable-picker {
+  @apply mb-3 flex max-h-[190px] flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-[#d7e2f0] bg-white px-2.5 py-2;
+}
+
+.hydro-variable-chip {
+  @apply inline-flex items-center gap-1.5 rounded-md border border-[#c7d6e8] bg-[#fdfefe] px-2 py-1 text-[0.75rem] text-[#304f73];
+}
+
+.hydro-variable-chip input {
+  @apply h-3.5 w-3.5;
+}
+
+.hydro-variable-chip-active {
+  @apply border-[#7ca4d0] bg-[#edf4ff] text-[#1f446b];
+}
+
+.hydro-variable-color {
+  @apply h-2.5 w-2.5 rounded-full;
+}
+
+.hydro-chart-wrap {
+  @apply rounded-lg border border-[#d7e2f0] bg-white px-2 py-1;
+}
+
+.hydro-variable-table {
+  @apply mt-2;
+}
+
+.hydro-variable-color-chip {
+  @apply inline-flex min-w-[4rem] justify-center rounded-full border border-[#d2d9e5] px-2 py-0.5 text-[0.72rem] font-semibold text-white;
+}
+
+.hydro-feedback {
+  @apply mt-3 mb-0 rounded-lg border px-3 py-2 text-[0.84rem];
+}
+
+.hydro-feedback-info {
+  @apply border-[#c9d9ee] bg-[#eef5ff] text-[#2d5688];
+}
+
+.hydro-feedback-error {
+  @apply border-[#e6b8c0] bg-[#fff1f4] text-[#97324a];
+}
+
+.hydro-feedback-muted {
+  @apply border-[#d6deeb] bg-[#f7f9fd] text-[#4a607f];
+}
+
+.hydro-kpi-grid {
+  @apply mt-3 grid grid-cols-4 gap-3;
+}
+
+.hydro-kpi-card {
+  @apply rounded-xl border border-[#d5deec] bg-white px-3 py-2.5;
+}
+
+.hydro-kpi-card span {
+  @apply block text-[0.8rem] uppercase tracking-[0.06em] text-[#546985];
+}
+
+.hydro-kpi-card strong {
+  @apply mt-1 block text-[1.2rem] text-[#122846];
+}
+
+.hydro-table-wrap {
+  @apply mt-3 overflow-x-auto;
+}
+
+.hydro-table {
+  @apply min-w-[860px];
+}
+
+@media (max-width: 980px) {
+  .hydro-controls {
+    @apply grid-cols-2;
+  }
+
+  .hydro-kpi-grid {
+    @apply grid-cols-2;
+  }
+
+  .hydro-field-wide {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .hydro-controls,
+  .hydro-kpi-grid {
+    @apply grid-cols-1;
+  }
+
+  .hydro-variable-picker {
+    max-height: 240px;
+  }
+}

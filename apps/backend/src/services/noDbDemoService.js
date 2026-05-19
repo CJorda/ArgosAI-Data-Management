@@ -266,6 +266,48 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function normalizeOptionalNumber(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function mapDemoLabWaterSample(sample) {
+  const pond = demoPonds.find((item) => Number(item.id) === Number(sample.pond_id));
+
+  return {
+    id: sample.id,
+    pond_id: sample.pond_id,
+    pond_name: pond?.name || null,
+    sampled_at: sample.sampled_at,
+    source_label: sample.source_label,
+    technician_name: sample.technician_name,
+    analysis_type: sample.analysis_type,
+    oxygen_mg_l: sample.oxygen_mg_l,
+    temperature_c: sample.temperature_c,
+    ph: sample.ph,
+    salinity_ppt: sample.salinity_ppt,
+    turbidity_ntu: sample.turbidity_ntu,
+    ammonia_mg_l: sample.ammonia_mg_l,
+    nitrite_mg_l: sample.nitrite_mg_l,
+    nitrate_mg_l: sample.nitrate_mg_l,
+    alkalinity_mg_l: sample.alkalinity_mg_l,
+    hardness_mg_l: sample.hardness_mg_l,
+    conductivity_us_cm: sample.conductivity_us_cm,
+    notes: sample.notes,
+    pdf_file_name: sample.pdf_file_name,
+    pdf_mime_type: sample.pdf_mime_type,
+    has_pdf: Boolean(sample.pdf_base64),
+    pdf_uploaded_at: sample.pdf_uploaded_at,
+    created_by: sample.created_by,
+    created_by_name: demoUser.fullName,
+    created_at: sample.created_at
+  };
+}
+
 let alertIdSequence = 900;
 
 function buildAlert({ pondId, sensorId, severity, message, status = "open", createdAt, currentValue }) {
@@ -395,6 +437,66 @@ const demoWaterFlowMeters = [
 
 let demoWaterFlowReadingIdSequence = 30_000;
 let demoWaterFlowAlertIdSequence = 4_000;
+
+const demoLabWaterSamples = [
+  {
+    id: 1,
+    pond_id: 101,
+    sampled_at: new Date(Date.now() - 72 * 3600 * 1000).toISOString(),
+    source_label: "Canal de entrada norte",
+    technician_name: "Equipo laboratorio",
+    analysis_type: "laboratorio",
+    oxygen_mg_l: 7.3,
+    temperature_c: 16.8,
+    ph: 7.64,
+    salinity_ppt: 33.2,
+    turbidity_ntu: 4.5,
+    ammonia_mg_l: 0.16,
+    nitrite_mg_l: 0.04,
+    nitrate_mg_l: 7.1,
+    alkalinity_mg_l: 115,
+    hardness_mg_l: 202,
+    conductivity_us_cm: 47890,
+    notes: "Muestra manual para contraste con sensores en linea.",
+    pdf_file_name: null,
+    pdf_mime_type: null,
+    pdf_uploaded_at: null,
+    pdf_base64: null,
+    created_by: demoUser.id,
+    created_at: new Date(Date.now() - 71 * 3600 * 1000).toISOString()
+  },
+  {
+    id: 2,
+    pond_id: 102,
+    sampled_at: new Date(Date.now() - 26 * 3600 * 1000).toISOString(),
+    source_label: "Piscina F2 - toma lateral",
+    technician_name: "Control calidad",
+    analysis_type: "laboratorio",
+    oxygen_mg_l: 6.9,
+    temperature_c: 17.3,
+    ph: 7.48,
+    salinity_ppt: 32.7,
+    turbidity_ntu: 5.1,
+    ammonia_mg_l: 0.19,
+    nitrite_mg_l: 0.06,
+    nitrate_mg_l: 8.4,
+    alkalinity_mg_l: 121,
+    hardness_mg_l: 214,
+    conductivity_us_cm: 48620,
+    notes: "Lectura previa a ajuste de aireacion.",
+    pdf_file_name: null,
+    pdf_mime_type: null,
+    pdf_uploaded_at: null,
+    pdf_base64: null,
+    created_by: demoUser.id,
+    created_at: new Date(Date.now() - 25 * 3600 * 1000).toISOString()
+  }
+];
+
+let demoLabWaterSampleIdSequence = demoLabWaterSamples.reduce(
+  (maxValue, sample) => Math.max(maxValue, Number(sample.id) || 0),
+  0
+);
 
 function getDemoMetersSnapshot() {
   return demoWaterFlowMeters.map((meter) => ({ ...meter }));
@@ -2161,6 +2263,153 @@ export function resolveDemoWaterFlowAlert(alertId) {
   alert.resolved_at = nowIso;
 
   return clone(alert);
+}
+
+export function listDemoLabWaterSamples({
+  pondId = null,
+  from = null,
+  to = null,
+  limit = 120
+} = {}) {
+  const normalizedPondId = Number(pondId);
+  const fromMs = from ? new Date(from).getTime() : null;
+  const toMs = to ? new Date(to).getTime() : null;
+  const maxLimit = Math.max(1, Math.min(500, Number(limit) || 120));
+
+  const filtered = demoLabWaterSamples.filter((sample) => {
+    if (Number.isFinite(normalizedPondId) && normalizedPondId > 0) {
+      if (Number(sample.pond_id) !== normalizedPondId) {
+        return false;
+      }
+    }
+
+    const sampledMs = new Date(sample.sampled_at).getTime();
+
+    if (Number.isFinite(fromMs) && sampledMs < fromMs) {
+      return false;
+    }
+
+    if (Number.isFinite(toMs) && sampledMs > toMs) {
+      return false;
+    }
+
+    return true;
+  });
+
+  return clone(
+    filtered
+      .sort((left, right) => new Date(right.sampled_at).getTime() - new Date(left.sampled_at).getTime())
+      .slice(0, maxLimit)
+      .map((sample) => mapDemoLabWaterSample(sample))
+  );
+}
+
+export function createDemoLabWaterSample(payload, actorUser = null) {
+  const sampledAtDate = payload.sampledAt ? new Date(payload.sampledAt) : new Date();
+  const sampledAt = Number.isNaN(sampledAtDate.getTime())
+    ? new Date().toISOString()
+    : sampledAtDate.toISOString();
+  const pondId = payload.pondId === null || payload.pondId === undefined
+    ? null
+    : Number(payload.pondId);
+
+  if (pondId !== null) {
+    const pond = demoPonds.find((item) => Number(item.id) === pondId);
+
+    if (!pond) {
+      return {
+        error: "Pond not found",
+        status: 404,
+        sample: null
+      };
+    }
+  }
+
+  const normalizedPdfBase64 = String(payload.pdfBase64 || "").trim() || null;
+  const normalizedPdfMimeType = normalizedPdfBase64
+    ? String(payload.pdfMimeType || "application/pdf").trim() || "application/pdf"
+    : null;
+  const normalizedPdfFileName = normalizedPdfBase64
+    ? String(payload.pdfFileName || "muestra-laboratorio.pdf").trim()
+    : null;
+
+  if (normalizedPdfBase64) {
+    const byteLength = Buffer.from(normalizedPdfBase64, "base64").length;
+
+    if (!byteLength || Number.isNaN(byteLength)) {
+      return {
+        error: "PDF invalid",
+        status: 400,
+        sample: null
+      };
+    }
+
+    if (byteLength > 12 * 1024 * 1024) {
+      return {
+        error: "PDF exceeds 12 MB",
+        status: 400,
+        sample: null
+      };
+    }
+  }
+
+  const nowIso = new Date().toISOString();
+  demoLabWaterSampleIdSequence += 1;
+
+  const sample = {
+    id: demoLabWaterSampleIdSequence,
+    pond_id: Number.isFinite(pondId) && pondId > 0 ? pondId : null,
+    sampled_at: sampledAt,
+    source_label: String(payload.sourceLabel || "").trim() || null,
+    technician_name: String(payload.technicianName || "").trim() || null,
+    analysis_type: String(payload.analysisType || "laboratorio").trim() || "laboratorio",
+    oxygen_mg_l: normalizeOptionalNumber(payload.oxygenMgL),
+    temperature_c: normalizeOptionalNumber(payload.temperatureC),
+    ph: normalizeOptionalNumber(payload.ph),
+    salinity_ppt: normalizeOptionalNumber(payload.salinityPpt),
+    turbidity_ntu: normalizeOptionalNumber(payload.turbidityNtu),
+    ammonia_mg_l: normalizeOptionalNumber(payload.ammoniaMgL),
+    nitrite_mg_l: normalizeOptionalNumber(payload.nitriteMgL),
+    nitrate_mg_l: normalizeOptionalNumber(payload.nitrateMgL),
+    alkalinity_mg_l: normalizeOptionalNumber(payload.alkalinityMgL),
+    hardness_mg_l: normalizeOptionalNumber(payload.hardnessMgL),
+    conductivity_us_cm: normalizeOptionalNumber(payload.conductivityUsCm),
+    notes: String(payload.notes || "").trim() || null,
+    pdf_file_name: normalizedPdfFileName,
+    pdf_mime_type: normalizedPdfMimeType,
+    pdf_uploaded_at: normalizedPdfBase64 ? nowIso : null,
+    pdf_base64: normalizedPdfBase64,
+    created_by: Number(actorUser?.id || demoUser.id),
+    created_at: nowIso
+  };
+
+  demoLabWaterSamples.unshift(sample);
+
+  if (demoLabWaterSamples.length > 1200) {
+    demoLabWaterSamples.splice(1200);
+  }
+
+  return {
+    error: null,
+    status: 201,
+    sample: clone(mapDemoLabWaterSample(sample))
+  };
+}
+
+export function getDemoLabWaterSamplePdf(sampleId) {
+  const sample = demoLabWaterSamples.find((item) => Number(item.id) === Number(sampleId));
+
+  if (!sample || !sample.pdf_base64) {
+    return null;
+  }
+
+  return {
+    id: sample.id,
+    fileName: sample.pdf_file_name || `sample-${sample.id}.pdf`,
+    mimeType: sample.pdf_mime_type || "application/pdf",
+    pdfBase64: sample.pdf_base64,
+    uploadedAt: sample.pdf_uploaded_at
+  };
 }
 
 export function createDemoTraceabilityCertificate(record) {

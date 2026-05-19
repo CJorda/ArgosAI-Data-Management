@@ -1,0 +1,255 @@
+.watchdog-page {
+  display: grid;
+  gap: 1rem;
+  color: #123151;
+}
+
+.watchdog-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1rem 1.1rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(37, 103, 167, 0.18);
+  background: linear-gradient(138deg, rgba(19, 85, 153, 0.12), rgba(255, 255, 255, 0.95));
+}
+
+.watchdog-header h1 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.watchdog-header p {
+  margin: 0.4rem 0 0;
+  color: #476888;
+  line-height: 1.4;
+}
+
+.watchdog-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.watchdog-header-actions button,
+.watchdog-config-actions button {
+  border: 0;
+  border-radius: 0.65rem;
+  background: #1863ad;
+  color: #fff;
+  padding: 0.54rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.watchdog-header-actions button:nth-child(2) {
+  background: #4f6a85;
+}
+
+.watchdog-header-actions button:disabled,
+.watchdog-config-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.watchdog-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.8rem;
+}
+
+.watchdog-card,
+.watchdog-config,
+.watchdog-test-call,
+.watchdog-log-card {
+  border: 1px solid rgba(81, 127, 171, 0.24);
+  border-radius: 0.9rem;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(21, 49, 79, 0.06);
+}
+
+.watchdog-card {
+  padding: 0.9rem;
+}
+
+.watchdog-card-label {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #5a7695;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.watchdog-card-value {
+  margin: 0.5rem 0 0;
+  font-weight: 700;
+  color: #20456f;
+}
+
+.watchdog-card-meta {
+  margin: 0.55rem 0 0;
+  color: #5f7996;
+  font-size: 0.86rem;
+}
+
+.watchdog-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.45rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.58rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.watchdog-pill--ok {
+  background: rgba(22, 145, 82, 0.16);
+  color: #177042;
+}
+
+.watchdog-pill--down {
+  background: rgba(185, 53, 53, 0.16);
+  color: #8d2b2b;
+}
+
+.watchdog-pill--neutral {
+  background: rgba(66, 99, 133, 0.14);
+  color: #3f5d7a;
+}
+
+.watchdog-config,
+.watchdog-test-call {
+  padding: 1rem;
+}
+
+.watchdog-config h2,
+.watchdog-test-call h2,
+.watchdog-log-card h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #1f4977;
+}
+
+.watchdog-config-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.watchdog-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  color: #335574;
+}
+
+.watchdog-grid-fields {
+  margin-top: 0.85rem;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.watchdog-grid-fields label {
+  display: grid;
+  gap: 0.38rem;
+  font-size: 0.86rem;
+  color: #375a7f;
+}
+
+.watchdog-field-full {
+  grid-column: 1 / -1;
+}
+
+.watchdog-grid-fields input,
+.watchdog-grid-fields textarea {
+  border: 1px solid rgba(80, 127, 174, 0.32);
+  border-radius: 0.62rem;
+  padding: 0.56rem 0.62rem;
+  font: inherit;
+  color: #1d436e;
+  background: #fbfdff;
+}
+
+.watchdog-grid-fields textarea {
+  resize: vertical;
+}
+
+.watchdog-config-actions {
+  margin-top: 0.9rem;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.watchdog-feedback {
+  margin: 0.75rem 0 0;
+  font-size: 0.88rem;
+  padding: 0.5rem 0.64rem;
+  border-radius: 0.56rem;
+}
+
+.watchdog-feedback--ok {
+  color: #1b7044;
+  background: rgba(21, 136, 81, 0.12);
+}
+
+.watchdog-feedback--error {
+  color: #8b2b2b;
+  background: rgba(176, 55, 55, 0.14);
+}
+
+.watchdog-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.8rem;
+}
+
+.watchdog-log-card {
+  padding: 0.95rem;
+}
+
+.watchdog-log-card ul {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.watchdog-log-card li {
+  border: 1px solid rgba(94, 130, 166, 0.24);
+  border-radius: 0.68rem;
+  padding: 0.54rem 0.62rem;
+  background: #f9fcff;
+}
+
+.watchdog-log-card p {
+  margin: 0.2rem 0;
+  color: #355675;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.watchdog-empty {
+  margin: 0.72rem 0 0;
+  color: #627f9d;
+  font-size: 0.88rem;
+}
+
+@media (max-width: 768px) {
+  .watchdog-header {
+    flex-direction: column;
+  }
+
+  .watchdog-header-actions {
+    width: 100%;
+  }
+
+  .watchdog-header-actions button,
+  .watchdog-config-actions button {
+    width: 100%;
+  }
+}

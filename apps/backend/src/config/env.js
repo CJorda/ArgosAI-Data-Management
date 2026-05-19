@@ -9,10 +9,21 @@ const clientOrigins = rawClientOrigins
   .map((item) => item.trim())
   .filter(Boolean);
 
+function splitCsv(rawValue) {
+  return String(rawValue || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 const schedulerFrequencyRaw = String(
   process.env.EXECUTIVE_REPORT_SCHEDULER_FREQUENCY || "daily"
 ).toLowerCase();
 const schedulerFrequency = schedulerFrequencyRaw === "weekly" ? "weekly" : "daily";
+const defaultConnectivityTargets = splitCsv(
+  process.env.CONNECTIVITY_WATCHDOG_TARGETS || "1.1.1.1:53,8.8.8.8:53"
+);
+const defaultTwilioAlertToNumbers = splitCsv(process.env.TWILIO_ALERT_TO_NUMBERS || "");
 
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
@@ -39,6 +50,34 @@ export const env = {
   simulatorEnabled: String(process.env.SIMULATOR_ENABLED || "true") === "true",
   simulatorIntervalMs: Number(process.env.SIMULATOR_INTERVAL_MS || 5000),
   cameraDefaultProtocol: process.env.CAMERA_DEFAULT_PROTOCOL || "webrtc",
+  emailDeliveryEnabled: String(process.env.EMAIL_DELIVERY_ENABLED || "false") === "true",
+  smtpHost: process.env.SMTP_HOST || "",
+  smtpPort: Number(process.env.SMTP_PORT || 587),
+  smtpSecure: String(process.env.SMTP_SECURE || "false") === "true",
+  smtpUser: process.env.SMTP_USER || "",
+  smtpPassword: process.env.SMTP_PASSWORD || "",
+  smtpFrom: process.env.SMTP_FROM || "ArgosAI <no-reply@argosai.local>",
+  smtpRejectUnauthorized: String(process.env.SMTP_REJECT_UNAUTHORIZED || "true") === "true",
+  saihEbroApiUrl: process.env.SAIH_EBRO_API_URL || "",
+  connectivityWatchdogEnabled:
+    String(process.env.CONNECTIVITY_WATCHDOG_ENABLED || "false") === "true",
+  connectivityWatchdogIntervalMs: Number(process.env.CONNECTIVITY_WATCHDOG_INTERVAL_MS || 60000),
+  connectivityWatchdogTimeoutMs: Number(process.env.CONNECTIVITY_WATCHDOG_TIMEOUT_MS || 3500),
+  connectivityWatchdogFailureThreshold: Number(
+    process.env.CONNECTIVITY_WATCHDOG_FAILURE_THRESHOLD || 3
+  ),
+  connectivityWatchdogCooldownMinutes: Number(
+    process.env.CONNECTIVITY_WATCHDOG_COOLDOWN_MINUTES || 30
+  ),
+  connectivityWatchdogTargets: defaultConnectivityTargets,
+  connectivityWatchdogDefaultMessage:
+    process.env.CONNECTIVITY_WATCHDOG_DEFAULT_MESSAGE
+    || "Alerta ArgosAI: se detecta perdida de conectividad a internet en la planta.",
+  twilioEnabled: String(process.env.TWILIO_ENABLED || "false") === "true",
+  twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || "",
+  twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || "",
+  twilioFromNumber: process.env.TWILIO_FROM_NUMBER || "",
+  twilioAlertToNumbers: defaultTwilioAlertToNumbers,
   executiveReportSchedulerEnabled:
     String(process.env.EXECUTIVE_REPORT_SCHEDULER_ENABLED || "true") === "true",
   executiveReportSchedulerFrequency: schedulerFrequency,

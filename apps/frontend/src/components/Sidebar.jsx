@@ -233,6 +233,31 @@ const navItems = [
         group: "Supervisión en tiempo real"
       },
       {
+        to: "/planta/reportes-calidad-agua",
+        label: "Reportes calidad agua",
+        group: "Analítica histórica"
+      },
+      {
+        to: "/planta/confederaciones-hidrograficas",
+        label: "Captura confederaciones",
+        group: "Integraciones externas"
+      },
+      {
+        to: "/planta/envio-che",
+        label: "Envio de datos CHE",
+        group: "Integraciones externas"
+      },
+      {
+        to: "/planta/conectividad-internet",
+        label: "Conectividad internet (Twilio)",
+        group: "Integraciones externas"
+      },
+      {
+        to: "/planta/muestras-laboratorio",
+        label: "Muestras laboratorio",
+        group: "Analítica histórica"
+      },
+      {
         to: "/planta/caudal",
         label: "Caudal entrante/saliente",
         group: "Supervisión en tiempo real"
@@ -542,6 +567,11 @@ const featureByPath = {
   "/proyecto/argosai": FEATURE_KEYS.MACHINE_VIEW,
   "/proyecto/boyas": FEATURE_KEYS.BUOYS_VIEW,
   "/planta": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/reportes-calidad-agua": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/confederaciones-hidrograficas": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/envio-che": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/conectividad-internet": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/muestras-laboratorio": FEATURE_KEYS.PLANT_VIEW,
   "/planta/caudal": FEATURE_KEYS.PLANT_VIEW,
   "/planta/salud-sensores": FEATURE_KEYS.PLANT_VIEW,
   "/planta/estacion-meteorologica": FEATURE_KEYS.PLANT_VIEW,

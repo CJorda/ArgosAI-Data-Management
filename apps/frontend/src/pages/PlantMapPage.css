@@ -12,6 +12,241 @@
   @apply mt-3 mb-0 rounded-lg border border-[#bdd3ef] bg-[#eef5ff] px-3 py-2 text-[0.86rem] text-[#2d5688];
 }
 
+.plant-export-panel {
+  @apply border-[#d6dfec] bg-[#fbfdff];
+}
+
+.plant-export-head h3 {
+  @apply mt-0 mb-1;
+}
+
+.plant-export-head p {
+  @apply mt-0 mb-3 text-[0.9rem] text-[#4d6282];
+}
+
+.plant-export-controls {
+  @apply grid gap-2;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.plant-export-presets {
+  @apply mb-3 flex flex-wrap gap-2;
+}
+
+.plant-export-preset-chip {
+  @apply inline-flex items-center rounded-md border border-[#c8d7ea] bg-white px-2.5 py-1.5 text-[0.78rem] font-semibold text-[#3a5578] transition;
+}
+
+.plant-export-preset-chip:hover {
+  @apply border-[#9fb9d7] bg-[#f3f8ff];
+}
+
+.plant-export-preset-chip-active {
+  @apply border-[#6d95c1] bg-[#e7f1ff] text-[#1f446b];
+}
+
+.plant-export-field {
+  @apply grid gap-1;
+}
+
+.plant-export-field span {
+  @apply text-[0.78rem] font-semibold uppercase tracking-[0.04em] text-[#4a6385];
+}
+
+.plant-export-field-wide {
+  grid-column: span 2;
+}
+
+.plant-export-field input,
+.plant-export-field select,
+.plant-export-field textarea {
+  @apply rounded-lg border border-[#c7d6e8] bg-white px-2.5 py-2 text-[0.86rem] text-[#1f3556] outline-none;
+}
+
+.plant-export-field input:focus,
+.plant-export-field select:focus,
+.plant-export-field textarea:focus {
+  @apply border-[#7ca6d3] ring-2 ring-[#7ca6d3]/25;
+}
+
+.plant-export-field textarea {
+  @apply resize-y;
+}
+
+.plant-export-button {
+  @apply mt-auto inline-flex min-h-[42px] items-center justify-center rounded-lg border border-[#6f9bc8] bg-[#2c5f95] px-3 py-2 text-[0.84rem] font-semibold text-[#eef5ff] transition;
+}
+
+.plant-export-button:hover:not(:disabled) {
+  @apply border-[#517eaf] bg-[#224f80];
+}
+
+.plant-export-button:disabled {
+  @apply cursor-not-allowed border-[#b8c8dc] bg-[#e9eff7] text-[#7e90a7];
+}
+
+.plant-export-button-secondary {
+  @apply border-[#c2d3e8] bg-white text-[#2e547f];
+}
+
+.plant-export-button-secondary:hover:not(:disabled) {
+  @apply border-[#95b3d5] bg-[#f2f7ff];
+}
+
+.plant-export-scheduler {
+  @apply mt-3 grid gap-2 rounded-lg border border-[#d8e2ef] bg-[#f7faff] px-3 py-3;
+  grid-template-columns: 1.35fr minmax(0, 1fr) minmax(0, 1fr) auto auto;
+  align-items: end;
+}
+
+.plant-export-scheduler-toggle {
+  @apply inline-flex items-center gap-2 text-[0.86rem] font-semibold text-[#2e4f77];
+}
+
+.plant-export-scheduler-toggle input {
+  @apply h-4 w-4;
+}
+
+.plant-export-toggles {
+  @apply mt-3;
+}
+
+.plant-export-filters {
+  @apply mt-3 grid gap-2;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.plant-export-filter-block {
+  @apply rounded-lg border border-[#d8e2ef] bg-[#f8fbff] px-3 py-3;
+}
+
+.plant-export-filter-block h4 {
+  @apply mt-0 mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.04em] text-[#3a5578];
+}
+
+.plant-export-chip-list {
+  @apply flex max-h-[132px] flex-wrap gap-1.5 overflow-y-auto;
+}
+
+.plant-export-filter-chip {
+  @apply inline-flex items-center gap-1.5 rounded-md border border-[#c7d6e8] bg-white px-2 py-1 text-[0.78rem] text-[#304f73];
+}
+
+.plant-export-filter-chip input {
+  @apply h-3.5 w-3.5;
+}
+
+.plant-export-filter-chip-active {
+  @apply border-[#7ca4d0] bg-[#edf4ff] text-[#1f446b];
+}
+
+.plant-export-filter-help {
+  @apply mt-2 mb-0 text-[0.75rem] text-[#5e7390];
+}
+
+.plant-export-filter-actions {
+  @apply mt-2 flex flex-wrap gap-1.5;
+}
+
+.plant-export-inline-button {
+  @apply inline-flex items-center rounded-md border border-[#c6d6ea] bg-white px-2 py-1 text-[0.74rem] font-semibold text-[#37557a] transition;
+}
+
+.plant-export-inline-button:hover {
+  @apply border-[#9eb9d7] bg-[#f3f8ff];
+}
+
+.plant-export-email-template-panel {
+  @apply mt-2 grid gap-2 rounded-lg border border-[#d8e2ef] bg-[#f8fbff] px-3 py-3;
+}
+
+.plant-export-email-template-head {
+  @apply mb-1 flex items-center justify-between gap-2;
+}
+
+.plant-export-email-template-head h4 {
+  @apply m-0 text-[0.82rem] uppercase tracking-[0.04em] text-[#3a5578];
+}
+
+.plant-export-profiles {
+  @apply mt-3 rounded-lg border border-[#d8e2ef] bg-[#f7faff] px-3 py-3;
+}
+
+.plant-export-profiles h4 {
+  @apply mt-0 mb-2 text-[0.82rem] uppercase tracking-[0.04em] text-[#3a5578];
+}
+
+.plant-export-profile-row {
+  @apply mb-2 flex flex-wrap items-center gap-2;
+}
+
+.plant-export-profile-row:last-child {
+  @apply mb-0;
+}
+
+.plant-export-profile-row input,
+.plant-export-profile-row select {
+  @apply min-h-[40px] min-w-[220px] flex-1 rounded-lg border border-[#c7d6e8] bg-white px-2.5 py-2 text-[0.86rem] text-[#1f3556] outline-none;
+}
+
+.plant-export-profile-row input:focus,
+.plant-export-profile-row select:focus {
+  @apply border-[#7ca6d3] ring-2 ring-[#7ca6d3]/25;
+}
+
+.plant-export-history {
+  @apply mt-3 rounded-lg border border-[#d8e2ef] bg-[#f8fbff] px-3 py-3;
+}
+
+.plant-export-history h4 {
+  @apply mt-0 mb-2 text-[0.82rem] uppercase tracking-[0.04em] text-[#3a5578];
+}
+
+.plant-export-history-head {
+  @apply mb-2 flex items-center justify-between gap-2;
+}
+
+.plant-export-history-head h4 {
+  @apply mb-0;
+}
+
+.plant-export-history ul {
+  @apply m-0 grid gap-1.5 p-0;
+  list-style: none;
+}
+
+.plant-export-history li {
+  @apply grid gap-0.5 rounded-md border border-[#d5dfed] bg-white px-2.5 py-1.5;
+}
+
+.plant-export-history li strong {
+  @apply text-[0.75rem] text-[#2d4f78];
+}
+
+.plant-export-history li span {
+  @apply text-[0.77rem] text-[#506784];
+}
+
+.plant-export-status-note {
+  @apply mt-2 mb-0 text-[0.84rem] text-[#526985];
+}
+
+.plant-export-feedback {
+  @apply mt-2 mb-0 rounded-lg border px-3 py-2 text-[0.84rem];
+}
+
+.plant-export-feedback-info {
+  @apply border-[#c9d9ee] bg-[#eef5ff] text-[#2d5688];
+}
+
+.plant-export-feedback-success {
+  @apply border-[#b7dcc5] bg-[#edf9f1] text-[#1f6f4c];
+}
+
+.plant-export-feedback-error {
+  @apply border-[#e6b8c0] bg-[#fff1f4] text-[#97324a];
+}
+
 .plant-summary-grid {
   @apply mt-4 grid grid-cols-4 gap-3;
 }
@@ -620,6 +855,28 @@
     @apply grid-cols-2;
   }
 
+  .plant-export-controls {
+    @apply grid-cols-2;
+  }
+
+  .plant-export-filters {
+    @apply grid-cols-1;
+  }
+
+  .plant-export-scheduler {
+    @apply grid-cols-1;
+    align-items: stretch;
+  }
+
+  .plant-export-profile-row {
+    @apply grid;
+    grid-template-columns: 1fr;
+  }
+
+  .plant-export-field-wide {
+    grid-column: span 1;
+  }
+
   .scada-geometry {
     @apply grid-cols-1;
     justify-content: stretch;
@@ -671,7 +928,16 @@
   }
 
   .plant-summary-grid,
+  .plant-export-controls,
   .plant-detail-metrics {
     @apply grid-cols-1;
+  }
+
+  .plant-export-chip-list {
+    max-height: 180px;
+  }
+
+  .plant-export-button {
+    @apply w-full;
   }
 }

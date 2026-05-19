@@ -114,6 +114,16 @@ const defaultPondVolumeByPrefix = {
   E: 1100,
   F: 900
 };
+const defaultFcrThresholds = {
+  goodMax: 1.4,
+  warningMax: 1.7
+};
+const fcrThresholdsBySpecies = {
+  dorada: { goodMax: 1.3, warningMax: 1.55 },
+  lubina: { goodMax: 1.35, warningMax: 1.6 },
+  trucha: { goodMax: 1.2, warningMax: 1.45 },
+  tilapia: { goodMax: 1.45, warningMax: 1.75 }
+};
 
 function toFixedNumber(value, decimals = 2) {
   const numeric = Number(value);
@@ -539,6 +549,59 @@ function calculateMortalityPercentFromRow(row) {
   return null;
 }
 
+function calculateFcrValueFromEntry(entry, biomassKgValue) {
+  const directFcr = Number(entry?.fcr);
+  if (Number.isFinite(directFcr) && directFcr >= 0) {
+    return Number(directFcr.toFixed(2));
+  }
+
+  const feedKg = Number(entry?.feed_kg);
+  const biomassKg = Number(biomassKgValue);
+
+  if (Number.isFinite(feedKg) && feedKg >= 0 && Number.isFinite(biomassKg) && biomassKg > 0) {
+    return Number((feedKg / biomassKg).toFixed(2));
+  }
+
+  return null;
+}
+
+function normalizeSpeciesName(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function resolveFcrThresholds(speciesVariant) {
+  const normalizedSpecies = normalizeSpeciesName(speciesVariant);
+  return fcrThresholdsBySpecies[normalizedSpecies] || defaultFcrThresholds;
+}
+
+function classifyFcrSeverity(fcrValue, speciesVariant) {
+  const fcr = Number(fcrValue);
+  if (!Number.isFinite(fcr) || fcr <= 0) {
+    return "unknown";
+  }
+
+  const { goodMax, warningMax } = resolveFcrThresholds(speciesVariant);
+  if (fcr <= goodMax) {
+    return "good";
+  }
+
+  if (fcr <= warningMax) {
+    return "warning";
+  }
+
+  return "critical";
+}
+
+function buildFcrThresholdTooltip(speciesVariant) {
+  const { goodMax, warningMax } = resolveFcrThresholds(speciesVariant);
+  const speciesLabel = speciesVariant || "general";
+  return `FCR (${speciesLabel}): verde <= ${goodMax.toFixed(2)}, amarillo <= ${warningMax.toFixed(2)}, rojo > ${warningMax.toFixed(2)}`;
+}
+
 function buildHistoryEntryFromSummaryRow(row, capturedAt) {
   const timestamp = capturedAt || new Date().toISOString();
 
@@ -547,6 +610,7 @@ function buildHistoryEntryFromSummaryRow(row, capturedAt) {
     pond_id: row.pondId ?? null,
     pond_code: row.pondCode ?? null,
     pond_name: row.pondName,
+    species_variant: row.speciesVariant || null,
     biomassKgValue: Number.isFinite(Number(row.biomassKgValue))
       ? Number(row.biomassKgValue)
       : null,
@@ -564,6 +628,9 @@ function buildHistoryEntryFromSummaryRow(row, capturedAt) {
       : null,
     mortalityPercentValue: Number.isFinite(Number(row.mortalityPercentValue))
       ? Number(row.mortalityPercentValue)
+      : null,
+    fcrValue: Number.isFinite(Number(row.fcrValue))
+      ? Number(row.fcrValue)
       : null,
     lastCapturedAt: timestamp,
     source: "manual"
@@ -696,11 +763,13 @@ export function BiomassPage() {
         pondCode,
         pondId: pond?.id ?? null,
         pondName: pond?.name || `Piscina ${pondCode}`,
+        speciesVariant: pond?.species || null,
         latestBiomassKg: null,
         latestBiomassUnits: null,
         latestMortalityKg: null,
         latestMortalityUnits: null,
         latestMortalityPct: null,
+        latestFcr: null,
         lastCapturedAt: null,
         totalMortalityUnits: 0,
         maxBiomassUnits: null,
@@ -718,11 +787,13 @@ export function BiomassPage() {
         pondCode,
         pondId: pond.id,
         pondName: pond.name,
+        speciesVariant: pond.species || null,
         latestBiomassKg: null,
         latestBiomassUnits: null,
         latestMortalityKg: null,
         latestMortalityUnits: null,
         latestMortalityPct: null,
+        latestFcr: null,
         lastCapturedAt: null,
         totalMortalityUnits: 0,
         maxBiomassUnits: null,
@@ -747,11 +818,13 @@ export function BiomassPage() {
           pondCode,
           pondId: entry.pond_id ?? null,
           pondName: entry.pond_name || "Piscina sin nombre",
+          speciesVariant: entry.species_variant || null,
           latestBiomassKg: null,
           latestBiomassUnits: null,
           latestMortalityKg: null,
           latestMortalityUnits: null,
           latestMortalityPct: null,
+          latestFcr: null,
           lastCapturedAt: null,
           totalMortalityUnits: 0,
           maxBiomassUnits: null,
@@ -764,6 +837,11 @@ export function BiomassPage() {
       if (pondFromId) {
         summary.pondId = pondFromId.id;
         summary.pondName = pondFromId.name;
+        summary.speciesVariant = pondFromId.species || summary.speciesVariant;
+      }
+
+      if (entry.species_variant) {
+        summary.speciesVariant = entry.species_variant;
       }
 
       return summary;
@@ -791,6 +869,7 @@ export function BiomassPage() {
         Number.isFinite(mortalityUnits) && Number.isFinite(avgWeightG)
           ? (mortalityUnits * avgWeightG) / 1000
           : null;
+      const fcrValue = calculateFcrValueFromEntry(entry, biomassKg);
 
       if (Number.isFinite(mortalityUnits)) {
         summary.totalMortalityUnits += mortalityUnits;
@@ -807,7 +886,8 @@ export function BiomassPage() {
         biomassKg,
         biomassUnits: fishCount,
         mortalityKg,
-        mortalityUnits
+        mortalityUnits,
+        fcrValue
       });
 
       const capturedAt = new Date(entry.captured_at).getTime();
@@ -823,6 +903,7 @@ export function BiomassPage() {
           summary.latestMortalityKg = Number.isFinite(mortalityKg) ? mortalityKg : null;
           summary.latestMortalityUnits = Number.isFinite(mortalityUnits) ? mortalityUnits : null;
           summary.latestMortalityPct = Number.isFinite(mortalityPct) ? mortalityPct : null;
+          summary.latestFcr = Number.isFinite(fcrValue) ? fcrValue : null;
         }
       }
     }
@@ -857,6 +938,9 @@ export function BiomassPage() {
           mortalityPercentValue: Number.isFinite(summary.latestMortalityPct)
             ? Number(summary.latestMortalityPct.toFixed(2))
               : null,
+          fcrValue: Number.isFinite(summary.latestFcr)
+            ? Number(summary.latestFcr.toFixed(2))
+            : null,
           averageWeightGValue: calculateAverageWeightFromRow({
             biomassKgValue: summary.latestBiomassKg,
             biomassUnitsValue: summary.latestBiomassUnits
@@ -942,6 +1026,7 @@ export function BiomassPage() {
         Number.isFinite(mortalityUnits) && Number.isFinite(avgWeightG)
           ? (mortalityUnits * avgWeightG) / 1000
           : null;
+      const fcrValue = calculateFcrValueFromEntry(entry, biomassKg);
 
       return {
         ...entry,
@@ -960,6 +1045,9 @@ export function BiomassPage() {
           : null,
         mortalityPercentValue: Number.isFinite(mortalityPct)
           ? Number(mortalityPct.toFixed(2))
+          : null,
+        fcrValue: Number.isFinite(fcrValue)
+          ? Number(fcrValue.toFixed(2))
           : null,
         lastCapturedAt: entry.captured_at,
         source: "server"
@@ -1659,6 +1747,20 @@ export function BiomassPage() {
     );
   };
 
+  const renderFcrCell = (fcrValue, speciesVariant) => {
+    const severity = classifyFcrSeverity(fcrValue, speciesVariant);
+    const displayValue = formatNumberCell(fcrValue, 2);
+
+    return (
+      <span
+        className={`biomass-fcr-chip biomass-fcr-chip-${severity}`}
+        title={buildFcrThresholdTooltip(speciesVariant)}
+      >
+        {displayValue}
+      </span>
+    );
+  };
+
   return (
     <section className="biomass-page">
       {showSummarySection ? (
@@ -1758,6 +1860,7 @@ export function BiomassPage() {
                   <th>Delta biomasa (%)</th>
                   <th>Crecimiento (kg/día)</th>
                   <th>Crecimiento pez (g/pez/día)</th>
+                  <th>FCR</th>
                   <th>Mortalidad acumulada (%)</th>
                   <th>Supervivencia (%)</th>
                   <th>Días desde actualización</th>
@@ -1769,7 +1872,7 @@ export function BiomassPage() {
               <tbody>
                 {biomassTableState.isLoading ? (
                   <tr>
-                    <td colSpan={18} className="biomass-table-empty">Cargando resumen...</td>
+                    <td colSpan={19} className="biomass-table-empty">Cargando resumen...</td>
                   </tr>
                 ) : editableSummaryRows.length > 0 ? (
                   editableSummaryRows.map((row) => (
@@ -1794,6 +1897,7 @@ export function BiomassPage() {
                       <td>{formatNumberCell(row.deltaBiomassPercentValue, 2)}</td>
                       <td>{formatNumberCell(row.growthDailyKgValue, 2)}</td>
                       <td>{formatNumberCell(row.growthPerFishGPerDayValue, 2)}</td>
+                      <td>{renderFcrCell(row.fcrValue, row.speciesVariant)}</td>
                       <td>{formatNumberCell(row.cumulativeMortalityPercentValue, 2)}</td>
                       <td>{formatNumberCell(row.survivalPercentValue, 2)}</td>
                       <td>{formatNumberCell(row.daysSinceUpdateValue, 1)}</td>
@@ -1804,7 +1908,7 @@ export function BiomassPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={18} className="biomass-table-empty">No hay piscinas para mostrar.</td>
+                    <td colSpan={19} className="biomass-table-empty">No hay piscinas para mostrar.</td>
                   </tr>
                 )}
               </tbody>
@@ -1931,6 +2035,7 @@ export function BiomassPage() {
                   <th>Delta biomasa (%)</th>
                   <th>Crecimiento (kg/día)</th>
                   <th>Crecimiento pez (g/pez/día)</th>
+                  <th>FCR</th>
                   <th>Mortalidad acumulada (%)</th>
                   <th>Supervivencia (%)</th>
                   <th>Días desde actualización</th>
@@ -1942,7 +2047,7 @@ export function BiomassPage() {
               <tbody>
                 {biomassTableState.isLoading ? (
                   <tr>
-                    <td colSpan={18} className="biomass-table-empty">Cargando registros...</td>
+                    <td colSpan={19} className="biomass-table-empty">Cargando registros...</td>
                   </tr>
                 ) : pagedHistoryRows.length > 0 ? (
                   pagedHistoryRows.map((entry) => (
@@ -1959,6 +2064,7 @@ export function BiomassPage() {
                       <td>{formatNumberCell(entry.deltaBiomassPercentValue, 2)}</td>
                       <td>{formatNumberCell(entry.growthDailyKgValue, 2)}</td>
                       <td>{formatNumberCell(entry.growthPerFishGPerDayValue, 2)}</td>
+                      <td>{renderFcrCell(entry.fcrValue, entry.species_variant)}</td>
                       <td>{formatNumberCell(entry.cumulativeMortalityPercentValue, 2)}</td>
                       <td>{formatNumberCell(entry.survivalPercentValue, 2)}</td>
                       <td>{formatNumberCell(entry.daysSinceUpdateValue, 1)}</td>
@@ -1969,7 +2075,7 @@ export function BiomassPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={18} className="biomass-table-empty">No hay registros para mostrar.</td>
+                    <td colSpan={19} className="biomass-table-empty">No hay registros para mostrar.</td>
                   </tr>
                 )}
               </tbody>

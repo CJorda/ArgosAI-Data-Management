@@ -688,6 +688,35 @@ CREATE TABLE IF NOT EXISTS water_flow_alerts (
   CHECK (status IN ('open', 'resolved'))
 );
 
+CREATE TABLE IF NOT EXISTS lab_water_samples (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  pond_id BIGINT REFERENCES ponds(id) ON DELETE SET NULL,
+  sampled_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  source_label TEXT,
+  technician_name TEXT,
+  analysis_type TEXT NOT NULL DEFAULT 'laboratorio',
+  oxygen_mg_l DOUBLE PRECISION,
+  temperature_c DOUBLE PRECISION,
+  ph DOUBLE PRECISION,
+  salinity_ppt DOUBLE PRECISION,
+  turbidity_ntu DOUBLE PRECISION,
+  ammonia_mg_l DOUBLE PRECISION,
+  nitrite_mg_l DOUBLE PRECISION,
+  nitrate_mg_l DOUBLE PRECISION,
+  alkalinity_mg_l DOUBLE PRECISION,
+  hardness_mg_l DOUBLE PRECISION,
+  conductivity_us_cm DOUBLE PRECISION,
+  notes TEXT,
+  pdf_file_name TEXT,
+  pdf_mime_type TEXT,
+  pdf_content BYTEA,
+  pdf_uploaded_at TIMESTAMPTZ,
+  created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (pdf_content IS NULL OR octet_length(pdf_content) <= 12 * 1024 * 1024)
+);
+
 CREATE TABLE IF NOT EXISTS traceability_certificates (
   id BIGSERIAL PRIMARY KEY,
   tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -812,6 +841,9 @@ CREATE INDEX IF NOT EXISTS idx_water_flow_meters_tenant_enabled
 
 CREATE INDEX IF NOT EXISTS idx_water_flow_alerts_tenant_status_created
   ON water_flow_alerts (tenant_id, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_lab_water_samples_tenant_sampled
+  ON lab_water_samples (tenant_id, sampled_at DESC, pond_id);
 
 CREATE INDEX IF NOT EXISTS idx_traceability_certificates_tenant_lot_created
   ON traceability_certificates (tenant_id, lot_code, created_at DESC);

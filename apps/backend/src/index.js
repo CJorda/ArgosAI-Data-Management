@@ -14,6 +14,10 @@ import {
   startSensorHealthAlertSyncScheduler,
   stopSensorHealthAlertSyncScheduler
 } from "./services/sensorHealthAlertSyncScheduler.js";
+import {
+  startConnectivityWatchdogService,
+  stopConnectivityWatchdogService
+} from "./services/connectivityWatchdogService.js";
 import { startSimulator, stopSimulator } from "./services/simulatorService.js";
 
 const app = createApp();
@@ -21,6 +25,7 @@ const server = http.createServer(app);
 let simulatorStarted = false;
 let schedulerStarted = false;
 let sensorHealthAlertSchedulerStarted = false;
+let connectivityWatchdogStarted = false;
 let warnedBypassRlsRole = false;
 
 const io = new SocketServer(server, {
@@ -144,6 +149,11 @@ async function start() {
     logger.info({ port: env.port }, "Backend listening");
   });
 
+  if (!connectivityWatchdogStarted) {
+    startConnectivityWatchdogService();
+    connectivityWatchdogStarted = true;
+  }
+
   if (env.noPostgresMode) {
     logger.warn("NO_POSTGRES mode enabled. Serving demo data from memory.");
     return;
@@ -162,6 +172,7 @@ async function shutdown() {
   stopSimulator();
   stopExecutiveReportScheduler();
   stopSensorHealthAlertSyncScheduler();
+  stopConnectivityWatchdogService();
   io.removeAllListeners();
   await pool.end();
   server.close(() => {

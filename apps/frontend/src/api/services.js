@@ -125,6 +125,82 @@ export async function historyReadingsRequest(token, params) {
   return data;
 }
 
+export async function waterQualityEmailReportRequest(token, payload) {
+  const { data } = await apiClient.post(
+    "/data/water-quality/reports/email",
+    payload,
+    authConfig(token)
+  );
+  return data;
+}
+
+export async function hydroConfederationSourcesRequest(token) {
+  const { data } = await apiClient.get("/data/hydro-confederations/sources", authConfig(token));
+  return data;
+}
+
+export async function hydroConfederationCaptureRequest(token, payload) {
+  const { data } = await apiClient.post(
+    "/data/hydro-confederations/capture",
+    payload,
+    authConfig(token)
+  );
+  return data;
+}
+
+export async function labWaterSamplesRequest(token, params) {
+  const { data } = await apiClient.get("/data/lab-water-samples", {
+    ...authConfig(token),
+    params
+  });
+  return data;
+}
+
+export async function createLabWaterSampleRequest(token, payload) {
+  const { data } = await apiClient.post("/data/lab-water-samples", payload, authConfig(token));
+  return data;
+}
+
+export async function labWaterSamplePdfRequest(token, sampleId) {
+  const { data } = await apiClient.get(
+    `/data/lab-water-samples/${sampleId}/pdf`,
+    authConfig(token)
+  );
+  return data;
+}
+
+export async function connectivityWatchdogStatusRequest(token) {
+  const { data } = await apiClient.get("/connectivity/watchdog/status", authConfig(token));
+  return data;
+}
+
+export async function updateConnectivityWatchdogConfigRequest(token, payload) {
+  const { data } = await apiClient.put(
+    "/connectivity/watchdog/config",
+    payload,
+    authConfig(token)
+  );
+  return data;
+}
+
+export async function runConnectivityWatchdogCheckRequest(token) {
+  const { data } = await apiClient.post(
+    "/connectivity/watchdog/check-now",
+    {},
+    authConfig(token)
+  );
+  return data;
+}
+
+export async function testConnectivityWatchdogCallRequest(token, payload) {
+  const { data } = await apiClient.post(
+    "/connectivity/watchdog/test-call",
+    payload,
+    authConfig(token)
+  );
+  return data;
+}
+
 export async function waterFlowConfigRequest(token) {
   const { data } = await apiClient.get("/data/water-flow/config", authConfig(token));
   return data;

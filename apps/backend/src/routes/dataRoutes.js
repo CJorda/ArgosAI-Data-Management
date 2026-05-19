@@ -22,8 +22,12 @@ import {
   getDemoWaterFlowOverview,
   listDemoWaterFlowAlerts,
   resolveDemoWaterFlowAlert,
-  updateDemoWaterFlowConfig
+  updateDemoWaterFlowConfig,
+  listDemoLabWaterSamples,
+  createDemoLabWaterSample,
+  getDemoLabWaterSamplePdf
 } from "../services/noDbDemoService.js";
+import { getEmailDeliveryStatus, sendEmailWithAttachment } from "../services/emailService.js";
 import { FEATURE_KEYS } from "../security/featureCatalog.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { HttpError } from "../utils/httpError.js";
@@ -121,6 +125,57 @@ const createWaterFlowReadingSchema = z.object({
   notes: z.string().trim().max(500).nullable().optional()
 });
 
+const waterQualityEmailReportSchema = z.object({
+  recipients: z.array(z.string().trim().email()).min(1).max(10),
+  from: z.string().datetime(),
+  to: z.string().datetime(),
+  bucket: z.enum(["auto", "hour", "day"]).optional(),
+  fileName: z.string().trim().min(5).max(160),
+  attachmentBase64: z.string().trim().min(40).max(20_000_000),
+  mimeType: z.string().trim().min(3).max(120).optional(),
+  subject: z.string().trim().min(3).max(180).optional(),
+  message: z.string().trim().max(2000).optional()
+});
+
+const hydroConfederationCaptureSchema = z.object({
+  sourceId: z.string().trim().min(2).max(60),
+  endpointUrl: z.string().trim().url().max(400).optional(),
+  maxItems: z.coerce.number().int().min(1).max(50).optional()
+});
+
+const labWaterSampleSchema = z
+  .object({
+    pondId: z.number().int().positive().nullable().optional(),
+    sampledAt: z.string().datetime().optional(),
+    sourceLabel: z.string().trim().max(180).nullable().optional(),
+    technicianName: z.string().trim().max(120).nullable().optional(),
+    analysisType: z.string().trim().min(2).max(60).optional(),
+    oxygenMgL: z.number().min(0).max(100).nullable().optional(),
+    temperatureC: z.number().min(-5).max(60).nullable().optional(),
+    ph: z.number().min(0).max(14).nullable().optional(),
+    salinityPpt: z.number().min(0).max(100).nullable().optional(),
+    turbidityNtu: z.number().min(0).max(5000).nullable().optional(),
+    ammoniaMgL: z.number().min(0).max(100).nullable().optional(),
+    nitriteMgL: z.number().min(0).max(100).nullable().optional(),
+    nitrateMgL: z.number().min(0).max(1000).nullable().optional(),
+    alkalinityMgL: z.number().min(0).max(2000).nullable().optional(),
+    hardnessMgL: z.number().min(0).max(5000).nullable().optional(),
+    conductivityUsCm: z.number().min(0).max(300000).nullable().optional(),
+    notes: z.string().trim().max(2000).nullable().optional(),
+    pdfFileName: z.string().trim().min(4).max(180).optional(),
+    pdfMimeType: z.string().trim().max(120).optional(),
+    pdfBase64: z.string().trim().min(40).max(18_000_000).optional()
+  })
+  .superRefine((value, ctx) => {
+    if (value.pdfBase64 && !value.pdfFileName) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["pdfFileName"],
+        message: "pdfFileName is required when pdfBase64 is provided"
+      });
+    }
+  });
+
 export const dataRoutes = Router();
 
 const requireCoreDataFeature = requireAnyFeature([
@@ -168,6 +223,29 @@ const flowMonthLabels = [
 ];
 
 const flowHourWindows = [24, 48, 72, 168];
+const maxWaterQualityEmailAttachmentBytes = 8 * 1024 * 1024;
+const defaultWaterQualityAttachmentMimeType =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const allowedWaterQualityAttachmentMimeTypes = new Set([
+  defaultWaterQualityAttachmentMimeType,
+  "text/csv",
+  "application/json"
+]);
+const maxLabSamplePdfBytes = 12 * 1024 * 1024;
+const defaultLabSamplePdfMimeType = "application/pdf";
+const allowedLabSamplePdfMimeTypes = new Set([defaultLabSamplePdfMimeType]);
+const defaultLabSampleQueryLimit = 120;
+const maxLabSampleQueryLimit = 500;
+
+const hydroConfederationSources = [
+  {
+    id: "saih-ebro",
+    name: "SAIH Ebro (CHE)",
+    description: "Estado hidrologico de cuenca del Ebro (estaciones, caudales y embalses).",
+    homepageUrl: "https://www.saihebro.com/homepage/estado-cuenca-ebro",
+    defaultEndpointUrl: env.saihEbroApiUrl || ""
+  }
+];
 
 const waterFlowDefaultMeters = [
   {
@@ -264,6 +342,203 @@ function toNumber(value, fallback = 0) {
 function toNullableNumber(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
+}
+
+function safeJsonParse(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function firstDefined(record, keys) {
+  for (const key of keys) {
+    if (record && Object.prototype.hasOwnProperty.call(record, key) && record[key] !== null && record[key] !== undefined) {
+      return record[key];
+    }
+  }
+
+  return null;
+}
+
+function readNumericCandidate(record, keys) {
+  const raw = firstDefined(record, keys);
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+
+  const numeric = Number(raw);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function normalizeHydroStationRecord(record, index) {
+  const stationId = String(firstDefined(record, ["id", "codigo", "stationId", "station_id"]) || `S-${index + 1}`);
+  const stationName =
+    String(firstDefined(record, ["name", "nombre", "stationName", "station_name"]) || `Estacion ${index + 1}`);
+
+  const riverFlowM3s = readNumericCandidate(record, ["caudal", "flow", "q", "riverFlowM3s"]);
+  const reservoirLevelPct = readNumericCandidate(record, ["nivel_embalse", "reservoir_pct", "reservoirLevelPct"]);
+  const rain24hMm = readNumericCandidate(record, ["lluvia_24h", "rain_24h", "rain24hMm"]);
+  const airTemperatureC = readNumericCandidate(record, ["temperatura", "temperature", "airTemperatureC"]);
+
+  return {
+    stationId,
+    stationName,
+    riverFlowM3s: riverFlowM3s === null ? null : round(riverFlowM3s, 3),
+    reservoirLevelPct: reservoirLevelPct === null ? null : round(reservoirLevelPct, 3),
+    rain24hMm: rain24hMm === null ? null : round(rain24hMm, 3),
+    airTemperatureC: airTemperatureC === null ? null : round(airTemperatureC, 3),
+    recordedAt:
+      firstDefined(record, ["timestamp", "recordedAt", "recorded_at", "fecha", "date"]) || new Date().toISOString()
+  };
+}
+
+function findHydroDataArray(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (!payload || typeof payload !== "object") {
+    return [];
+  }
+
+  const candidateKeys = ["stations", "estaciones", "data", "items", "rows", "results"];
+  for (const key of candidateKeys) {
+    if (Array.isArray(payload[key])) {
+      return payload[key];
+    }
+  }
+
+  return [];
+}
+
+function averageMetric(rows, key) {
+  const values = rows
+    .map((item) => Number(item[key]))
+    .filter((value) => Number.isFinite(value));
+
+  if (values.length === 0) {
+    return null;
+  }
+
+  return round(values.reduce((acc, value) => acc + value, 0) / values.length, 3);
+}
+
+function buildDemoHydroSnapshot(source, maxItems = 8, warning = null) {
+  const now = Date.now();
+  const stations = Array.from({ length: Math.max(3, Math.min(maxItems, 8)) }).map((_, index) => {
+    const flow = 52 + index * 9.7;
+    const reservoirPct = 63 - index * 2.3;
+    const rain = 1.2 + (index % 4) * 0.8;
+    const temperature = 12 + index * 0.7;
+
+    return {
+      stationId: `DEMO-${index + 1}`,
+      stationName: `Estacion demo ${index + 1}`,
+      riverFlowM3s: round(flow, 3),
+      reservoirLevelPct: round(reservoirPct, 3),
+      rain24hMm: round(rain, 3),
+      airTemperatureC: round(temperature, 3),
+      recordedAt: new Date(now - index * 15 * 60 * 1000).toISOString()
+    };
+  });
+
+  return {
+    source: {
+      id: source.id,
+      name: source.name,
+      homepageUrl: source.homepageUrl
+    },
+    endpointUrl: source.defaultEndpointUrl || null,
+    capturedAt: new Date().toISOString(),
+    mode: "demo",
+    warning,
+    kpis: {
+      riverFlowM3s: averageMetric(stations, "riverFlowM3s"),
+      reservoirLevelPct: averageMetric(stations, "reservoirLevelPct"),
+      rain24hMm: averageMetric(stations, "rain24hMm"),
+      airTemperatureC: averageMetric(stations, "airTemperatureC")
+    },
+    stations
+  };
+}
+
+async function captureHydroSnapshot(source, endpointUrl, maxItems = 8) {
+  const normalizedLimit = Math.max(1, Math.min(Number(maxItems) || 8, 50));
+  const effectiveEndpoint = String(endpointUrl || source.defaultEndpointUrl || "").trim();
+
+  if (!effectiveEndpoint) {
+    return buildDemoHydroSnapshot(source, normalizedLimit, "No hay endpoint configurado para esta fuente.");
+  }
+
+  const controller = new AbortController();
+  const timerId = setTimeout(() => controller.abort(), 10_000);
+
+  try {
+    const response = await fetch(effectiveEndpoint, {
+      method: "GET",
+      headers: {
+        accept: "application/json, text/plain, */*"
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const rawPayload = await response.text();
+    const parsedPayload = safeJsonParse(rawPayload);
+
+    if (!parsedPayload) {
+      return buildDemoHydroSnapshot(
+        source,
+        normalizedLimit,
+        "La fuente no devolvio JSON valido. Se muestran datos demo."
+      );
+    }
+
+    const rawRows = findHydroDataArray(parsedPayload);
+    const stations = rawRows
+      .slice(0, normalizedLimit)
+      .map((row, index) => normalizeHydroStationRecord(row, index));
+
+    if (stations.length === 0) {
+      return buildDemoHydroSnapshot(
+        source,
+        normalizedLimit,
+        "No se detectaron estaciones en la respuesta. Se muestran datos demo."
+      );
+    }
+
+    return {
+      source: {
+        id: source.id,
+        name: source.name,
+        homepageUrl: source.homepageUrl
+      },
+      endpointUrl: effectiveEndpoint,
+      capturedAt: new Date().toISOString(),
+      mode: "live",
+      warning: null,
+      kpis: {
+        riverFlowM3s: averageMetric(stations, "riverFlowM3s"),
+        reservoirLevelPct: averageMetric(stations, "reservoirLevelPct"),
+        rain24hMm: averageMetric(stations, "rain24hMm"),
+        airTemperatureC: averageMetric(stations, "airTemperatureC")
+      },
+      stations
+    };
+  } catch (error) {
+    return buildDemoHydroSnapshot(
+      source,
+      normalizedLimit,
+      `No se pudo consultar la fuente remota (${error instanceof Error ? error.message : "error desconocido"}).`
+    );
+  } finally {
+    clearTimeout(timerId);
+  }
 }
 
 function sensorHealthProfileForType(sensorType) {
@@ -2410,6 +2685,466 @@ dataRoutes.get(
       from,
       to,
       series: result.rows
+    });
+  })
+);
+
+dataRoutes.get(
+  "/lab-water-samples",
+  asyncHandler(async (req, res) => {
+    const pondIdRaw = req.query.pondId;
+    const fromRaw = req.query.from;
+    const toRaw = req.query.to;
+    const requestedLimit = Number(req.query.limit || defaultLabSampleQueryLimit);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.max(1, Math.min(maxLabSampleQueryLimit, Math.round(requestedLimit)))
+      : defaultLabSampleQueryLimit;
+    const pondId = pondIdRaw ? Number(pondIdRaw) : null;
+    const fromDate = fromRaw ? new Date(fromRaw) : null;
+    const toDate = toRaw ? new Date(toRaw) : null;
+
+    if (pondIdRaw && (!Number.isInteger(pondId) || pondId <= 0)) {
+      throw new HttpError(400, "Invalid pondId query param");
+    }
+
+    if (fromRaw && Number.isNaN(fromDate?.getTime?.())) {
+      throw new HttpError(400, "Invalid from query param");
+    }
+
+    if (toRaw && Number.isNaN(toDate?.getTime?.())) {
+      throw new HttpError(400, "Invalid to query param");
+    }
+
+    if (fromDate && toDate && toDate.getTime() < fromDate.getTime()) {
+      throw new HttpError(400, "to query param must be greater than or equal to from");
+    }
+
+    if (env.noPostgresMode) {
+      const rows = listDemoLabWaterSamples({
+        pondId,
+        from: fromDate ? fromDate.toISOString() : null,
+        to: toDate ? toDate.toISOString() : null,
+        limit
+      });
+      res.json(rows);
+      return;
+    }
+
+    const result = await query(
+      `
+        SELECT
+          l.id,
+          l.pond_id,
+          p.name AS pond_name,
+          l.sampled_at,
+          l.source_label,
+          l.technician_name,
+          l.analysis_type,
+          l.oxygen_mg_l,
+          l.temperature_c,
+          l.ph,
+          l.salinity_ppt,
+          l.turbidity_ntu,
+          l.ammonia_mg_l,
+          l.nitrite_mg_l,
+          l.nitrate_mg_l,
+          l.alkalinity_mg_l,
+          l.hardness_mg_l,
+          l.conductivity_us_cm,
+          l.notes,
+          l.pdf_file_name,
+          l.pdf_mime_type,
+          (l.pdf_content IS NOT NULL) AS has_pdf,
+          l.pdf_uploaded_at,
+          l.created_by,
+          u.full_name AS created_by_name,
+          l.created_at
+        FROM lab_water_samples l
+        LEFT JOIN ponds p ON p.id = l.pond_id
+        LEFT JOIN users u ON u.id = l.created_by
+        WHERE l.tenant_id = $1
+          AND ($2::BIGINT IS NULL OR l.pond_id = $2)
+          AND ($3::TIMESTAMPTZ IS NULL OR l.sampled_at >= $3)
+          AND ($4::TIMESTAMPTZ IS NULL OR l.sampled_at <= $4)
+        ORDER BY l.sampled_at DESC, l.id DESC
+        LIMIT $5
+      `,
+      [
+        req.user.tenantId,
+        pondId,
+        fromDate ? fromDate.toISOString() : null,
+        toDate ? toDate.toISOString() : null,
+        limit
+      ]
+    );
+
+    res.json(result.rows);
+  })
+);
+
+dataRoutes.post(
+  "/lab-water-samples",
+  validate(labWaterSampleSchema),
+  asyncHandler(async (req, res) => {
+    const payload = req.body || {};
+    const sampledAt = payload.sampledAt ? new Date(payload.sampledAt) : new Date();
+
+    if (Number.isNaN(sampledAt.getTime())) {
+      throw new HttpError(400, "Invalid sampledAt datetime format");
+    }
+
+    if (env.noPostgresMode) {
+      const demoResult = createDemoLabWaterSample(payload, req.user);
+
+      if (demoResult.error) {
+        throw new HttpError(demoResult.status || 400, demoResult.error);
+      }
+
+      res.status(201).json(demoResult.sample);
+      return;
+    }
+
+    const pondId = payload.pondId ?? null;
+
+    if (pondId !== null && pondId !== undefined) {
+      const pondResult = await query(
+        `
+          SELECT id
+          FROM ponds
+          WHERE id = $1
+            AND tenant_id = $2
+          LIMIT 1
+        `,
+        [pondId, req.user.tenantId]
+      );
+
+      if (pondResult.rowCount === 0) {
+        throw new HttpError(404, "Pond not found");
+      }
+    }
+
+    const pdfBase64 = String(payload.pdfBase64 || "").trim() || null;
+    const pdfMimeType = pdfBase64
+      ? String(payload.pdfMimeType || defaultLabSamplePdfMimeType).trim() || defaultLabSamplePdfMimeType
+      : null;
+    const pdfFileName = pdfBase64
+      ? String(payload.pdfFileName || "muestra-laboratorio.pdf").trim()
+      : null;
+
+    let pdfBuffer = null;
+
+    if (pdfBase64) {
+      if (!allowedLabSamplePdfMimeTypes.has(pdfMimeType)) {
+        throw new HttpError(400, "Unsupported PDF mime type");
+      }
+
+      try {
+        pdfBuffer = Buffer.from(pdfBase64, "base64");
+      } catch {
+        throw new HttpError(400, "Invalid PDF base64 payload");
+      }
+
+      if (!pdfBuffer || pdfBuffer.length === 0) {
+        throw new HttpError(400, "PDF attachment is empty or invalid");
+      }
+
+      if (pdfBuffer.length > maxLabSamplePdfBytes) {
+        throw new HttpError(400, "PDF attachment exceeds 12 MB limit");
+      }
+    }
+
+    const inserted = await query(
+      `
+        WITH inserted AS (
+          INSERT INTO lab_water_samples (
+            tenant_id,
+            pond_id,
+            sampled_at,
+            source_label,
+            technician_name,
+            analysis_type,
+            oxygen_mg_l,
+            temperature_c,
+            ph,
+            salinity_ppt,
+            turbidity_ntu,
+            ammonia_mg_l,
+            nitrite_mg_l,
+            nitrate_mg_l,
+            alkalinity_mg_l,
+            hardness_mg_l,
+            conductivity_us_cm,
+            notes,
+            pdf_file_name,
+            pdf_mime_type,
+            pdf_content,
+            pdf_uploaded_at,
+            created_by
+          )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            $11,
+            $12,
+            $13,
+            $14,
+            $15,
+            $16,
+            $17,
+            $18,
+            $19,
+            $20,
+            $21,
+            $22,
+            $23
+          )
+          RETURNING *
+        )
+        SELECT
+          i.id,
+          i.pond_id,
+          p.name AS pond_name,
+          i.sampled_at,
+          i.source_label,
+          i.technician_name,
+          i.analysis_type,
+          i.oxygen_mg_l,
+          i.temperature_c,
+          i.ph,
+          i.salinity_ppt,
+          i.turbidity_ntu,
+          i.ammonia_mg_l,
+          i.nitrite_mg_l,
+          i.nitrate_mg_l,
+          i.alkalinity_mg_l,
+          i.hardness_mg_l,
+          i.conductivity_us_cm,
+          i.notes,
+          i.pdf_file_name,
+          i.pdf_mime_type,
+          (i.pdf_content IS NOT NULL) AS has_pdf,
+          i.pdf_uploaded_at,
+          i.created_by,
+          u.full_name AS created_by_name,
+          i.created_at
+        FROM inserted i
+        LEFT JOIN ponds p ON p.id = i.pond_id
+        LEFT JOIN users u ON u.id = i.created_by
+      `,
+      [
+        req.user.tenantId,
+        pondId,
+        sampledAt.toISOString(),
+        payload.sourceLabel || null,
+        payload.technicianName || null,
+        payload.analysisType || "laboratorio",
+        payload.oxygenMgL ?? null,
+        payload.temperatureC ?? null,
+        payload.ph ?? null,
+        payload.salinityPpt ?? null,
+        payload.turbidityNtu ?? null,
+        payload.ammoniaMgL ?? null,
+        payload.nitriteMgL ?? null,
+        payload.nitrateMgL ?? null,
+        payload.alkalinityMgL ?? null,
+        payload.hardnessMgL ?? null,
+        payload.conductivityUsCm ?? null,
+        payload.notes || null,
+        pdfFileName,
+        pdfMimeType,
+        pdfBuffer,
+        pdfBuffer ? new Date().toISOString() : null,
+        req.user.id || null
+      ]
+    );
+
+    res.status(201).json(inserted.rows[0]);
+  })
+);
+
+dataRoutes.get(
+  "/lab-water-samples/:sampleId/pdf",
+  asyncHandler(async (req, res) => {
+    const sampleId = Number(req.params.sampleId);
+
+    if (!Number.isInteger(sampleId) || sampleId <= 0) {
+      throw new HttpError(400, "Invalid sample id");
+    }
+
+    if (env.noPostgresMode) {
+      const payload = getDemoLabWaterSamplePdf(sampleId);
+
+      if (!payload) {
+        throw new HttpError(404, "Lab sample PDF not found");
+      }
+
+      res.json(payload);
+      return;
+    }
+
+    const result = await query(
+      `
+        SELECT
+          id,
+          pdf_file_name,
+          pdf_mime_type,
+          encode(pdf_content, 'base64') AS pdf_base64,
+          pdf_uploaded_at
+        FROM lab_water_samples
+        WHERE id = $1
+          AND tenant_id = $2
+          AND pdf_content IS NOT NULL
+        LIMIT 1
+      `,
+      [sampleId, req.user.tenantId]
+    );
+
+    if (result.rowCount === 0) {
+      throw new HttpError(404, "Lab sample PDF not found");
+    }
+
+    const row = result.rows[0];
+
+    res.json({
+      id: row.id,
+      fileName: row.pdf_file_name || `sample-${row.id}.pdf`,
+      mimeType: row.pdf_mime_type || defaultLabSamplePdfMimeType,
+      pdfBase64: row.pdf_base64,
+      uploadedAt: row.pdf_uploaded_at
+    });
+  })
+);
+
+dataRoutes.get(
+  "/hydro-confederations/sources",
+  asyncHandler(async (_req, res) => {
+    res.json({
+      sources: hydroConfederationSources,
+      total: hydroConfederationSources.length
+    });
+  })
+);
+
+dataRoutes.post(
+  "/hydro-confederations/capture",
+  validate(hydroConfederationCaptureSchema),
+  asyncHandler(async (req, res) => {
+    const payload = req.body || {};
+    const sourceId = String(payload.sourceId || "").trim();
+    const source = hydroConfederationSources.find((item) => item.id === sourceId);
+
+    if (!source) {
+      throw new HttpError(404, "Hydro confederation source not found");
+    }
+
+    const snapshot = await captureHydroSnapshot(source, payload.endpointUrl, payload.maxItems || 8);
+
+    res.json({
+      ...snapshot,
+      requestedBy: req.user.email || null
+    });
+  })
+);
+
+dataRoutes.post(
+  "/water-quality/reports/email",
+  asyncHandler(async (req, res) => {
+    const parseResult = waterQualityEmailReportSchema.safeParse(req.body || {});
+
+    if (!parseResult.success) {
+      throw new HttpError(400, "Invalid water quality email payload", parseResult.error.issues);
+    }
+
+    const payload = parseResult.data;
+    const fromDate = new Date(payload.from);
+    const toDate = new Date(payload.to);
+
+    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+      throw new HttpError(400, "Invalid from/to date format");
+    }
+
+    if (toDate.getTime() < fromDate.getTime()) {
+      throw new HttpError(400, "to date must be greater than or equal to from date");
+    }
+
+    const durationMs = toDate.getTime() - fromDate.getTime();
+    const requestedBucket = String(payload.bucket || "auto").toLowerCase();
+    const bucket =
+      requestedBucket === "hour" || requestedBucket === "day"
+        ? requestedBucket
+        : durationMs > 30 * 24 * 3600 * 1000
+          ? "day"
+          : "hour";
+
+    const emailStatus = getEmailDeliveryStatus();
+    if (!emailStatus.enabled || !emailStatus.configured) {
+      throw new HttpError(
+        503,
+        "Email delivery is not configured. Enable EMAIL_DELIVERY_ENABLED and configure SMTP settings."
+      );
+    }
+
+    const attachmentBuffer = Buffer.from(payload.attachmentBase64, "base64");
+
+    if (!attachmentBuffer || attachmentBuffer.length === 0) {
+      throw new HttpError(400, "Email attachment is empty or invalid");
+    }
+
+    if (attachmentBuffer.length > maxWaterQualityEmailAttachmentBytes) {
+      throw new HttpError(400, "Email attachment exceeds 8 MB limit");
+    }
+
+    const mimeType = payload.mimeType || defaultWaterQualityAttachmentMimeType;
+    if (!allowedWaterQualityAttachmentMimeTypes.has(mimeType)) {
+      throw new HttpError(400, "Unsupported attachment mime type");
+    }
+
+    const normalizedFileName = payload.fileName;
+
+    const subject =
+      payload.subject
+      || `Reporte calidad de agua ${fromDate.toISOString().slice(0, 10)} - ${toDate
+        .toISOString()
+        .slice(0, 10)}`;
+
+    const lines = [];
+    if (payload.message) {
+      lines.push(payload.message);
+      lines.push("");
+    }
+    lines.push("Adjunto reporte de parametros de calidad del agua.");
+    lines.push(`Rango: ${fromDate.toISOString()} -> ${toDate.toISOString()}`);
+    lines.push(`Agrupacion: ${bucket}`);
+    lines.push(`Solicitado por: ${req.user.email || "usuario"}`);
+
+    await sendEmailWithAttachment({
+      recipients: payload.recipients,
+      subject,
+      text: lines.join("\n"),
+      attachment: {
+        filename: normalizedFileName,
+        content: attachmentBuffer,
+        contentType: mimeType
+      }
+    });
+
+    res.status(202).json({
+      sent: true,
+      recipients: payload.recipients,
+      recipientsCount: payload.recipients.length,
+      from: fromDate.toISOString(),
+      to: toDate.toISOString(),
+      bucket,
+      fileName: normalizedFileName,
+      mimeType
     });
   })
 );

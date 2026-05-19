@@ -1,0 +1,190 @@
+@reference "tailwindcss";
+
+.che-page {
+  @apply grid gap-4;
+}
+
+.che-panel {
+  @apply border-[#d6dfec] bg-[#fbfdff];
+}
+
+.che-head h3 {
+  @apply mt-0 mb-1;
+}
+
+.che-head p {
+  @apply mt-0 mb-3 text-[0.9rem] text-[#4d6282];
+}
+
+.che-controls {
+  @apply grid gap-2;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.che-field {
+  @apply grid gap-1;
+}
+
+.che-field span {
+  @apply text-[0.78rem] font-semibold uppercase tracking-[0.04em] text-[#4a6385];
+}
+
+.che-field input,
+.che-field select,
+.che-field textarea {
+  @apply rounded-lg border border-[#c7d6e8] bg-white px-2.5 py-2 text-[0.86rem] text-[#1f3556] outline-none;
+}
+
+.che-field input:focus,
+.che-field select:focus,
+.che-field textarea:focus {
+  @apply border-[#7ca6d3] ring-2 ring-[#7ca6d3]/25;
+}
+
+.che-field textarea {
+  @apply resize-y;
+}
+
+.che-field-wide {
+  @apply mt-2;
+}
+
+.che-toggles {
+  @apply mt-3 flex flex-wrap gap-4 rounded-lg border border-[#d8e2ef] bg-[#f7faff] px-3 py-3;
+}
+
+.che-toggles label {
+  @apply inline-flex items-center gap-2 text-[0.86rem] font-semibold text-[#2e4f77];
+}
+
+.che-toggles input {
+  @apply h-4 w-4;
+}
+
+.che-email-panel {
+  @apply mt-3 grid gap-2 rounded-lg border border-[#d8e2ef] bg-[#f8fbff] px-3 py-3;
+}
+
+.che-email-head {
+  @apply mb-1 flex items-center justify-between gap-2;
+}
+
+.che-email-head h4 {
+  @apply m-0 text-[0.82rem] uppercase tracking-[0.04em] text-[#3a5578];
+}
+
+.che-help {
+  @apply mt-1 mb-0 text-[0.75rem] text-[#5e7390];
+}
+
+.che-scheduler {
+  @apply mt-3 grid gap-2 rounded-lg border border-[#d8e2ef] bg-[#f7faff] px-3 py-3;
+  grid-template-columns: 1.4fr minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.che-toggle {
+  @apply inline-flex items-center gap-2 text-[0.86rem] font-semibold text-[#2e4f77];
+}
+
+.che-toggle input {
+  @apply h-4 w-4;
+}
+
+.che-inline-btn {
+  @apply inline-flex items-center rounded-md border border-[#c6d6ea] bg-white px-2 py-1 text-[0.74rem] font-semibold text-[#37557a] transition;
+}
+
+.che-inline-btn:hover {
+  @apply border-[#9eb9d7] bg-[#f3f8ff];
+}
+
+.che-actions {
+  @apply mt-3 flex flex-wrap gap-2;
+}
+
+.che-run-btn {
+  @apply inline-flex min-h-[42px] items-center justify-center rounded-lg border border-[#6f9bc8] bg-[#2c5f95] px-3 py-2 text-[0.84rem] font-semibold text-[#eef5ff] transition;
+}
+
+.che-run-btn:hover:not(:disabled) {
+  @apply border-[#517eaf] bg-[#224f80];
+}
+
+.che-run-btn:disabled {
+  @apply cursor-not-allowed border-[#b8c8dc] bg-[#e9eff7] text-[#7e90a7];
+}
+
+.che-run-btn-secondary {
+  @apply border-[#c2d3e8] bg-white text-[#2e547f];
+}
+
+.che-run-btn-secondary:hover:not(:disabled) {
+  @apply border-[#95b3d5] bg-[#f2f7ff];
+}
+
+.che-note {
+  @apply mt-2 mb-0 text-[0.84rem] text-[#526985];
+}
+
+.che-feedback {
+  @apply mt-2 mb-0 rounded-lg border px-3 py-2 text-[0.84rem];
+}
+
+.che-feedback-info {
+  @apply border-[#c9d9ee] bg-[#eef5ff] text-[#2d5688];
+}
+
+.che-feedback-success {
+  @apply border-[#b7dcc5] bg-[#edf9f1] text-[#1f6f4c];
+}
+
+.che-feedback-error {
+  @apply border-[#e6b8c0] bg-[#fff1f4] text-[#97324a];
+}
+
+.che-history {
+  @apply mt-3 rounded-lg border border-[#d8e2ef] bg-[#f8fbff] px-3 py-3;
+}
+
+.che-history h4 {
+  @apply mt-0 mb-2 text-[0.82rem] uppercase tracking-[0.04em] text-[#3a5578];
+}
+
+.che-history ul {
+  @apply m-0 grid gap-1.5 p-0;
+  list-style: none;
+}
+
+.che-history li {
+  @apply grid gap-0.5 rounded-md border border-[#d5dfed] bg-white px-2.5 py-1.5;
+}
+
+.che-history li strong {
+  @apply text-[0.75rem] text-[#2d4f78];
+}
+
+.che-history li span {
+  @apply text-[0.77rem] text-[#506784];
+}
+
+@media (max-width: 980px) {
+  .che-controls {
+    @apply grid-cols-2;
+  }
+
+  .che-scheduler {
+    @apply grid-cols-1;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 640px) {
+  .che-controls {
+    @apply grid-cols-1;
+  }
+
+  .che-run-btn {
+    @apply w-full;
+  }
+}
