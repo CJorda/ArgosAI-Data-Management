@@ -1,6 +1,13 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { lotTimelineRequest, lotsRequest, pondHistoryRequest, pondsRequest } from "../api/services";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import QRCode from "qrcode";
+import {
+  createTraceabilityCertificateRequest,
+  lotTimelineRequest,
+  lotsRequest,
+  pondHistoryRequest,
+  pondsRequest
+} from "../api/services";
 import { useAuth } from "../context/AuthContext";
 import "./TraceabilityPage.css";
 
@@ -687,6 +694,8 @@ export function TraceabilityPage() {
   const [lotCode, setLotCode] = useState("");
   const [timelineSourceFilter, setTimelineSourceFilter] = useState("all");
   const [timelineSearch, setTimelineSearch] = useState("");
+  const [certificateResult, setCertificateResult] = useState(null);
+  const [certificateQrDataUrl, setCertificateQrDataUrl] = useState("");
 
   const pondsQuery = useQuery({
     queryKey: ["ponds", "traceability"],
@@ -863,6 +872,20 @@ export function TraceabilityPage() {
     };
   }, [filteredTimelineRows]);
 
+  const createCertificateMutation = useMutation({
+    mutationFn: (payload) => createTraceabilityCertificateRequest(accessToken, payload),
+    onSuccess: (data) => {
+      const frontendVerifyUrl = `${window.location.origin}/verificacion/trazabilidad/${encodeURIComponent(
+        data.publicId
+      )}?sig=${encodeURIComponent(data.signature)}`;
+
+      setCertificateResult({
+        ...data,
+        frontendVerifyUrl
+      });
+    }
+  });
+
   const relatedLots = useMemo(() => {
     const related = new Set();
 
@@ -875,6 +898,38 @@ export function TraceabilityPage() {
 
     return Array.from(related).sort();
   }, [filteredTimelineRows, activeLotCode]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function generateQr() {
+      if (!certificateResult?.frontendVerifyUrl) {
+        setCertificateQrDataUrl("");
+        return;
+      }
+
+      try {
+        const qr = await QRCode.toDataURL(certificateResult.frontendVerifyUrl, {
+          margin: 1,
+          width: 176
+        });
+
+        if (!cancelled) {
+          setCertificateQrDataUrl(qr);
+        }
+      } catch {
+        if (!cancelled) {
+          setCertificateQrDataUrl("");
+        }
+      }
+    }
+
+    generateQr();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [certificateResult]);
 
   const exportTimelineJson = () => {
     if (!activeLotCode) {
@@ -960,6 +1015,37 @@ export function TraceabilityPage() {
       "application/xml;charset=utf-8",
       `trazabilidad-epcis-${activeLotCode}.xml`
     );
+  };
+
+  const createPublicCertificate = () => {
+    if (!activeLotCode || filteredTimelineRows.length === 0) {
+      return;
+    }
+
+    createCertificateMutation.mutate({
+      lotCode: activeLotCode,
+      filters: {
+        source: timelineSourceFilter,
+        search: timelineSearch
+      },
+      stats: {
+        ...timelineStats,
+        relatedLots
+      },
+      timeline: filteredTimelineRows
+    });
+  };
+
+  const copyVerificationUrl = async () => {
+    if (!certificateResult?.frontendVerifyUrl) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(certificateResult.frontendVerifyUrl);
+    } catch {
+      // Clipboard permission may be blocked by browser settings.
+    }
   };
 
   const showDemoNote = historyState.isDemo || lotsState.isDemo || lotTimelineState.isDemo;
@@ -1143,7 +1229,44 @@ export function TraceabilityPage() {
           <button type="button" className="tiny-button" onClick={exportTimelineEpcisXml}>
             Exportar EPCIS XML
           </button>
+          <button
+            type="button"
+            className="tiny-button"
+            onClick={createPublicCertificate}
+            disabled={createCertificateMutation.isPending || filteredTimelineRows.length === 0}
+          >
+            {createCertificateMutation.isPending ? "Firmando..." : "Emitir certificado público"}
+          </button>
         </div>
+
+        {certificateResult ? (
+          <div className="trace-certificate-card">
+            <div>
+              <p className="trace-certificate-title">Certificado emitido</p>
+              <p className="trace-certificate-meta">ID: {certificateResult.publicId}</p>
+              <p className="trace-certificate-meta">Hash: {certificateResult.payloadHash}</p>
+              <a href={certificateResult.frontendVerifyUrl} target="_blank" rel="noreferrer">
+                Verificación pública
+              </a>
+              <div>
+                <button type="button" className="tiny-button" onClick={copyVerificationUrl}>
+                  Copiar URL de verificación
+                </button>
+              </div>
+            </div>
+            <div>
+              {certificateQrDataUrl ? (
+                <img
+                  className="trace-certificate-qr"
+                  src={certificateQrDataUrl}
+                  alt="QR de verificacion publica"
+                />
+              ) : (
+                <p className="trace-certificate-meta">QR no disponible</p>
+              )}
+            </div>
+          </div>
+        ) : null}
 
         {relatedLots.length > 0 ? (
           <p className="trace-related-lots">

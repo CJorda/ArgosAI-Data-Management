@@ -3,7 +3,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { createOperationRequest, operationsRequest, pondsRequest } from "../api/services";
+import QRCode from "qrcode";
+import {
+  createOperationRequest,
+  inventoryItemsRequest,
+  operationsRequest,
+  pondsRequest
+} from "../api/services";
 import { useAuth } from "../context/AuthContext";
 import "./OperationsPage.css";
 
@@ -98,6 +104,43 @@ function formatDateForDisplay(dateInput) {
 function toFileDateSegment(dateInput) {
   const fallbackDate = toLocalDateInput();
   return String(dateInput || fallbackDate).replace(/[^0-9-]/g, "");
+}
+
+function normalizePublicBaseUrl(rawValue) {
+  const trimmed = String(rawValue || "").trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.toString().replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+}
+
+function isLocalHostname(hostname) {
+  const normalized = String(hostname || "").toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1";
+}
+
+function isFeedItem(item) {
+  const category = String(item?.category || "").toLowerCase();
+  const name = String(item?.name || "").toLowerCase();
+  const sku = String(item?.sku || "").toLowerCase();
+
+  return (
+    category.includes("pienso") ||
+    category.includes("aliment") ||
+    category.includes("feed") ||
+    name.includes("pienso") ||
+    name.includes("aliment") ||
+    name.includes("feed") ||
+    sku.includes("pienso") ||
+    sku.includes("feed")
+  );
 }
 
 function sortOperationsByDate(rows) {
@@ -319,6 +362,26 @@ export function OperationsPage() {
   const [feedingPlanRows, setFeedingPlanRows] = useState([]);
   const [isSavingFeedingPlan, setIsSavingFeedingPlan] = useState(false);
   const [isGeneratingFeedingPdf, setIsGeneratingFeedingPdf] = useState(false);
+  const [selectedFeedItemId, setSelectedFeedItemId] = useState("");
+  const [qrPublicBaseUrl, setQrPublicBaseUrl] = useState(() => {
+    const envValue = String(import.meta.env.VITE_PUBLIC_CONFIRM_BASE_URL || "").trim();
+
+    if (typeof window === "undefined") {
+      return envValue;
+    }
+
+    const storedValue = String(window.localStorage.getItem("feedingQrPublicBaseUrl") || "").trim();
+
+    if (storedValue) {
+      return storedValue;
+    }
+
+    if (envValue) {
+      return envValue;
+    }
+
+    return window.location.origin;
+  });
 
   const [isSavingTransfer, setIsSavingTransfer] = useState(false);
   const [isSavingTreatment, setIsSavingTreatment] = useState(false);
@@ -332,6 +395,11 @@ export function OperationsPage() {
   const operationsQuery = useQuery({
     queryKey: ["operations"],
     queryFn: () => operationsRequest(accessToken)
+  });
+
+  const inventoryItemsQuery = useQuery({
+    queryKey: ["operations", "inventory", "items", "feeding"],
+    queryFn: () => inventoryItemsRequest(accessToken)
   });
 
   const pondsState = useMemo(() => {
@@ -386,6 +454,28 @@ export function OperationsPage() {
   const feedingHistoryRows = useMemo(
     () => operationsTableState.rows.filter((operation) => operation.type === "feeding"),
     [operationsTableState.rows]
+  );
+
+  const feedItems = useMemo(() => {
+    const rows = inventoryItemsQuery.data || [];
+    return rows.filter(isFeedItem);
+  }, [inventoryItemsQuery.data]);
+
+  useEffect(() => {
+    if (feedItems.length === 0) {
+      setSelectedFeedItemId("");
+      return;
+    }
+
+    setSelectedFeedItemId((current) => {
+      const exists = feedItems.some((item) => String(item.id) === String(current));
+      return exists ? current : String(feedItems[0].id);
+    });
+  }, [feedItems]);
+
+  const selectedFeedItem = useMemo(
+    () => feedItems.find((item) => String(item.id) === String(selectedFeedItemId)) || null,
+    [feedItems, selectedFeedItemId]
   );
 
   const transferRows = useMemo(
@@ -487,6 +577,14 @@ export function OperationsPage() {
     setFeedingPlanRows(feedingPlanBaseRows);
   }, [feedingPlanBaseRows]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem("feedingQrPublicBaseUrl", qrPublicBaseUrl);
+  }, [qrPublicBaseUrl]);
+
   const [transferForm, setTransferForm] = useState({
     sourcePondId: "",
     targetPondId: "",
@@ -584,12 +682,17 @@ export function OperationsPage() {
           type: "feeding",
           quantity: Number(quantity.toFixed(2)),
           quantityUnit: "kg",
-          lotCode: null,
+          lotCode: selectedFeedItem?.sku || null,
           mixWithLotCode: null,
-          labels: ["plan", `turno:${slot.slotLabel}`],
+          labels: [
+            "plan",
+            `turno:${slot.slotLabel}`,
+            selectedFeedItem?.sku ? `piensoSku:${selectedFeedItem.sku}` : null,
+            selectedFeedItem?.name ? `piensoNombre:${selectedFeedItem.name}` : null
+          ].filter(Boolean),
           withdrawalDays: null,
           eventAt: buildEventIsoForPlan(feedingPlanDate, slot.eventHour),
-          note: `Plan de alimentación (${slot.label.toLowerCase()})`
+          note: `Plan de alimentación (${slot.label.toLowerCase()})${selectedFeedItem?.name ? ` - ${selectedFeedItem.name}` : ""}`
         });
       }
     }
@@ -606,7 +709,7 @@ export function OperationsPage() {
     }
   };
 
-  const handleDownloadFeedingPlanPdf = () => {
+  const handleDownloadFeedingPlanPdf = async () => {
     const rowsForPdf = feedingPlanRows
       .map((row) => {
         const morning = parseQuantityValue(row.morningKg);
@@ -632,30 +735,69 @@ export function OperationsPage() {
     const totalKg = rowsForPdf.reduce((sum, row) => sum + row.total, 0);
     const humanDate = formatDateForDisplay(feedingPlanDate);
     const generatedAt = new Date().toLocaleString("es-ES");
+    const planId = `ALIM-${toFileDateSegment(feedingPlanDate)}-${Date.now().toString().slice(-6)}`;
+    const selectedFeedLabel = selectedFeedItem
+      ? `${selectedFeedItem.sku} - ${selectedFeedItem.name}`
+      : "No especificado";
+    const feedStockLabel =
+      selectedFeedItem && Number.isFinite(Number(selectedFeedItem.current_stock))
+        ? `${Number(selectedFeedItem.current_stock).toFixed(2)} ${selectedFeedItem.unit || "kg"}`
+        : "--";
+    const normalizedPublicBaseUrl = normalizePublicBaseUrl(qrPublicBaseUrl);
+
+    if (!normalizedPublicBaseUrl) {
+      window.alert("Introduce una URL pública válida para el QR (por ejemplo, https://tu-dominio.com).");
+      return;
+    }
+
+    const publicBaseUrl = new URL(normalizedPublicBaseUrl);
+    if (isLocalHostname(publicBaseUrl.hostname)) {
+      window.alert(
+        "La URL del QR no puede ser localhost/127.0.0.1 porque no es accesible desde el móvil."
+      );
+      return;
+    }
+
+    const confirmationUrl = new URL("/confirmacion/alimentacion", normalizedPublicBaseUrl);
+    confirmationUrl.searchParams.set("planId", planId);
+    confirmationUrl.searchParams.set("fecha", new Date(feedingPlanDate).toISOString());
+    confirmationUrl.searchParams.set("totalKg", totalKg.toFixed(2));
+    confirmationUrl.searchParams.set("piscinas", String(rowsForPdf.length));
 
     setIsGeneratingFeedingPdf(true);
     try {
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const qrDataUrl = await QRCode.toDataURL(confirmationUrl.toString(), {
+        width: 256,
+        margin: 1,
+        errorCorrectionLevel: "M"
+      });
 
       doc.setFillColor(14, 64, 106);
-      doc.rect(0, 0, 210, 28, "F");
+      doc.rect(0, 0, 210, 42, "F");
+      doc.addImage(qrDataUrl, "PNG", 168, 1, 40, 40);
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(18);
-      doc.text("Plan diario de alimentación", 14, 12);
+      doc.text("Plan diario de alimentación", 14, 15);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(11);
-      doc.text(humanDate ? `Fecha: ${humanDate}` : "Fecha: -", 14, 20);
+      doc.text(humanDate ? `Fecha: ${humanDate}` : "Fecha: -", 14, 25);
 
       doc.setTextColor(28, 52, 78);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
-      doc.text(`Generado: ${generatedAt}`, 14, 34);
-      doc.text(`Piscinas con trabajo: ${rowsForPdf.length}`, 14, 39);
-      doc.text(`Total alimento del día: ${totalKg.toFixed(2)} kg`, 88, 39);
+      doc.text(`Generado: ${generatedAt}`, 14, 48);
+      doc.text(`Plan ID: ${planId}`, 14, 53);
+      doc.text(`Piscinas con trabajo: ${rowsForPdf.length}`, 14, 58);
+      doc.text(`Total alimento del día: ${totalKg.toFixed(2)} kg`, 88, 58);
+      doc.text(`Tipo de pienso: ${selectedFeedLabel}`, 14, 63);
+      doc.text(`Stock en almacén: ${feedStockLabel}`, 14, 68);
+
+      doc.setTextColor(70, 92, 120);
 
       autoTable(doc, {
-        startY: 45,
+        startY: 72,
         head: [["Piscina", "Mañana (kg)", "Tarde (kg)", "Noche (kg)", "Total día (kg)"]],
         body: rowsForPdf.map((row) => [
           row.pondName,
@@ -729,6 +871,7 @@ export function OperationsPage() {
       doc.setFontSize(9);
       doc.setTextColor(88, 109, 138);
       doc.text("Documento operativo para alimentación diaria en planta.", 14, pageHeight - 10);
+      doc.text(`Confirmación: ${confirmationUrl.toString()}`, 14, pageHeight - 5);
 
       doc.save(`plan-alimentacion-${toFileDateSegment(feedingPlanDate)}.pdf`);
     } finally {
@@ -898,6 +1041,40 @@ export function OperationsPage() {
               onChange={(event) => setFeedingPlanDate(event.target.value)}
             />
 
+            <label htmlFor="feedingFeedItem">Tipo de pienso</label>
+            <select
+              id="feedingFeedItem"
+              className="operations-feed-select"
+              value={selectedFeedItemId}
+              onChange={(event) => setSelectedFeedItemId(event.target.value)}
+            >
+              {feedItems.length === 0 ? (
+                <option value="">Sin ítems de pienso en inventario</option>
+              ) : (
+                feedItems.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.sku} - {item.name}
+                  </option>
+                ))
+              )}
+            </select>
+
+            <span className="operations-feed-stock-chip">
+              Stock almacén: {selectedFeedItem
+                ? `${Number(selectedFeedItem.current_stock || 0).toFixed(2)} ${selectedFeedItem.unit || "kg"}`
+                : "--"}
+            </span>
+
+            <label htmlFor="qrPublicBaseUrl">URL pública QR</label>
+            <input
+              id="qrPublicBaseUrl"
+              type="url"
+              className="operations-public-url-input"
+              value={qrPublicBaseUrl}
+              onChange={(event) => setQrPublicBaseUrl(event.target.value)}
+              placeholder="https://tu-dominio.com"
+            />
+
             <button
               type="button"
               className="primary-button"
@@ -978,6 +1155,7 @@ export function OperationsPage() {
                 <tr>
                   <th>Fecha</th>
                   <th>Piscina</th>
+                  <th>Pienso</th>
                   <th>Turno</th>
                   <th>Cantidad</th>
                   <th>Lote</th>
@@ -987,18 +1165,26 @@ export function OperationsPage() {
               <tbody>
                 {operationsTableState.isLoading ? (
                   <tr>
-                    <td colSpan={6} className="operations-table-empty">Cargando operaciones...</td>
+                    <td colSpan={7} className="operations-table-empty">Cargando operaciones...</td>
                   </tr>
                 ) : feedingHistoryRows.length > 0 ? (
                   feedingHistoryRows.map((operation) => {
                     const shiftTag =
                       extractLabelValue(operation.label_tags, "turno") ||
                       classifyFeedingSlot(operation.event_at || operation.created_at);
+                    const feedSku = extractLabelValue(operation.label_tags, "piensoSku");
+                    const feedName = extractLabelValue(operation.label_tags, "piensoNombre");
+                    const feedLabel =
+                      [feedSku, feedName].filter(Boolean).join(" - ") ||
+                      feedName ||
+                      feedSku ||
+                      "-";
 
                     return (
                       <tr key={operation.id}>
                         <td>{new Date(operation.event_at || operation.created_at).toLocaleString()}</td>
                         <td>{operation.pond_name}</td>
+                        <td>{feedLabel}</td>
                         <td>{formatShiftLabel(shiftTag)}</td>
                         <td>
                           {operation.quantity} {operation.quantity_unit || "kg"}
@@ -1010,7 +1196,7 @@ export function OperationsPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={6} className="operations-table-empty">No hay alimentaciones para mostrar.</td>
+                    <td colSpan={7} className="operations-table-empty">No hay alimentaciones para mostrar.</td>
                   </tr>
                 )}
               </tbody>

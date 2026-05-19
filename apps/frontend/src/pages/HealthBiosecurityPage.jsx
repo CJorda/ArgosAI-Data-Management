@@ -35,16 +35,32 @@ function severityClass(severity) {
   return `module-pill module-pill-priority-${severity || "medium"}`;
 }
 
-export function HealthBiosecurityPage() {
+export function HealthBiosecurityPage({ mode = "general" }) {
   const { accessToken } = useAuth();
   const queryClient = useQueryClient();
 
+  const lockedEventType =
+    mode === "vaccination" ? "vaccination" : mode === "medication" ? "treatment" : "";
+  const pageTitle =
+    mode === "vaccination"
+      ? "Módulo de vacunación"
+      : mode === "medication"
+        ? "Módulo de medicación"
+        : "Módulo sanitario y bioseguridad";
+  const pageIntro =
+    mode === "vaccination"
+      ? "Planifica y registra campañas de vacunación por piscina/lote con control de estado y seguimiento."
+      : mode === "medication"
+        ? "Gestiona tratamientos y medicación por piscina/lote, con dosis, estado y trazabilidad del evento."
+        : "Registra eventos sanitarios, seguimientos preventivos y estados de bioseguridad por piscina/lote para reducir mortalidad y mejorar cumplimiento operativo.";
+
   const [statusFilter, setStatusFilter] = useState("open");
   const [severityFilter, setSeverityFilter] = useState("");
+  const [eventTypeFilter, setEventTypeFilter] = useState(lockedEventType);
   const [eventForm, setEventForm] = useState({
     pondId: "",
     lotCode: "",
-    eventType: "treatment",
+    eventType: lockedEventType || "treatment",
     severity: "medium",
     title: "",
     description: "",
@@ -60,11 +76,12 @@ export function HealthBiosecurityPage() {
   });
 
   const healthEventsQuery = useQuery({
-    queryKey: ["operations", "health-events", statusFilter, severityFilter],
+    queryKey: ["operations", "health-events", statusFilter, severityFilter, eventTypeFilter],
     queryFn: () =>
       healthEventsRequest(accessToken, {
         status: statusFilter || undefined,
         severity: severityFilter || undefined,
+        eventType: eventTypeFilter || undefined,
         limit: 220
       })
   });
@@ -131,11 +148,8 @@ export function HealthBiosecurityPage() {
   return (
     <section className="module-page">
       <article className="panel">
-        <h3>Módulo sanitario y bioseguridad</h3>
-        <p className="module-intro">
-          Registra eventos sanitarios, seguimientos preventivos y estados de bioseguridad por
-          piscina/lote para reducir mortalidad y mejorar cumplimiento operativo.
-        </p>
+        <h3>{pageTitle}</h3>
+        <p className="module-intro">{pageIntro}</p>
 
         <div className="filters-inline">
           <div>
@@ -168,6 +182,25 @@ export function HealthBiosecurityPage() {
               <option value="critical">critical</option>
             </select>
           </div>
+
+          {!lockedEventType ? (
+            <div>
+              <label htmlFor="healthTypeFilter">Tipo</label>
+              <select
+                id="healthTypeFilter"
+                value={eventTypeFilter}
+                onChange={(event) => setEventTypeFilter(event.target.value)}
+              >
+                <option value="">Todos</option>
+                <option value="treatment">treatment</option>
+                <option value="sample">sample</option>
+                <option value="mortality">mortality</option>
+                <option value="quarantine">quarantine</option>
+                <option value="vaccination">vaccination</option>
+                <option value="inspection">inspection</option>
+              </select>
+            </div>
+          ) : null}
         </div>
 
         <p className="module-inline-note">
@@ -207,21 +240,30 @@ export function HealthBiosecurityPage() {
               placeholder="LOT-..."
             />
 
-            <label htmlFor="healthType">Tipo</label>
-            <select
-              id="healthType"
-              value={eventForm.eventType}
-              onChange={(event) =>
-                setEventForm((current) => ({ ...current, eventType: event.target.value }))
-              }
-            >
-              <option value="treatment">treatment</option>
-              <option value="sample">sample</option>
-              <option value="mortality">mortality</option>
-              <option value="quarantine">quarantine</option>
-              <option value="vaccination">vaccination</option>
-              <option value="inspection">inspection</option>
-            </select>
+            {lockedEventType ? (
+              <>
+                <label htmlFor="healthType">Tipo</label>
+                <input id="healthType" type="text" value={lockedEventType} readOnly />
+              </>
+            ) : (
+              <>
+                <label htmlFor="healthType">Tipo</label>
+                <select
+                  id="healthType"
+                  value={eventForm.eventType}
+                  onChange={(event) =>
+                    setEventForm((current) => ({ ...current, eventType: event.target.value }))
+                  }
+                >
+                  <option value="treatment">treatment</option>
+                  <option value="sample">sample</option>
+                  <option value="mortality">mortality</option>
+                  <option value="quarantine">quarantine</option>
+                  <option value="vaccination">vaccination</option>
+                  <option value="inspection">inspection</option>
+                </select>
+              </>
+            )}
 
             <label htmlFor="healthSeverity">Severidad</label>
             <select

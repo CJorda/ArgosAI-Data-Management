@@ -6,6 +6,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireAnyFeature, requireFeature } from "../middleware/featureAccess.js";
 import { validate } from "../middleware/validate.js";
 import {
+  createDemoPond,
   createDemoWaterFlowReading,
   getDemoHistory,
   getDemoLatestReadings,
@@ -13,6 +14,10 @@ import {
   getDemoSensorHealthOverview,
   getDemoSensors,
   getDemoSites,
+  ingestDemoScadaReadings,
+  listDemoScadaUnmappedSignals,
+  resolveDemoScadaUnmappedSignal,
+  updateDemoPondExternalCode,
   getDemoWaterFlowConfig,
   getDemoWaterFlowOverview,
   listDemoWaterFlowAlerts,
@@ -26,8 +31,33 @@ import { HttpError } from "../utils/httpError.js";
 const createPondSchema = z.object({
   siteId: z.number().int().positive().optional().nullable(),
   name: z.string().min(2),
+  externalCode: z.string().trim().min(1).max(80).optional().nullable(),
   species: z.string().min(2),
   volumeM3: z.number().positive().optional().nullable()
+});
+
+const updatePondExternalCodeSchema = z.object({
+  externalCode: z.string().trim().min(1).max(80).optional().nullable()
+});
+
+const ingestScadaReadingsSchema = z.object({
+  readings: z
+    .array(
+      z.object({
+        externalCode: z.string().trim().min(1).max(80),
+        sensorType: z.string().trim().min(2).max(40),
+        value: z.number(),
+        unit: z.string().trim().min(1).max(16).optional(),
+        quality: z.enum(["good", "ok", "warning", "critical"]).optional(),
+        recordedAt: z.string().datetime().optional()
+      })
+    )
+    .min(1)
+    .max(200)
+});
+
+const resolveScadaUnmappedSchema = z.object({
+  pondId: z.number().int().positive()
 });
 
 const createSensorSchema = z.object({
@@ -1477,6 +1507,7 @@ dataRoutes.get(
           s.name AS site_name,
           s.region AS site_region,
           p.name,
+          p.external_code,
           p.species,
           p.status,
           p.volume_m3,
@@ -1689,7 +1720,25 @@ dataRoutes.post(
   "/ponds",
   validate(createPondSchema),
   asyncHandler(async (req, res) => {
-    const { siteId, name, species, volumeM3 } = req.body;
+    const { siteId, name, externalCode, species, volumeM3 } = req.body;
+    const normalizedExternalCode = String(externalCode || "").trim().toUpperCase() || null;
+
+    if (env.noPostgresMode) {
+      const demoResult = createDemoPond({
+        siteId,
+        name,
+        externalCode: normalizedExternalCode,
+        species,
+        volumeM3
+      });
+
+      if (demoResult.error) {
+        throw new HttpError(demoResult.status || 400, demoResult.error);
+      }
+
+      res.status(201).json(demoResult.pond);
+      return;
+    }
 
     if (siteId) {
       const siteResult = await query(
@@ -1710,14 +1759,387 @@ dataRoutes.post(
 
     const result = await query(
       `
-        INSERT INTO ponds (tenant_id, site_id, name, species, volume_m3)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, site_id, name, species, status, volume_m3, created_at
+        INSERT INTO ponds (tenant_id, site_id, name, external_code, species, volume_m3)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, site_id, name, external_code, species, status, volume_m3, created_at
       `,
-      [req.user.tenantId, siteId ?? null, name, species, volumeM3 ?? null]
+      [req.user.tenantId, siteId ?? null, name, normalizedExternalCode, species, volumeM3 ?? null]
     );
 
     res.status(201).json(result.rows[0]);
+  })
+);
+
+dataRoutes.patch(
+  "/ponds/:pondId/mapping",
+  validate(updatePondExternalCodeSchema),
+  asyncHandler(async (req, res) => {
+    const pondId = Number(req.params.pondId);
+
+    if (!Number.isFinite(pondId) || pondId <= 0) {
+      throw new HttpError(400, "Invalid pond id");
+    }
+
+    const normalizedExternalCode =
+      String(req.body.externalCode || "").trim().toUpperCase() || null;
+
+    if (env.noPostgresMode) {
+      const demoResult = updateDemoPondExternalCode({
+        pondId,
+        externalCode: normalizedExternalCode
+      });
+
+      if (demoResult.error) {
+        throw new HttpError(demoResult.status || 400, demoResult.error);
+      }
+
+      res.json(demoResult.pond);
+      return;
+    }
+
+    const result = await query(
+      `
+        UPDATE ponds
+        SET external_code = $3
+        WHERE id = $1
+          AND tenant_id = $2
+        RETURNING id, site_id, name, external_code, species, status, volume_m3, created_at
+      `,
+      [pondId, req.user.tenantId, normalizedExternalCode]
+    );
+
+    if (result.rowCount === 0) {
+      throw new HttpError(404, "Pond not found");
+    }
+
+    res.json(result.rows[0]);
+  })
+);
+
+dataRoutes.post(
+  "/scada/readings",
+  validate(ingestScadaReadingsSchema),
+  asyncHandler(async (req, res) => {
+    const { readings } = req.body;
+
+    if (env.noPostgresMode) {
+      const payload = ingestDemoScadaReadings(readings);
+      res.status(202).json(payload);
+      return;
+    }
+
+    const mapped = [];
+    const unmapped = [];
+
+    for (const reading of readings) {
+      const externalCode = String(reading.externalCode || "").trim().toUpperCase();
+      const sensorType = String(reading.sensorType || "").trim().toLowerCase();
+
+      const pondResult = await query(
+        `
+          SELECT id, name
+          FROM ponds
+          WHERE tenant_id = $1
+            AND external_code = $2
+          LIMIT 1
+        `,
+        [req.user.tenantId, externalCode]
+      );
+
+      if (pondResult.rowCount === 0) {
+        const recordedAt = reading.recordedAt || new Date().toISOString();
+
+        await query(
+          `
+            INSERT INTO scada_unmapped_signals (
+              tenant_id,
+              external_code,
+              sensor_type,
+              samples_count,
+              first_seen_at,
+              last_seen_at,
+              last_value,
+              last_unit,
+              last_recorded_at,
+              status,
+              resolved_at,
+              resolved_by,
+              resolved_pond_id
+            )
+            VALUES ($1, $2, $3, 1, NOW(), NOW(), $4, $5, $6, 'open', NULL, NULL, NULL)
+            ON CONFLICT (tenant_id, external_code, sensor_type)
+            DO UPDATE
+            SET
+              samples_count = scada_unmapped_signals.samples_count + 1,
+              last_seen_at = NOW(),
+              last_value = EXCLUDED.last_value,
+              last_unit = EXCLUDED.last_unit,
+              last_recorded_at = EXCLUDED.last_recorded_at,
+              status = 'open',
+              resolved_at = NULL,
+              resolved_by = NULL,
+              resolved_pond_id = NULL
+          `,
+          [
+            req.user.tenantId,
+            externalCode,
+            sensorType,
+            Number(reading.value),
+            String(reading.unit || "") || null,
+            recordedAt
+          ]
+        );
+
+        unmapped.push({
+          externalCode,
+          sensorType,
+          reason: "Pond external code is not mapped"
+        });
+        continue;
+      }
+
+      const pond = pondResult.rows[0];
+
+      await query(
+        `
+          UPDATE scada_unmapped_signals
+          SET
+            status = 'resolved',
+            resolved_at = NOW(),
+            resolved_by = COALESCE($4, resolved_by),
+            resolved_pond_id = $3
+          WHERE tenant_id = $1
+            AND external_code = $2
+            AND status = 'open'
+        `,
+        [req.user.tenantId, externalCode, pond.id, req.user.id || null]
+      );
+
+      const defaultUnitByType = {
+        oxygen: "mg/L",
+        temperature: "C",
+        ph: "pH",
+        salinity: "ppt",
+        turbidity: "NTU",
+        conductivity: "mS/cm"
+      };
+      const resolvedUnit =
+        String(reading.unit || "").trim() || defaultUnitByType[sensorType] || "u";
+
+      let sensorId = null;
+
+      const sensorResult = await query(
+        `
+          SELECT id
+          FROM sensors
+          WHERE tenant_id = $1
+            AND pond_id = $2
+            AND type = $3
+          ORDER BY id ASC
+          LIMIT 1
+        `,
+        [req.user.tenantId, pond.id, sensorType]
+      );
+
+      if (sensorResult.rowCount > 0) {
+        sensorId = sensorResult.rows[0].id;
+      } else {
+        const createdSensor = await query(
+          `
+            INSERT INTO sensors (tenant_id, pond_id, name, type, unit, enabled)
+            VALUES ($1, $2, $3, $4, $5, TRUE)
+            RETURNING id
+          `,
+          [
+            req.user.tenantId,
+            pond.id,
+            `${sensorType.toUpperCase()} ${externalCode}`,
+            sensorType,
+            resolvedUnit
+          ]
+        );
+
+        sensorId = createdSensor.rows[0].id;
+      }
+
+      const recordedAt = reading.recordedAt || new Date().toISOString();
+      const quality = String(reading.quality || "good").toLowerCase();
+
+      await query(
+        `
+          INSERT INTO measurements (tenant_id, sensor_id, pond_id, value, quality, recorded_at)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `,
+        [req.user.tenantId, sensorId, pond.id, Number(reading.value), quality, recordedAt]
+      );
+
+      mapped.push({
+        pondId: pond.id,
+        pondName: pond.name,
+        externalCode,
+        sensorType,
+        recordedAt
+      });
+    }
+
+    res.status(202).json({
+      total: readings.length,
+      accepted: mapped.length,
+      rejected: unmapped.length,
+      mapped,
+      unmapped
+    });
+  })
+);
+
+dataRoutes.get(
+  "/scada/unmapped",
+  asyncHandler(async (req, res) => {
+    if (env.noPostgresMode) {
+      res.json(listDemoScadaUnmappedSignals());
+      return;
+    }
+
+    const result = await query(
+      `
+        SELECT
+          u.id,
+          u.external_code,
+          u.sensor_type,
+          u.samples_count,
+          u.first_seen_at,
+          u.last_seen_at,
+          u.last_value,
+          u.last_unit,
+          u.last_recorded_at,
+          u.status,
+          u.resolved_at,
+          u.resolved_pond_id,
+          p.name AS resolved_pond_name
+        FROM scada_unmapped_signals u
+        LEFT JOIN ponds p ON p.id = u.resolved_pond_id
+        WHERE u.tenant_id = $1
+          AND u.status = 'open'
+        ORDER BY u.last_seen_at DESC
+      `,
+      [req.user.tenantId]
+    );
+
+    res.json(result.rows);
+  })
+);
+
+dataRoutes.post(
+  "/scada/unmapped/:signalId/resolve",
+  validate(resolveScadaUnmappedSchema),
+  asyncHandler(async (req, res) => {
+    const signalId = Number(req.params.signalId);
+    const { pondId } = req.body;
+
+    if (!Number.isFinite(signalId) || signalId <= 0) {
+      throw new HttpError(400, "Invalid signal id");
+    }
+
+    if (env.noPostgresMode) {
+      const demoResult = resolveDemoScadaUnmappedSignal({
+        signalId,
+        pondId,
+        actorUserId: req.user.id || null
+      });
+
+      if (demoResult.error) {
+        throw new HttpError(demoResult.status || 400, demoResult.error);
+      }
+
+      res.json({
+        signal: demoResult.signal,
+        pond: demoResult.pond
+      });
+      return;
+    }
+
+    const signalResult = await query(
+      `
+        SELECT id, external_code, sensor_type, status
+        FROM scada_unmapped_signals
+        WHERE id = $1
+          AND tenant_id = $2
+        LIMIT 1
+      `,
+      [signalId, req.user.tenantId]
+    );
+
+    if (signalResult.rowCount === 0) {
+      throw new HttpError(404, "Signal not found");
+    }
+
+    const signal = signalResult.rows[0];
+
+    if (signal.status !== "open") {
+      throw new HttpError(409, "Signal is not open");
+    }
+
+    const pondResult = await query(
+      `
+        SELECT id, name
+        FROM ponds
+        WHERE id = $1
+          AND tenant_id = $2
+        LIMIT 1
+      `,
+      [pondId, req.user.tenantId]
+    );
+
+    if (pondResult.rowCount === 0) {
+      throw new HttpError(404, "Pond not found");
+    }
+
+    const duplicatedResult = await query(
+      `
+        SELECT id
+        FROM ponds
+        WHERE tenant_id = $1
+          AND external_code = $2
+          AND id <> $3
+        LIMIT 1
+      `,
+      [req.user.tenantId, signal.external_code, pondId]
+    );
+
+    if (duplicatedResult.rowCount > 0) {
+      throw new HttpError(409, "Ya existe una piscina con ese codigo externo.");
+    }
+
+    const updatedPond = await query(
+      `
+        UPDATE ponds
+        SET external_code = $3
+        WHERE id = $1
+          AND tenant_id = $2
+        RETURNING id, name, external_code
+      `,
+      [pondId, req.user.tenantId, signal.external_code]
+    );
+
+    const updatedSignal = await query(
+      `
+        UPDATE scada_unmapped_signals
+        SET
+          status = 'resolved',
+          resolved_at = NOW(),
+          resolved_by = $3,
+          resolved_pond_id = $4
+        WHERE id = $1
+          AND tenant_id = $2
+        RETURNING id, external_code, sensor_type, status, resolved_at, resolved_pond_id
+      `,
+      [signalId, req.user.tenantId, req.user.id || null, pondId]
+    );
+
+    res.json({
+      signal: updatedSignal.rows[0],
+      pond: updatedPond.rows[0]
+    });
   })
 );
 

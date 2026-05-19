@@ -14,6 +14,7 @@ import { CompliancePage } from "./pages/CompliancePage";
 import { ConsolidationPage } from "./pages/ConsolidationPage";
 import { CostMarginPage } from "./pages/CostMarginPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { FeedingConfirmationPage } from "./pages/FeedingConfirmationPage";
 import { HatcheryLarvalPage } from "./pages/HatcheryLarvalPage";
 import { HarvestLogisticsPage } from "./pages/HarvestLogisticsPage";
 import { HealthBiosecurityPage } from "./pages/HealthBiosecurityPage";
@@ -26,6 +27,7 @@ import { OxygenColorSetpointsPage } from "./pages/OxygenColorSetpointsPage";
 import { OperationsPage } from "./pages/OperationsPage";
 import { PhoneAlertSetpointsPage } from "./pages/PhoneAlertSetpointsPage";
 import { PlantMapPage } from "./pages/PlantMapPage";
+import { PondsCatalogPage } from "./pages/PondsCatalogPage";
 import { PlanningPage } from "./pages/PlanningPage";
 import { PlantAutomationEquipmentPage } from "./pages/PlantAutomationEquipmentPage";
 import { PreventiveMaintenancePage } from "./pages/PreventiveMaintenancePage";
@@ -35,6 +37,7 @@ import { SmsAlertSetpointsPage } from "./pages/SmsAlertSetpointsPage";
 import { StrategicForecastPage } from "./pages/StrategicForecastPage";
 import { TemperatureColorSetpointsPage } from "./pages/TemperatureColorSetpointsPage";
 import { TraceabilityPage } from "./pages/TraceabilityPage";
+import { TraceabilityPublicVerifyPage } from "./pages/TraceabilityPublicVerifyPage";
 import "./App.css";
 
 function NotFoundPage() {
@@ -84,6 +87,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/confirmacion/alimentacion" element={<FeedingConfirmationPage />} />
+      <Route path="/verificacion/trazabilidad/:publicId" element={<TraceabilityPublicVerifyPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
@@ -93,6 +98,10 @@ export default function App() {
             element={withFeature(FEATURE_KEYS.DASHBOARD_VIEW, <DashboardPage />)}
           />
           <Route path="/planta" element={withFeature(FEATURE_KEYS.PLANT_VIEW, <PlantMapPage />)} />
+          <Route
+            path="/planta/piscinas"
+            element={withFeature(FEATURE_KEYS.PLANT_VIEW, <PondsCatalogPage />)}
+          />
           <Route
             path="/oxigeno"
             element={withFeature(
@@ -113,6 +122,13 @@ export default function App() {
             element={withFeature(FEATURE_KEYS.PLANT_VIEW, <SensorHealthPage />)}
           />
           <Route
+            path="/planta/estacion-meteorologica"
+            element={withFeature(
+              FEATURE_KEYS.PLANT_VIEW,
+              <PlantAutomationEquipmentPage mode="estacionMeteorologica" />
+            )}
+          />
+          <Route
             path="/planta/compuertas"
             element={withFeature(
               FEATURE_KEYS.PLANT_VIEW,
@@ -124,6 +140,20 @@ export default function App() {
             element={withFeature(
               FEATURE_KEYS.PLANT_VIEW,
               <PlantAutomationEquipmentPage mode="grupoElectrogeno" />
+            )}
+          />
+          <Route
+            path="/planta/consumo-electrico"
+            element={withFeature(
+              FEATURE_KEYS.PLANT_VIEW,
+              <PlantAutomationEquipmentPage mode="consumoElectrico" />
+            )}
+          />
+          <Route
+            path="/planta/generacion-solar"
+            element={withFeature(
+              FEATURE_KEYS.PLANT_VIEW,
+              <PlantAutomationEquipmentPage mode="generacionSolar" />
             )}
           />
           <Route
@@ -143,6 +173,10 @@ export default function App() {
           <Route
             path="/oxigeno/economia"
             element={withFeature(FEATURE_KEYS.OXYGEN_VIEW, <OxygenPage mode="economia" />)}
+          />
+          <Route
+            path="/oxigeno/depositos"
+            element={withFeature(FEATURE_KEYS.OXYGEN_VIEW, <OxygenPage mode="depositos" />)}
           />
           <Route
             path="/consignas"
@@ -256,6 +290,20 @@ export default function App() {
           <Route
             path="/operaciones/sanidad-bioseguridad"
             element={withFeature(FEATURE_KEYS.OPERATIONS_VIEW, <HealthBiosecurityPage />)}
+          />
+          <Route
+            path="/operaciones/vacunacion"
+            element={withFeature(
+              FEATURE_KEYS.OPERATIONS_VIEW,
+              <HealthBiosecurityPage mode="vaccination" />
+            )}
+          />
+          <Route
+            path="/operaciones/medicacion"
+            element={withFeature(
+              FEATURE_KEYS.OPERATIONS_VIEW,
+              <HealthBiosecurityPage mode="medication" />
+            )}
           />
           <Route
             path="/operaciones/transporte-vivo"

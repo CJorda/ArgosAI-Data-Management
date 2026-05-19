@@ -1,0 +1,72 @@
+@reference "tailwindcss";
+
+.feeding-confirm-page {
+  @apply grid min-h-screen place-items-center px-4 py-8;
+  background: radial-gradient(circle at 20% 15%, #e8f5ff 0%, #f8fbff 55%, #eef4fb 100%);
+}
+
+.feeding-confirm-card {
+  @apply w-full max-w-2xl rounded-2xl border border-[#c9d9ee] bg-white px-6 py-8 shadow-[0_16px_30px_rgba(16,42,72,0.12)];
+}
+
+.feeding-confirm-tag {
+  @apply mb-2 inline-flex rounded-full border border-[#95bf9d] bg-[#e9f7ec] px-2.5 py-1 text-[0.78rem] font-semibold uppercase tracking-[0.05em] text-[#1f6a2f];
+}
+
+.feeding-confirm-card h1 {
+  @apply m-0 text-[1.6rem] text-[#18365c];
+}
+
+.feeding-confirm-subtitle {
+  @apply mb-4 mt-2 text-[#4b6382];
+}
+
+.feeding-confirm-details {
+  @apply grid gap-2 rounded-xl border border-[#d6e2f1] bg-[#f8fbff] p-3;
+}
+
+.feeding-confirm-details div {
+  @apply grid grid-cols-[minmax(140px,190px)_1fr] items-baseline gap-3 border-b border-[#e6edf7] py-1.5;
+}
+
+.feeding-confirm-details div:last-child {
+  @apply border-b-0;
+}
+
+.feeding-confirm-details dt {
+  @apply text-[0.8rem] uppercase tracking-[0.05em] text-[#5f7ea2];
+}
+
+.feeding-confirm-details dd {
+  @apply m-0 font-semibold text-[#1f426c];
+}
+
+.feeding-confirm-footnote {
+  @apply mb-0 mt-4 text-[0.86rem] text-[#4f6381];
+}
+
+.feeding-confirm-button {
+  @apply mt-4 rounded-lg border border-[#1a6e3f] bg-[#1f8a4f] px-4 py-2.5 text-[0.95rem] font-semibold text-white transition;
+}
+
+.feeding-confirm-button:hover {
+  @apply bg-[#187740];
+}
+
+.feeding-confirm-done-at {
+  @apply mt-4 rounded-lg border border-[#b7d7c2] bg-[#eef8f2] px-3 py-2 text-[0.9rem] font-semibold text-[#236744];
+}
+
+@media (max-width: 680px) {
+  .feeding-confirm-card {
+    @apply px-4 py-6;
+  }
+
+  .feeding-confirm-card h1 {
+    @apply text-[1.35rem];
+  }
+
+  .feeding-confirm-details div {
+    @apply grid-cols-1 gap-0;
+  }
+}

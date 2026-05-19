@@ -15,6 +15,7 @@ import { dataRoutes } from "./routes/dataRoutes.js";
 import { hatcheryRoutes } from "./routes/hatcheryRoutes.js";
 import { operationsRoutes } from "./routes/operationsRoutes.js";
 import { planningRoutes } from "./routes/planningRoutes.js";
+import { publicTraceabilityRoutes } from "./routes/publicTraceabilityRoutes.js";
 import { statsRoutes } from "./routes/statsRoutes.js";
 
 export function createApp() {
@@ -54,6 +55,7 @@ export function createApp() {
   app.use("/api/operations", operationsRoutes);
   app.use("/api/biomass", biomassRoutes);
   app.use("/api/planning", planningRoutes);
+  app.use("/api/public", publicTraceabilityRoutes);
   app.use("/api/hatchery", hatcheryRoutes);
   app.use("/api/consolidation", consolidationRoutes);
   app.use("/api/cameras", cameraRoutes);

@@ -29,6 +29,39 @@ export async function pondsRequest(token) {
   return data;
 }
 
+export async function createPondRequest(token, payload) {
+  const { data } = await apiClient.post("/data/ponds", payload, authConfig(token));
+  return data;
+}
+
+export async function updatePondMappingRequest(token, pondId, payload) {
+  const { data } = await apiClient.patch(
+    `/data/ponds/${pondId}/mapping`,
+    payload,
+    authConfig(token)
+  );
+  return data;
+}
+
+export async function ingestScadaReadingsRequest(token, payload) {
+  const { data } = await apiClient.post("/data/scada/readings", payload, authConfig(token));
+  return data;
+}
+
+export async function scadaUnmappedSignalsRequest(token) {
+  const { data } = await apiClient.get("/data/scada/unmapped", authConfig(token));
+  return data;
+}
+
+export async function resolveScadaUnmappedSignalRequest(token, signalId, payload) {
+  const { data } = await apiClient.post(
+    `/data/scada/unmapped/${signalId}/resolve`,
+    payload,
+    authConfig(token)
+  );
+  return data;
+}
+
 export async function sitesRequest(token) {
   const { data } = await apiClient.get("/data/sites", authConfig(token));
   return data;
@@ -454,6 +487,27 @@ export async function lotTimelineRequest(token, lotCode) {
   const { data } = await apiClient.get(
     `/planning/traceability/lots/${encodeURIComponent(lotCode)}`,
     authConfig(token)
+  );
+  return data;
+}
+
+export async function createTraceabilityCertificateRequest(token, payload) {
+  const { data } = await apiClient.post(
+    "/planning/traceability/certificates",
+    payload,
+    authConfig(token)
+  );
+  return data;
+}
+
+export async function verifyPublicTraceabilityCertificateRequest(publicId, signature) {
+  const { data } = await apiClient.get(
+    `/public/traceability/verify/${encodeURIComponent(publicId)}`,
+    {
+      params: {
+        sig: signature
+      }
+    }
   );
   return data;
 }

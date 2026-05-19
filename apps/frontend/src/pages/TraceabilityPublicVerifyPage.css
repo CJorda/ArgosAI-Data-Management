@@ -1,0 +1,47 @@
+@reference "tailwindcss";
+
+.trace-public-page {
+  @apply mx-auto max-w-4xl px-4 py-8;
+}
+
+.trace-public-card {
+  @apply rounded-2xl border border-[#d5e4f8] bg-white p-5 shadow-sm;
+}
+
+.trace-public-card h1 {
+  @apply text-[1.35rem] font-semibold text-[#1f3d63];
+}
+
+.trace-public-content {
+  @apply mt-4 grid gap-4;
+}
+
+.trace-public-status-grid {
+  @apply grid grid-cols-2 gap-3;
+}
+
+.trace-public-status-grid div {
+  @apply rounded-lg border border-[#d5e4f8] bg-[#f7fbff] px-3 py-2;
+}
+
+.trace-public-status-grid span {
+  @apply block text-[0.78rem] text-[#49668b];
+}
+
+.trace-public-status-grid strong {
+  @apply mt-1 block text-[1rem] text-[#1f3d63];
+}
+
+.trace-public-meta {
+  @apply rounded-lg border border-[#e3ebf8] bg-[#fbfdff] px-3 py-2 text-[0.9rem] text-[#324d73];
+}
+
+.trace-public-error {
+  @apply mt-3 rounded-lg border border-[#f6c1c1] bg-[#fff1f1] px-3 py-2 text-[#9d2f2f];
+}
+
+@media (max-width: 700px) {
+  .trace-public-status-grid {
+    @apply grid-cols-1;
+  }
+}

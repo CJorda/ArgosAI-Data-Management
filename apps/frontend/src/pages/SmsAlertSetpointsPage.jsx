@@ -105,6 +105,16 @@ function formatSetpointValue(value) {
   return numeric.toFixed(2);
 }
 
+function isParamEnabled(row, key) {
+  const explicitFlag = row?.[`${key}Enabled`];
+
+  if (typeof explicitFlag === "boolean") {
+    return explicitFlag;
+  }
+
+  return Number.isFinite(Number(row?.[key]));
+}
+
 export function SmsAlertSetpointsPage() {
   const { accessToken } = useAuth();
 
@@ -126,6 +136,24 @@ export function SmsAlertSetpointsPage() {
           oxygenMinPct: row.oxygen_min_pct,
           oxygenMaxPct: row.oxygen_max_pct,
           temperatureMaxC: row.temperature_max_c,
+          oxygenMinPctEnabled:
+            typeof row.oxygen_min_enabled === "boolean"
+              ? row.oxygen_min_enabled
+              : typeof row.oxygen_min_pct_enabled === "boolean"
+                ? row.oxygen_min_pct_enabled
+                : undefined,
+          oxygenMaxPctEnabled:
+            typeof row.oxygen_max_enabled === "boolean"
+              ? row.oxygen_max_enabled
+              : typeof row.oxygen_max_pct_enabled === "boolean"
+                ? row.oxygen_max_pct_enabled
+                : undefined,
+          temperatureMaxCEnabled:
+            typeof row.temperature_max_enabled === "boolean"
+              ? row.temperature_max_enabled
+              : typeof row.temperature_max_c_enabled === "boolean"
+                ? row.temperature_max_c_enabled
+                : undefined,
           updatedAt: row.updated_at || null
         }))
         .sort(
@@ -169,9 +197,11 @@ export function SmsAlertSetpointsPage() {
               <tr>
                 <th>Zona</th>
                 <th>Piscina</th>
-                <th>Activado</th>
+                <th>O2 mínimo activo</th>
                 <th>O2 mínimo (%)</th>
+                <th>O2 máximo activo</th>
                 <th>O2 máximo (%)</th>
+                <th>Temp máxima activa</th>
                 <th>Temp máxima (ºC)</th>
                 <th>Actualizado</th>
               </tr>
@@ -184,14 +214,38 @@ export function SmsAlertSetpointsPage() {
                   <td>
                     <span
                       className={`alert-activation-chip ${
-                        row.enabled ? "alert-activation-on" : "alert-activation-off"
+                        isParamEnabled(row, "oxygenMinPct")
+                          ? "alert-activation-on"
+                          : "alert-activation-off"
                       }`.trim()}
                     >
-                      {row.enabled ? "Sí" : "No"}
+                      {isParamEnabled(row, "oxygenMinPct") ? "Sí" : "No"}
                     </span>
                   </td>
                   <td>{formatSetpointValue(row.oxygenMinPct)}</td>
+                  <td>
+                    <span
+                      className={`alert-activation-chip ${
+                        isParamEnabled(row, "oxygenMaxPct")
+                          ? "alert-activation-on"
+                          : "alert-activation-off"
+                      }`.trim()}
+                    >
+                      {isParamEnabled(row, "oxygenMaxPct") ? "Sí" : "No"}
+                    </span>
+                  </td>
                   <td>{formatSetpointValue(row.oxygenMaxPct)}</td>
+                  <td>
+                    <span
+                      className={`alert-activation-chip ${
+                        isParamEnabled(row, "temperatureMaxC")
+                          ? "alert-activation-on"
+                          : "alert-activation-off"
+                      }`.trim()}
+                    >
+                      {isParamEnabled(row, "temperatureMaxC") ? "Sí" : "No"}
+                    </span>
+                  </td>
                   <td>{formatSetpointValue(row.temperatureMaxC)}</td>
                   <td>{row.updatedAt ? new Date(row.updatedAt).toLocaleString() : "--"}</td>
                 </tr>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createInventoryItemRequest,
@@ -9,6 +9,41 @@ import {
 } from "../api/services";
 import { useAuth } from "../context/AuthContext";
 import "./OperationsModulesPage.css";
+
+const DEMO_ITEMS_STORAGE_KEY = "inventoryDemoItems";
+const DEMO_MOVEMENTS_STORAGE_KEY = "inventoryDemoMovements";
+
+function extractApiErrorMessage(error, fallbackMessage) {
+  const apiMessage = error?.response?.data?.message;
+  if (apiMessage && String(apiMessage).trim()) {
+    return String(apiMessage).trim();
+  }
+
+  const fieldErrors = error?.response?.data?.details?.fieldErrors;
+  if (fieldErrors && typeof fieldErrors === "object") {
+    const firstField = Object.keys(fieldErrors)[0];
+    const firstMessage = firstField ? fieldErrors[firstField]?.[0] : null;
+    if (firstMessage) {
+      return String(firstMessage);
+    }
+  }
+
+  return fallbackMessage;
+}
+
+function isDatabaseUnavailableError(error) {
+  const message = String(error?.response?.data?.message || error?.message || "").toLowerCase();
+  return message.includes("database unavailable");
+}
+
+function safeParseArray(value) {
+  try {
+    const parsed = JSON.parse(String(value || "[]"));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 function toDateTimeLocalInput(value = new Date()) {
   const normalized = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
@@ -43,6 +78,18 @@ function statusClass(movementType) {
 export function InventoryPage() {
   const { accessToken } = useAuth();
   const queryClient = useQueryClient();
+  const [demoItems, setDemoItems] = useState(() => {
+    if (typeof window === "undefined") {
+      return [];
+    }
+    return safeParseArray(window.localStorage.getItem(DEMO_ITEMS_STORAGE_KEY));
+  });
+  const [demoMovements, setDemoMovements] = useState(() => {
+    if (typeof window === "undefined") {
+      return [];
+    }
+    return safeParseArray(window.localStorage.getItem(DEMO_MOVEMENTS_STORAGE_KEY));
+  });
 
   const [itemForm, setItemForm] = useState({
     sku: "",
@@ -54,6 +101,7 @@ export function InventoryPage() {
     location: "",
     supplier: ""
   });
+  const [itemFormError, setItemFormError] = useState("");
 
   const [movementForm, setMovementForm] = useState({
     itemId: "",
@@ -82,9 +130,33 @@ export function InventoryPage() {
     queryFn: () => pondsRequest(accessToken)
   });
 
+  const isInventoryDemoMode = useMemo(
+    () =>
+      isDatabaseUnavailableError(itemsQuery.error) ||
+      isDatabaseUnavailableError(movementsQuery.error),
+    [itemsQuery.error, movementsQuery.error]
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(DEMO_ITEMS_STORAGE_KEY, JSON.stringify(demoItems));
+  }, [demoItems]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(DEMO_MOVEMENTS_STORAGE_KEY, JSON.stringify(demoMovements));
+  }, [demoMovements]);
+
   const createItemMutation = useMutation({
     mutationFn: (payload) => createInventoryItemRequest(accessToken, payload),
     onSuccess: () => {
+      setItemFormError("");
       setItemForm((current) => ({
         ...current,
         sku: "",
@@ -95,6 +167,11 @@ export function InventoryPage() {
         supplier: ""
       }));
       queryClient.invalidateQueries({ queryKey: ["operations", "inventory", "items"] });
+    },
+    onError: (error) => {
+      setItemFormError(
+        extractApiErrorMessage(error, "No se pudo crear el ítem de inventario.")
+      );
     }
   });
 
@@ -114,8 +191,8 @@ export function InventoryPage() {
     }
   });
 
-  const items = itemsQuery.data || [];
-  const movements = movementsQuery.data || [];
+  const items = isInventoryDemoMode ? demoItems : itemsQuery.data || [];
+  const movements = isInventoryDemoMode ? demoMovements : movementsQuery.data || [];
 
   const lowStockCount = useMemo(
     () => items.filter((item) => Number(item.current_stock) <= Number(item.min_stock)).length,
@@ -124,15 +201,70 @@ export function InventoryPage() {
 
   const handleCreateItem = (event) => {
     event.preventDefault();
+    setItemFormError("");
 
-    if (!itemForm.sku.trim() || !itemForm.name.trim()) {
+    const sku = itemForm.sku.trim();
+    const name = itemForm.name.trim();
+    const category = itemForm.category.trim();
+
+    if (!sku || !name) {
+      setItemFormError("SKU y nombre son obligatorios.");
+      return;
+    }
+
+    if (name.length < 2) {
+      setItemFormError("El nombre debe tener al menos 2 caracteres.");
+      return;
+    }
+
+    if (category.length < 2) {
+      setItemFormError("La categoría debe tener al menos 2 caracteres.");
+      return;
+    }
+
+    if (isInventoryDemoMode) {
+      const existingSku = demoItems.some(
+        (item) => String(item.sku || "").toLowerCase() === sku.toLowerCase()
+      );
+
+      if (existingSku) {
+        setItemFormError("Ya existe un ítem con ese SKU en modo demo.");
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const newItem = {
+        id: `demo-item-${Date.now()}`,
+        sku: sku.toUpperCase(),
+        name,
+        category,
+        unit: itemForm.unit || "kg",
+        min_stock: itemForm.minStock ? Number(itemForm.minStock) : 0,
+        current_stock: itemForm.currentStock ? Number(itemForm.currentStock) : 0,
+        location: itemForm.location.trim() || null,
+        supplier: itemForm.supplier.trim() || null,
+        created_at: now,
+        updated_at: now
+      };
+
+      setDemoItems((current) => [newItem, ...current]);
+      setItemForm((current) => ({
+        ...current,
+        sku: "",
+        name: "",
+        minStock: "",
+        currentStock: "",
+        location: "",
+        supplier: ""
+      }));
+      setItemFormError("");
       return;
     }
 
     createItemMutation.mutate({
-      sku: itemForm.sku.trim(),
-      name: itemForm.name.trim(),
-      category: itemForm.category,
+      sku,
+      name,
+      category,
       unit: itemForm.unit,
       minStock: itemForm.minStock ? Number(itemForm.minStock) : 0,
       currentStock: itemForm.currentStock ? Number(itemForm.currentStock) : 0,
@@ -145,6 +277,76 @@ export function InventoryPage() {
     event.preventDefault();
 
     if (!movementForm.itemId || !movementForm.quantity) {
+      return;
+    }
+
+    if (isInventoryDemoMode) {
+      const quantity = Number(movementForm.quantity);
+      const itemId = String(movementForm.itemId);
+      const selectedItem = demoItems.find((item) => String(item.id) === itemId);
+
+      if (!selectedItem || !Number.isFinite(quantity) || quantity <= 0) {
+        return;
+      }
+
+      const movementType = movementForm.movementType;
+      const currentStock = Number(selectedItem.current_stock) || 0;
+      const targetStock =
+        movementType === "adjustment" && movementForm.targetStock !== ""
+          ? Number(movementForm.targetStock)
+          : null;
+
+      const nextStock =
+        movementType === "in"
+          ? currentStock + quantity
+          : movementType === "out"
+            ? currentStock - quantity
+            : Number.isFinite(targetStock)
+              ? targetStock
+              : currentStock;
+
+      const movedAtIso = toIsoOrNull(movementForm.movedAt) || new Date().toISOString();
+      const pondName =
+        (pondsQuery.data || []).find((pond) => String(pond.id) === String(movementForm.relatedPondId))
+          ?.name || null;
+
+      const movement = {
+        id: `demo-mov-${Date.now()}`,
+        item_id: selectedItem.id,
+        sku: selectedItem.sku,
+        item_name: selectedItem.name,
+        unit: selectedItem.unit,
+        movement_type: movementType,
+        quantity,
+        related_pond_id: movementForm.relatedPondId ? Number(movementForm.relatedPondId) : null,
+        pond_name: pondName,
+        related_lot_code: movementForm.relatedLotCode.trim() || null,
+        reason: movementForm.reason.trim() || null,
+        unit_cost: movementForm.unitCost ? Number(movementForm.unitCost) : null,
+        moved_at: movedAtIso,
+        created_at: new Date().toISOString()
+      };
+
+      setDemoItems((current) =>
+        current.map((item) =>
+          String(item.id) === itemId
+            ? {
+                ...item,
+                current_stock: Number(nextStock.toFixed(2)),
+                updated_at: new Date().toISOString()
+              }
+            : item
+        )
+      );
+      setDemoMovements((current) => [movement, ...current].slice(0, 220));
+      setMovementForm((current) => ({
+        ...current,
+        quantity: "",
+        targetStock: "",
+        relatedLotCode: "",
+        reason: "",
+        unitCost: ""
+      }));
       return;
     }
 
@@ -172,6 +374,11 @@ export function InventoryPage() {
           Controla stock mínimo, entradas/salidas y ajustes de inventario con trazabilidad por
           piscina y lote para evitar roturas en operación diaria.
         </p>
+        {isInventoryDemoMode ? (
+          <p className="module-inline-note">
+            Base de datos no disponible: inventario funcionando en modo demo local (este navegador).
+          </p>
+        ) : null}
         <p className="module-inline-note">
           Ítems totales: {items.length} | Riesgo de quiebre de stock: {lowStockCount}
         </p>
@@ -180,6 +387,11 @@ export function InventoryPage() {
       <div className="module-grid">
         <article className="panel">
           <h3>Nuevo ítem de inventario</h3>
+          {itemFormError ? (
+            <p className="module-error-note" role="alert">
+              {itemFormError}
+            </p>
+          ) : null}
           <form className="stack-form" onSubmit={handleCreateItem}>
             <label htmlFor="invSku">SKU</label>
             <input

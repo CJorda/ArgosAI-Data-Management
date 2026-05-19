@@ -36,8 +36,32 @@
   @apply border-[#b8d6f6] bg-[#f1f8ff];
 }
 
+.plant-stat-registered {
+  @apply border-[#c8dfcf] bg-[#f3fbf6];
+}
+
 .plant-stat-stale {
   @apply border-[#dbd9f2] bg-[#f6f5ff];
+}
+
+.plant-template-overflow-note {
+  @apply mt-3 mb-0 rounded-lg border border-[#f0d7a5] bg-[#fff8ea] px-3 py-2 text-[0.86rem] text-[#6d5622];
+}
+
+.plant-template-overflow-panel h3 {
+  @apply mt-0 mb-1;
+}
+
+.plant-template-overflow-panel p {
+  @apply mt-0 mb-3 text-[0.9rem] text-[#556782];
+}
+
+.plant-template-overflow-list {
+  @apply flex flex-wrap gap-2;
+}
+
+.plant-template-overflow-chip {
+  @apply inline-flex rounded-md border border-[#d9dfea] bg-[#f7faff] px-2 py-1 text-[0.82rem] text-[#2f4768];
 }
 
 .scada-panel {

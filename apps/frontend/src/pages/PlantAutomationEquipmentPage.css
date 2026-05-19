@@ -12,6 +12,19 @@
   @apply mt-1 mb-0 text-[#4f6483];
 }
 
+.automation-time-toolbar {
+  @apply mt-3 flex flex-wrap items-center gap-2 text-[0.82rem] text-[#3e5e85];
+}
+
+.automation-time-toolbar label {
+  @apply font-semibold text-[#2c4f78];
+}
+
+.automation-time-toolbar select,
+.automation-time-toolbar input {
+  @apply rounded-md border border-[#bfd0e6] bg-white px-2 py-1 text-[#24466f];
+}
+
 .automation-readonly-note {
   @apply mt-3 mb-0 rounded-lg border border-[#c9d8ee] bg-[#eff5ff] px-3 py-2 text-[0.84rem] text-[#295280];
 }
@@ -115,6 +128,10 @@
 
 .automation-kpi-card small {
   @apply mt-1 block text-[0.76rem] text-[#5f7493];
+}
+
+.automation-chart {
+  height: 320px;
 }
 
 @media (max-width: 1050px) {

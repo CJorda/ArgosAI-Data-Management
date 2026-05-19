@@ -69,6 +69,37 @@ function SidebarSubIcon({ path }) {
     );
   }
 
+  if (normalizedPath.includes("/consumo-electrico")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="2.6" y="3" width="10.8" height="10" rx="1.4" stroke="currentColor" strokeWidth="1.2" />
+        <path d="M5 10.7h1.5L5.7 12h2.4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M10 6.2v3.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (normalizedPath.includes("/generacion-solar")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="4.3" cy="4.2" r="1.3" stroke="currentColor" strokeWidth="1.1" />
+        <path d="M4.3 1.7v1M4.3 5.7v1M2 4.2h1M5.6 4.2h1" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+        <rect x="7.1" y="8" width="6.2" height="4" rx="0.8" stroke="currentColor" strokeWidth="1.1" />
+        <path d="M7.1 9.35h6.2M9.15 8v4M11.2 8v4" stroke="currentColor" strokeWidth="0.9" />
+      </svg>
+    );
+  }
+
+  if (normalizedPath.includes("/estacion-meteorologica")) {
+    return (
+      <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="4.1" r="1.8" stroke="currentColor" strokeWidth="1.1" />
+        <path d="M8 6v6.6M8 10.4h3.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        <circle cx="11.7" cy="10.4" r="1.25" stroke="currentColor" strokeWidth="1.1" />
+      </svg>
+    );
+  }
+
   if (normalizedPath.includes("/bombas")) {
     return (
       <svg className="sidebar-sub-link-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -212,6 +243,11 @@ const navItems = [
         group: "Supervisión en tiempo real"
       },
       {
+        to: "/planta/estacion-meteorologica",
+        label: "Estación meteorológica",
+        group: "Supervisión en tiempo real"
+      },
+      {
         to: "/planta/compuertas",
         label: "Compuertas entrada/salida",
         group: "Control hidráulico"
@@ -227,9 +263,24 @@ const navItems = [
         group: "Soporte energético"
       },
       {
+        to: "/planta/consumo-electrico",
+        label: "Consumo eléctrico planta",
+        group: "Soporte energético"
+      },
+      {
+        to: "/planta/generacion-solar",
+        label: "Generación solar",
+        group: "Soporte energético"
+      },
+      {
         to: "/planta/quitahojas",
         label: "Quitahojas",
         group: "Limpieza y sólidos"
+      },
+      {
+        to: "/planta/piscinas",
+        label: "Configuración de piscinas",
+        group: "Configuración base"
       },
       {
         to: "/oxigeno/electrovalvulas",
@@ -239,6 +290,11 @@ const navItems = [
       {
         to: "/oxigeno/economia",
         label: "Economía oxígeno",
+        group: "Supervisión en tiempo real"
+      },
+      {
+        to: "/oxigeno/depositos",
+        label: "Depósitos O2 líquido",
         group: "Supervisión en tiempo real"
       },
       {
@@ -329,6 +385,16 @@ const navItems = [
       {
         to: "/operaciones/sanidad-bioseguridad",
         label: "Sanidad y bioseguridad",
+        group: "Producción diaria"
+      },
+      {
+        to: "/operaciones/vacunacion",
+        label: "Vacunación",
+        group: "Producción diaria"
+      },
+      {
+        to: "/operaciones/medicacion",
+        label: "Medicación",
         group: "Producción diaria"
       },
       {
@@ -478,13 +544,18 @@ const featureByPath = {
   "/planta": FEATURE_KEYS.PLANT_VIEW,
   "/planta/caudal": FEATURE_KEYS.PLANT_VIEW,
   "/planta/salud-sensores": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/estacion-meteorologica": FEATURE_KEYS.PLANT_VIEW,
   "/planta/compuertas": FEATURE_KEYS.PLANT_VIEW,
   "/planta/grupo-electrogeno": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/consumo-electrico": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/generacion-solar": FEATURE_KEYS.PLANT_VIEW,
   "/planta/bombas": FEATURE_KEYS.PLANT_VIEW,
   "/planta/quitahojas": FEATURE_KEYS.PLANT_VIEW,
+  "/planta/piscinas": FEATURE_KEYS.PLANT_VIEW,
   "/oxigeno": FEATURE_KEYS.OXYGEN_VIEW,
   "/oxigeno/electrovalvulas": FEATURE_KEYS.OXYGEN_VIEW,
   "/oxigeno/economia": FEATURE_KEYS.OXYGEN_VIEW,
+  "/oxigeno/depositos": FEATURE_KEYS.OXYGEN_VIEW,
   "/consignas": FEATURE_KEYS.SETPOINTS_VIEW,
   "/consignas/oxigeno": FEATURE_KEYS.SETPOINTS_VIEW,
   "/consignas/temperatura": FEATURE_KEYS.SETPOINTS_VIEW,
@@ -514,6 +585,8 @@ const featureByPath = {
   "/operaciones/mantenimiento-preventivo": FEATURE_KEYS.OPERATIONS_VIEW,
   "/operaciones/inventario-operativo": FEATURE_KEYS.OPERATIONS_VIEW,
   "/operaciones/sanidad-bioseguridad": FEATURE_KEYS.OPERATIONS_VIEW,
+  "/operaciones/vacunacion": FEATURE_KEYS.OPERATIONS_VIEW,
+  "/operaciones/medicacion": FEATURE_KEYS.OPERATIONS_VIEW,
   "/operaciones/transporte-vivo": FEATURE_KEYS.OPERATIONS_VIEW,
   "/operaciones/cosecha-logistica": FEATURE_KEYS.OPERATIONS_VIEW,
   "/operaciones/coste-margen": FEATURE_KEYS.OPERATIONS_VIEW,

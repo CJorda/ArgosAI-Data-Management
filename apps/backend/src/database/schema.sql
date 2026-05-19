@@ -53,12 +53,20 @@ CREATE TABLE IF NOT EXISTS ponds (
   tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   site_id BIGINT REFERENCES sites(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
+  external_code TEXT,
   species TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active',
   volume_m3 DOUBLE PRECISION,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (tenant_id, name)
 );
+
+ALTER TABLE ponds
+  ADD COLUMN IF NOT EXISTS external_code TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ponds_tenant_external_code_uq
+  ON ponds (tenant_id, external_code)
+  WHERE external_code IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS hatchery_broodstock (
   id BIGSERIAL PRIMARY KEY,
@@ -204,6 +212,24 @@ CREATE TABLE IF NOT EXISTS measurements (
   recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id, recorded_at)
 ) PARTITION BY RANGE (recorded_at);
+
+CREATE TABLE IF NOT EXISTS scada_unmapped_signals (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  external_code TEXT NOT NULL,
+  sensor_type TEXT NOT NULL,
+  samples_count INTEGER NOT NULL DEFAULT 1,
+  first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_value DOUBLE PRECISION,
+  last_unit TEXT,
+  last_recorded_at TIMESTAMPTZ,
+  status TEXT NOT NULL DEFAULT 'open',
+  resolved_at TIMESTAMPTZ,
+  resolved_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  resolved_pond_id BIGINT REFERENCES ponds(id) ON DELETE SET NULL,
+  UNIQUE (tenant_id, external_code, sensor_type)
+);
 
 CREATE TABLE IF NOT EXISTS measurements_2025 PARTITION OF measurements
   FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
@@ -662,6 +688,23 @@ CREATE TABLE IF NOT EXISTS water_flow_alerts (
   CHECK (status IN ('open', 'resolved'))
 );
 
+CREATE TABLE IF NOT EXISTS traceability_certificates (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  public_id UUID NOT NULL,
+  lot_code TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  payload_hash TEXT NOT NULL,
+  verification_signature TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'valid',
+  created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  replaced_by_public_id UUID,
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (public_id),
+  CHECK (status IN ('valid', 'revoked', 'superseded'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_measurements_tenant_sensor_time
   ON measurements (tenant_id, sensor_id, recorded_at DESC);
 
@@ -769,6 +812,12 @@ CREATE INDEX IF NOT EXISTS idx_water_flow_meters_tenant_enabled
 
 CREATE INDEX IF NOT EXISTS idx_water_flow_alerts_tenant_status_created
   ON water_flow_alerts (tenant_id, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_traceability_certificates_tenant_lot_created
+  ON traceability_certificates (tenant_id, lot_code, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_traceability_certificates_public_id
+  ON traceability_certificates (public_id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_water_flow_alerts_open_unique
   ON water_flow_alerts (tenant_id, alert_type)

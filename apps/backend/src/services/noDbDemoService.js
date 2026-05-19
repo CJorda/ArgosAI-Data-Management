@@ -69,6 +69,7 @@ const demoPonds = [
     site_name: "Centro Norte",
     site_region: "Cantabrico",
     name: "F1",
+    external_code: "F1",
     species: "dorada",
     status: "active",
     volume_m3: 920,
@@ -81,6 +82,7 @@ const demoPonds = [
     site_name: "Centro Norte",
     site_region: "Cantabrico",
     name: "F2",
+    external_code: "F2",
     species: "lubina",
     status: "active",
     volume_m3: 950,
@@ -93,12 +95,22 @@ const demoPonds = [
     site_name: "Centro Sur",
     site_region: "Andalucia",
     name: "A1",
+    external_code: "A1",
     species: "trucha",
     status: "active",
     volume_m3: 680,
     created_at: "2026-01-10T08:35:00.000Z"
   }
 ];
+
+let demoPondIdSequence = demoPonds.reduce(
+  (maxValue, item) => Math.max(maxValue, Number(item.id) || 0),
+  0
+);
+let demoScadaReadingSequence = 1;
+const demoScadaIngestLog = [];
+let demoScadaUnmappedSequence = 1;
+const demoScadaUnmappedSignals = [];
 
 const demoSensors = [
   {
@@ -230,6 +242,7 @@ function readingValueForSensor(sensor, timestampMs) {
 }
 
 let readingIdSequence = 20_000;
+const demoTraceabilityCertificates = new Map();
 
 function buildReadingRow(sensor, recordedAtIso) {
   const recordedAt = new Date(recordedAtIso).getTime();
@@ -913,12 +926,287 @@ export function getDemoPonds() {
   return clone(demoPonds);
 }
 
+export function createDemoPond({ siteId = null, name, externalCode = null, species, volumeM3 = null } = {}) {
+  const normalizedName = String(name || "").trim();
+  const normalizedSpecies = String(species || "").trim();
+
+  if (normalizedName.length < 2) {
+    return {
+      error: "El nombre de la piscina debe tener al menos 2 caracteres.",
+      status: 400
+    };
+  }
+
+  if (normalizedSpecies.length < 2) {
+    return {
+      error: "La especie debe tener al menos 2 caracteres.",
+      status: 400
+    };
+  }
+
+  const normalizedExternalCode = String(externalCode || "").trim().toUpperCase() || null;
+
+  if (normalizedExternalCode) {
+    const duplicatedExternalCode = demoPonds.some(
+      (item) => String(item.external_code || "").toUpperCase() === normalizedExternalCode
+    );
+
+    if (duplicatedExternalCode) {
+      return {
+        error: "Ya existe una piscina con ese codigo externo.",
+        status: 409
+      };
+    }
+  }
+
+  const duplicated = demoPonds.some(
+    (item) => String(item.name || "").toLowerCase() === normalizedName.toLowerCase()
+  );
+
+  if (duplicated) {
+    return {
+      error: "Ya existe una piscina con ese nombre.",
+      status: 409
+    };
+  }
+
+  let selectedSite = null;
+  if (siteId !== null && siteId !== undefined) {
+    selectedSite = demoSites.find((item) => Number(item.id) === Number(siteId)) || null;
+    if (!selectedSite) {
+      return {
+        error: "Site not found",
+        status: 404
+      };
+    }
+  }
+
+  demoPondIdSequence += 1;
+
+  const pond = {
+    id: demoPondIdSequence,
+    site_id: selectedSite ? selectedSite.id : null,
+    site_code: selectedSite ? selectedSite.code : null,
+    site_name: selectedSite ? selectedSite.name : null,
+    site_region: selectedSite ? selectedSite.region : null,
+    name: normalizedName,
+    external_code: normalizedExternalCode,
+    species: normalizedSpecies,
+    status: "active",
+    volume_m3: Number.isFinite(Number(volumeM3)) ? Number(volumeM3) : null,
+    created_at: new Date().toISOString()
+  };
+
+  demoPonds.push(pond);
+
+  return {
+    pond: clone(pond),
+    error: null,
+    status: 201
+  };
+}
+
 export function getDemoSensors({ pondId = null } = {}) {
   const filtered = pondId
     ? demoSensors.filter((sensor) => sensor.pond_id === Number(pondId))
     : demoSensors;
 
   return clone(filtered);
+}
+
+export function updateDemoPondExternalCode({ pondId, externalCode }) {
+  const target = demoPonds.find((item) => Number(item.id) === Number(pondId));
+
+  if (!target) {
+    return {
+      error: "Pond not found",
+      status: 404,
+      pond: null
+    };
+  }
+
+  const normalizedExternalCode = String(externalCode || "").trim().toUpperCase() || null;
+
+  if (normalizedExternalCode) {
+    const duplicated = demoPonds.some(
+      (item) =>
+        Number(item.id) !== Number(pondId) &&
+        String(item.external_code || "").toUpperCase() === normalizedExternalCode
+    );
+
+    if (duplicated) {
+      return {
+        error: "Ya existe una piscina con ese codigo externo.",
+        status: 409,
+        pond: null
+      };
+    }
+  }
+
+  target.external_code = normalizedExternalCode;
+
+  return {
+    error: null,
+    status: 200,
+    pond: clone(target)
+  };
+}
+
+export function ingestDemoScadaReadings(readings = []) {
+  const mapped = [];
+  const unmapped = [];
+
+  for (const reading of readings) {
+    const externalCode = String(reading.externalCode || "").trim().toUpperCase();
+    const pond = demoPonds.find(
+      (item) => String(item.external_code || "").toUpperCase() === externalCode
+    );
+
+    if (!pond) {
+      const normalizedSensorType = String(reading.sensorType || "").toLowerCase();
+      const nowIso = new Date().toISOString();
+      const existingUnmapped = demoScadaUnmappedSignals.find(
+        (item) =>
+          String(item.external_code || "").toUpperCase() === externalCode &&
+          String(item.sensor_type || "").toLowerCase() === normalizedSensorType
+      );
+
+      if (existingUnmapped) {
+        existingUnmapped.status = "open";
+        existingUnmapped.samples_count = Number(existingUnmapped.samples_count || 0) + 1;
+        existingUnmapped.last_value = Number(reading.value);
+        existingUnmapped.last_unit = String(reading.unit || "") || null;
+        existingUnmapped.last_recorded_at = reading.recordedAt || nowIso;
+        existingUnmapped.last_seen_at = nowIso;
+        existingUnmapped.resolved_at = null;
+        existingUnmapped.resolved_by = null;
+        existingUnmapped.resolved_pond_id = null;
+      } else {
+        demoScadaUnmappedSignals.push({
+          id: demoScadaUnmappedSequence += 1,
+          external_code: externalCode,
+          sensor_type: normalizedSensorType,
+          samples_count: 1,
+          first_seen_at: nowIso,
+          last_seen_at: nowIso,
+          last_value: Number(reading.value),
+          last_unit: String(reading.unit || "") || null,
+          last_recorded_at: reading.recordedAt || nowIso,
+          status: "open",
+          resolved_at: null,
+          resolved_by: null,
+          resolved_pond_id: null
+        });
+      }
+
+      unmapped.push({
+        externalCode,
+        sensorType: normalizedSensorType,
+        reason: "Pond external code is not mapped"
+      });
+      continue;
+    }
+
+    for (const pending of demoScadaUnmappedSignals) {
+      if (String(pending.external_code || "").toUpperCase() === externalCode && pending.status === "open") {
+        pending.status = "resolved";
+        pending.resolved_pond_id = pond.id;
+        pending.resolved_at = new Date().toISOString();
+      }
+    }
+
+    const loggedReading = {
+      id: demoScadaReadingSequence += 1,
+      pondId: pond.id,
+      pondName: pond.name,
+      externalCode,
+      sensorType: String(reading.sensorType || "").toLowerCase(),
+      value: Number(reading.value),
+      unit: String(reading.unit || ""),
+      quality: String(reading.quality || "good").toLowerCase(),
+      recordedAt: reading.recordedAt || new Date().toISOString()
+    };
+
+    demoScadaIngestLog.push(loggedReading);
+    if (demoScadaIngestLog.length > 1000) {
+      demoScadaIngestLog.splice(0, demoScadaIngestLog.length - 1000);
+    }
+
+    mapped.push(loggedReading);
+  }
+
+  return {
+    total: readings.length,
+    accepted: mapped.length,
+    rejected: unmapped.length,
+    mapped,
+    unmapped
+  };
+}
+
+export function listDemoScadaUnmappedSignals() {
+  return clone(
+    demoScadaUnmappedSignals
+      .filter((item) => item.status === "open")
+      .sort((left, right) => new Date(right.last_seen_at).getTime() - new Date(left.last_seen_at).getTime())
+  );
+}
+
+export function resolveDemoScadaUnmappedSignal({ signalId, pondId, actorUserId = null }) {
+  const signal = demoScadaUnmappedSignals.find((item) => Number(item.id) === Number(signalId));
+
+  if (!signal) {
+    return {
+      error: "Signal not found",
+      status: 404,
+      signal: null
+    };
+  }
+
+  if (signal.status !== "open") {
+    return {
+      error: "Signal is not open",
+      status: 409,
+      signal: null
+    };
+  }
+
+  const targetPond = demoPonds.find((item) => Number(item.id) === Number(pondId));
+
+  if (!targetPond) {
+    return {
+      error: "Pond not found",
+      status: 404,
+      signal: null
+    };
+  }
+
+  const duplicated = demoPonds.some(
+    (item) =>
+      Number(item.id) !== Number(targetPond.id) &&
+      String(item.external_code || "").toUpperCase() === String(signal.external_code || "").toUpperCase()
+  );
+
+  if (duplicated) {
+    return {
+      error: "Ya existe una piscina con ese codigo externo.",
+      status: 409,
+      signal: null
+    };
+  }
+
+  targetPond.external_code = String(signal.external_code || "").toUpperCase();
+  signal.status = "resolved";
+  signal.resolved_at = new Date().toISOString();
+  signal.resolved_by = actorUserId;
+  signal.resolved_pond_id = targetPond.id;
+
+  return {
+    error: null,
+    status: 200,
+    signal: clone(signal),
+    pond: clone(targetPond)
+  };
 }
 
 export function getDemoLatestReadings(limit = 24) {
@@ -1873,4 +2161,26 @@ export function resolveDemoWaterFlowAlert(alertId) {
   alert.resolved_at = nowIso;
 
   return clone(alert);
+}
+
+export function createDemoTraceabilityCertificate(record) {
+  const normalizedRecord = {
+    public_id: String(record.public_id),
+    lot_code: String(record.lot_code),
+    payload: clone(record.payload || {}),
+    payload_hash: String(record.payload_hash),
+    verification_signature: String(record.verification_signature),
+    status: String(record.status || "valid"),
+    created_at: record.created_at || new Date().toISOString(),
+    revoked_at: record.revoked_at || null,
+    replaced_by_public_id: record.replaced_by_public_id || null
+  };
+
+  demoTraceabilityCertificates.set(normalizedRecord.public_id, normalizedRecord);
+  return clone(normalizedRecord);
+}
+
+export function getDemoTraceabilityCertificate(publicId) {
+  const record = demoTraceabilityCertificates.get(String(publicId));
+  return record ? clone(record) : null;
 }

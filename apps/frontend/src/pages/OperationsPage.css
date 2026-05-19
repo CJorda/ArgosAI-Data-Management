@@ -24,6 +24,18 @@
   @apply rounded-md border border-[#bfd0e6] bg-white px-2 py-1 text-[#264465];
 }
 
+.operations-public-url-input {
+  @apply min-w-[280px] rounded-md border border-[#bfd0e6] bg-white px-2 py-1 text-[#264465];
+}
+
+.operations-feed-select {
+  @apply min-w-[260px] rounded-md border border-[#bfd0e6] bg-white px-2 py-1 text-[#264465];
+}
+
+.operations-feed-stock-chip {
+  @apply inline-flex rounded-md border border-[#afcbe8] bg-[#f2f8ff] px-2.5 py-1 text-[0.82rem] font-semibold text-[#2d5b8e];
+}
+
 .operations-pdf-button {
   @apply rounded-md border border-[#0f4f95] bg-[#edf5ff] px-3 py-2 text-[0.85rem] font-semibold text-[#0f4f95] transition-colors;
 }

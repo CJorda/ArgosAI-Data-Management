@@ -505,6 +505,63 @@ export function OxygenPage({ mode = "electrovalvulas" }) {
     };
   }, [economyConfig, oxygenSetpointsState]);
 
+  const loxState = useMemo(() => {
+    const deposits = buildDemoLoxDeposits().map((deposit, index) => {
+      const liters = clamp(
+        deposit.liters + Math.sin((Date.now() / 1000 + index * 4) * 0.002) * 120,
+        300,
+        deposit.capacityL
+      );
+      const pressureBar = clamp(
+        deposit.pressureBar + Math.cos((Date.now() / 1000 + index * 7) * 0.0022) * 0.35,
+        7.8,
+        16.5
+      );
+      const flowNm3h = clamp(
+        deposit.flowNm3h + Math.sin((Date.now() / 1000 + index * 9) * 0.0018) * 16,
+        10,
+        280
+      );
+      const fillPct = (liters / Math.max(deposit.capacityL, 1)) * 100;
+      const status = refillStatusFromPercent(fillPct);
+
+      return {
+        ...deposit,
+        liters,
+        pressureBar,
+        flowNm3h,
+        fillPct,
+        status
+      };
+    });
+
+    const totalCapacityL = deposits.reduce((sum, deposit) => sum + deposit.capacityL, 0);
+    const totalLiters = deposits.reduce((sum, deposit) => sum + deposit.liters, 0);
+    const totalFlowNm3h = deposits.reduce((sum, deposit) => sum + deposit.flowNm3h, 0);
+    const weightedPressureBar =
+      totalCapacityL > 0
+        ? deposits.reduce((sum, deposit) => sum + deposit.pressureBar * deposit.capacityL, 0) /
+          totalCapacityL
+        : 0;
+    const avgDailyConsumptionL = totalFlowNm3h * 24 * 0.86;
+    const autonomyDays = avgDailyConsumptionL > 0 ? totalLiters / avgDailyConsumptionL : 0;
+    const needsRefill = deposits.some((deposit) => deposit.fillPct <= 35);
+
+    return {
+      deposits,
+      totalCapacityL,
+      totalLiters,
+      fillPct: totalCapacityL > 0 ? (totalLiters / totalCapacityL) * 100 : 0,
+      totalFlowNm3h,
+      weightedPressureBar,
+      avgDailyConsumptionL,
+      autonomyDays,
+      needsRefill,
+      levelChartOption: loxLevelTrendOption(deposits),
+      pressureFlowChartOption: loxPressureFlowOption(deposits)
+    };
+  }, [oxygenSetpointsState.rows]);
+
   function handleEconomyConfigChange(fieldName) {
     return (event) => {
       const rawValue = event.target.value;
@@ -721,6 +778,206 @@ export function OxygenPage({ mode = "electrovalvulas" }) {
           </div>
         </article>
       ) : null}
+
+      {mode === "depositos" ? (
+        <article className="panel oxygen-lox-panel">
+          <div className="oxygen-economy-header">
+            <h3>Depósitos de O2 líquido</h3>
+            <p>
+              Nivel, presión y caudal por depósito criogénico para supervisar consumo y anticipar
+              recargas.
+            </p>
+          </div>
+
+          <div className="oxygen-economy-kpi-grid">
+            <article className="oxygen-economy-kpi">
+              <p>Inventario total</p>
+              <strong>{formatLiters(loxState.totalLiters)} L</strong>
+              <span>{formatLiters(loxState.totalCapacityL)} L capacidad instalada</span>
+            </article>
+
+            <article
+              className={`oxygen-economy-kpi ${
+                loxState.needsRefill ? "oxygen-economy-kpi-overcost" : "oxygen-economy-kpi-savings"
+              }`.trim()}
+            >
+              <p>Nivel agregado</p>
+              <strong>{formatSetpointPercent(loxState.fillPct)}%</strong>
+              <span>{loxState.needsRefill ? "Se recomienda recarga" : "Nivel operativo estable"}</span>
+            </article>
+
+            <article className="oxygen-economy-kpi">
+              <p>Presión media</p>
+              <strong>{formatSetpointPercent(loxState.weightedPressureBar)} bar</strong>
+              <span>Monitorización de vaporización</span>
+            </article>
+
+            <article className="oxygen-economy-kpi">
+              <p>Autonomía estimada</p>
+              <strong>{formatSetpointPercent(loxState.autonomyDays)} días</strong>
+              <span>{formatLiters(loxState.avgDailyConsumptionL)} L/día consumo aproximado</span>
+            </article>
+          </div>
+
+          <div className="table-wrap oxygen-lox-table-wrap">
+            <table className="oxygen-page-table">
+              <thead>
+                <tr>
+                  <th>Depósito</th>
+                  <th>Ubicación</th>
+                  <th>Litros</th>
+                  <th>Nivel</th>
+                  <th>Presión</th>
+                  <th>Caudal</th>
+                  <th>Recarga</th>
+                  <th>Última recarga</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loxState.deposits.map((deposit) => (
+                  <tr key={deposit.code}>
+                    <td>{deposit.code}</td>
+                    <td>{deposit.area}</td>
+                    <td>{formatLiters(deposit.liters)} L</td>
+                    <td>{formatSetpointPercent(deposit.fillPct)}%</td>
+                    <td>{formatSetpointPercent(deposit.pressureBar)} bar</td>
+                    <td>{formatSetpointPercent(deposit.flowNm3h)} Nm3/h</td>
+                    <td>
+                      <span className={`oxygen-lox-status ${deposit.status.className}`.trim()}>
+                        {deposit.status.label}
+                      </span>
+                    </td>
+                    <td>{new Date(deposit.lastRefillAt).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="oxygen-economy-chart-wrap">
+            <ReactECharts option={loxState.levelChartOption} style={{ height: 320 }} notMerge />
+          </div>
+
+          <div className="oxygen-economy-chart-wrap">
+            <ReactECharts option={loxState.pressureFlowChartOption} style={{ height: 300 }} notMerge />
+          </div>
+        </article>
+      ) : null}
     </section>
   );
+}
+
+function buildDemoLoxDeposits() {
+  return [
+    {
+      code: "LOX-01",
+      area: "Cabecera norte",
+      capacityL: 12000,
+      liters: 4860,
+      pressureBar: 12.4,
+      flowNm3h: 146,
+      lastRefillAt: new Date(Date.now() - 6 * 24 * 3600 * 1000).toISOString()
+    },
+    {
+      code: "LOX-02",
+      area: "Cabecera sur",
+      capacityL: 9000,
+      liters: 2380,
+      pressureBar: 10.8,
+      flowNm3h: 118,
+      lastRefillAt: new Date(Date.now() - 9 * 24 * 3600 * 1000).toISOString()
+    }
+  ];
+}
+
+function refillStatusFromPercent(fillPct) {
+  if (fillPct <= 20) {
+    return {
+      label: "Recarga urgente",
+      className: "oxygen-lox-status-critical"
+    };
+  }
+
+  if (fillPct <= 35) {
+    return {
+      label: "Programar recarga",
+      className: "oxygen-lox-status-warning"
+    };
+  }
+
+  return {
+    label: "Nivel estable",
+    className: "oxygen-lox-status-ok"
+  };
+}
+
+function loxLevelTrendOption(deposits) {
+  const labels = Array.from({ length: 12 }, (_, idx) => `${String(idx * 2).padStart(2, "0")}:00`);
+  const series = deposits.map((deposit, index) => {
+    const currentFillPct = (deposit.liters / Math.max(deposit.capacityL, 1)) * 100;
+    return {
+      name: deposit.code,
+      type: "line",
+      smooth: true,
+      symbol: "none",
+      data: labels.map((_, labelIndex) =>
+        clamp(
+          currentFillPct + Math.cos((labelIndex + 1 + index) * 0.44) * 5 - (11 - labelIndex) * 0.52,
+          8,
+          100
+        ).toFixed(1)
+      )
+    };
+  });
+
+  return {
+    tooltip: { trigger: "axis" },
+    legend: { top: 0 },
+    grid: { left: 40, right: 16, top: 36, bottom: 30 },
+    xAxis: { type: "category", data: labels, boundaryGap: false },
+    yAxis: { type: "value", min: 0, max: 100, axisLabel: { formatter: "{value}%" } },
+    series,
+    color: ["#2f6ca8", "#46b889", "#e09b39"]
+  };
+}
+
+function loxPressureFlowOption(deposits) {
+  return {
+    tooltip: { trigger: "axis" },
+    legend: { top: 0 },
+    grid: { left: 42, right: 44, top: 34, bottom: 28 },
+    xAxis: {
+      type: "category",
+      data: deposits.map((deposit) => deposit.code)
+    },
+    yAxis: [
+      {
+        type: "value",
+        name: "bar",
+        axisLabel: { formatter: "{value} bar" }
+      },
+      {
+        type: "value",
+        name: "Nm3/h",
+        axisLabel: { formatter: "{value}" }
+      }
+    ],
+    series: [
+      {
+        name: "Presión",
+        type: "bar",
+        barMaxWidth: 28,
+        data: deposits.map((deposit) => Number(deposit.pressureBar.toFixed(2)))
+      },
+      {
+        name: "Caudal",
+        type: "line",
+        yAxisIndex: 1,
+        smooth: true,
+        symbolSize: 7,
+        data: deposits.map((deposit) => Number(deposit.flowNm3h.toFixed(1)))
+      }
+    ],
+    color: ["#7aa7d8", "#215ea8"]
+  };
 }

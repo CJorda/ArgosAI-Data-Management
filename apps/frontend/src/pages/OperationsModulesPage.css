@@ -16,6 +16,10 @@
   @apply mt-1 rounded-lg border border-[#d8e2f3] bg-[#f4f8ff] px-3 py-2 text-[0.84rem] text-[#33567f];
 }
 
+.module-error-note {
+  @apply mt-1 rounded-lg border border-[#efc5c5] bg-[#fff1f1] px-3 py-2 text-[0.84rem] text-[#8f2d2d];
+}
+
 .module-subtitle {
   @apply mt-4 mb-2 text-[0.93rem] font-semibold text-[#27466f];
 }

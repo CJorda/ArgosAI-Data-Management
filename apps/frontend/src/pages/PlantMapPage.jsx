@@ -796,7 +796,7 @@ export function PlantMapPage() {
     const unassigned = [];
 
     for (const pond of availablePonds) {
-      const candidates = extractSlotCandidates(pond.name);
+      const candidates = extractSlotCandidates(pond.external_code || pond.name);
       const targetSlot = candidates.find(
         (candidate) => templateCodeSet.has(candidate) && !usedSlots.has(candidate)
       );
@@ -967,6 +967,16 @@ export function PlantMapPage() {
     [pondTiles]
   );
 
+  const pondsOutsideScadaTemplate = useMemo(() => {
+    const displayedPondIds = new Set(
+      pondTiles
+        .filter((tile) => tile.configured && tile.pondId)
+        .map((tile) => Number(tile.pondId))
+    );
+
+    return (pondsQuery.data || []).filter((pond) => !displayedPondIds.has(Number(pond.id)));
+  }, [pondTiles, pondsQuery.data]);
+
   const renderMetricWithTrend = (sensorType, metric, direction, options = {}) => {
     const { valuePrefix = "", ...metricFormatOptions } = options;
     const trendTone = trendToneBySensor(sensorType, direction, metric);
@@ -999,6 +1009,10 @@ export function PlantMapPage() {
         ) : null}
 
         <div className="plant-summary-grid">
+          <div className="plant-stat plant-stat-registered">
+            <span>Piscinas registradas</span>
+            <strong>{(pondsQuery.data || []).length}</strong>
+          </div>
           <div className="plant-stat">
             <span>Total piscinas</span>
             <strong>{summary.total}</strong>
@@ -1016,7 +1030,30 @@ export function PlantMapPage() {
             <strong>{summary.unlinked}</strong>
           </div>
         </div>
+
+        {pondsOutsideScadaTemplate.length > 0 ? (
+          <p className="plant-template-overflow-note">
+            Hay {pondsOutsideScadaTemplate.length} piscina(s) registrada(s) fuera del plano SCADA actual.
+            Se muestran abajo para que no se pierdan.
+          </p>
+        ) : null}
       </article>
+
+      {pondsOutsideScadaTemplate.length > 0 ? (
+        <article className="panel plant-template-overflow-panel">
+          <h3>Piscinas fuera de plantilla SCADA</h3>
+          <p>
+            Estas piscinas existen en catálogo, pero no tienen slot disponible en el plano fijo.
+          </p>
+          <div className="plant-template-overflow-list">
+            {pondsOutsideScadaTemplate.map((pond) => (
+              <span key={`outside-${pond.id}`} className="plant-template-overflow-chip">
+                {pond.name}
+              </span>
+            ))}
+          </div>
+        </article>
+      ) : null}
 
       <article className="panel scada-panel">
         <header className="scada-header">

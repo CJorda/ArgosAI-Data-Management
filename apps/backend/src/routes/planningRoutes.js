@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { randomUUID } from "crypto";
+import { createHash, createHmac, randomUUID } from "crypto";
 import { z } from "zod";
 import { env } from "../config/env.js";
 import { query } from "../database/pool.js";
@@ -7,11 +7,24 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireFeature } from "../middleware/featureAccess.js";
 import { FEATURE_KEYS } from "../security/featureCatalog.js";
 import { buildExecutiveReportForTenant } from "../services/executiveReportService.js";
+import { createDemoTraceabilityCertificate } from "../services/noDbDemoService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { HttpError } from "../utils/httpError.js";
 
 const lotCodeSchema = z.object({
   lotCode: z.string().min(1).max(80)
+});
+
+const traceabilityCertificateCreateSchema = z.object({
+  lotCode: z.string().trim().min(1).max(80),
+  filters: z
+    .object({
+      source: z.string().optional(),
+      search: z.string().optional()
+    })
+    .optional(),
+  stats: z.record(z.any()).optional(),
+  timeline: z.array(z.record(z.any())).max(1000)
 });
 
 const reportAutomationRunNowSchema = z.object({
@@ -64,6 +77,25 @@ const SCHEDULED_REPORT_ACTION = "planning.executive_report.scheduled.generated";
 const MANUAL_REPORT_ACTION = "planning.executive_report.manual.generated";
 const TRAINING_SCENARIO_ACTION = "planning.harvest_simulator.training_scenario.saved";
 const TRAINING_SCENARIO_ENTITY = "harvest_simulator_training_scenarios";
+const TRACEABILITY_SIGNATURE_SECRET = env.traceabilityVerifySecret || env.jwtAccessSecret;
+
+function stableStringify(value) {
+  if (value === null || value === undefined) {
+    return "null";
+  }
+
+  if (typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+
+  const keys = Object.keys(value).sort();
+  const mapped = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`);
+  return `{${mapped.join(",")}}`;
+}
 
 const numberOrNull = (value) => {
   if (value === null || value === undefined) {
@@ -1056,6 +1088,87 @@ planningRoutes.get(
     res.json({
       lotCode,
       timeline: result.rows
+    });
+  })
+);
+
+planningRoutes.post(
+  "/traceability/certificates",
+  asyncHandler(async (req, res) => {
+    const parseResult = traceabilityCertificateCreateSchema.safeParse(req.body || {});
+
+    if (!parseResult.success) {
+      throw new HttpError(400, "Invalid certificate payload");
+    }
+
+    const { lotCode, timeline, filters, stats } = parseResult.data;
+
+    if (timeline.length === 0) {
+      throw new HttpError(400, "Timeline cannot be empty");
+    }
+
+    const payload = {
+      lotCode,
+      generatedAt: new Date().toISOString(),
+      filters: filters || {},
+      stats: stats || {},
+      timeline
+    };
+
+    const canonicalPayload = stableStringify(payload);
+    const payloadHash = createHash("sha256").update(canonicalPayload).digest("hex");
+    const publicId = randomUUID();
+    const verificationSignature = createHmac("sha256", TRACEABILITY_SIGNATURE_SECRET)
+      .update(`${publicId}.${payloadHash}`)
+      .digest("hex");
+
+    if (env.noPostgresMode) {
+      createDemoTraceabilityCertificate({
+        public_id: publicId,
+        lot_code: lotCode,
+        payload,
+        payload_hash: payloadHash,
+        verification_signature: verificationSignature,
+        status: "valid",
+        created_at: new Date().toISOString(),
+        revoked_at: null,
+        replaced_by_public_id: null
+      });
+    } else {
+      await query(
+        `
+          INSERT INTO traceability_certificates (
+            tenant_id,
+            public_id,
+            lot_code,
+            payload,
+            payload_hash,
+            verification_signature,
+            status,
+            created_by
+          )
+          VALUES ($1, $2, $3, $4::jsonb, $5, $6, 'valid', $7)
+        `,
+        [
+          req.user.tenantId,
+          publicId,
+          lotCode,
+          JSON.stringify(payload),
+          payloadHash,
+          verificationSignature,
+          req.user.id || null
+        ]
+      );
+    }
+
+    const apiVerifyUrl = `${req.protocol}://${req.get("host")}/api/public/traceability/verify/${publicId}?sig=${verificationSignature}`;
+
+    res.status(201).json({
+      publicId,
+      lotCode,
+      payloadHash,
+      signature: verificationSignature,
+      verifyApiUrl: apiVerifyUrl
     });
   })
 );
